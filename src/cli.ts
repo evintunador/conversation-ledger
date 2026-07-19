@@ -1,0 +1,280 @@
+#!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import { stdin as input } from "node:process";
+import { findRepo, type RepoInfo } from "./git.js";
+import {
+  appendEvents,
+  readEvents,
+  sortEvents,
+  sync,
+  type ReadOptions,
+} from "./store.js";
+import { parseEventLine, type EventDraft, type EvidenceEvent } from "./schema.js";
+import { runClaudeCodeHook, captureClaudeTranscript } from "./adapters/claude-code.js";
+import { runCodexHook, captureCodexTranscript } from "./adapters/codex.js";
+import { installAdapters } from "./install.js";
+
+const USAGE = `conversation-ledger — durable records of coding-agent conversations, in git notes
+
+Usage:
+  cledger append [--quiet]                 append JSONL events/drafts from stdin
+  cledger log [--all|--rev R] [--kind K] [--source S] [--conversation C] [--json]
+  cledger show <conversation-id-prefix> [--json]
+  cledger conversations [--rev R]         list conversations on current branch (--all for every branch)
+  cledger export [--rev R]                lossless JSONL dump (default: everything)
+  cledger sync [--remote R] [--push|--fetch]   explicit opt-in fetch/merge/push of the ledger ref
+  cledger install <claude-code|codex|all>  hook capture into coding CLIs (global)
+  cledger hook <claude-code>              capture entrypoint invoked by CLI hooks (stdin: hook payload)
+  cledger capture <claude-code|codex> --transcript PATH   manual/backfill ingestion
+  cledger --version | --help
+
+Events are anchored to the HEAD commit at capture time and stored under
+refs/notes/conversation-ledger, so they follow branches through merges and
+sync only when you say so.`;
+
+function version(): string {
+  const pkg = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { version: string };
+  return pkg.version;
+}
+
+interface Flags {
+  [key: string]: string | boolean;
+}
+
+function parseArgs(argv: string[]): { positional: string[]; flags: Flags } {
+  const positional: string[] = [];
+  const flags: Flags = {};
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg.startsWith("--")) {
+      const name = arg.slice(2);
+      const next = argv[i + 1];
+      if (next !== undefined && !next.startsWith("--")) {
+        flags[name] = next;
+        i++;
+      } else {
+        flags[name] = true;
+      }
+    } else {
+      positional.push(arg);
+    }
+  }
+  return { positional, flags };
+}
+
+async function requireRepo(): Promise<RepoInfo> {
+  const repo = await findRepo(process.cwd());
+  if (!repo) {
+    process.stderr.write("cledger: not inside a git repository\n");
+    process.exit(2);
+  }
+  return repo;
+}
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of input) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function readOptionsFrom(flags: Flags): ReadOptions {
+  const opts: ReadOptions = {};
+  if (!flags["all"]) opts.reachableFrom = typeof flags["rev"] === "string" ? flags["rev"] : "HEAD";
+  if (typeof flags["kind"] === "string") opts.kind = flags["kind"];
+  if (typeof flags["source"] === "string") opts.source = flags["source"];
+  if (typeof flags["conversation"] === "string") opts.conversation = flags["conversation"];
+  return opts;
+}
+
+function snippet(event: EvidenceEvent): string {
+  const c = event.content as Record<string, unknown> | string | null;
+  let text = "";
+  if (typeof c === "string") text = c;
+  else if (c && typeof c === "object") {
+    text = String(c["text"] ?? c["summary"] ?? c["title"] ?? JSON.stringify(c));
+  }
+  text = text.replace(/\s+/g, " ").trim();
+  return text.length > 100 ? text.slice(0, 97) + "..." : text;
+}
+
+function printHuman(events: EvidenceEvent[]): void {
+  for (const e of events) {
+    const conv = e.conversation ? `${e.conversation.id.slice(0, 28)}#${e.conversation.seq}` : "-";
+    const role =
+      (e.content as Record<string, unknown> | null | undefined) &&
+      typeof e.content === "object"
+        ? String((e.content as Record<string, unknown>)["role"] ?? e.actor.type)
+        : e.actor.type;
+    process.stdout.write(
+      `${e.occurred_at}  ${e.kind}  ${role.padEnd(9)}  ${conv}  ${snippet(e)}\n`,
+    );
+  }
+}
+
+function printJsonl(events: EvidenceEvent[], includeRaw: boolean): void {
+  for (const e of events) {
+    const out = includeRaw ? e : { ...e, raw: undefined };
+    process.stdout.write(JSON.stringify(out) + "\n");
+  }
+}
+
+async function cmdAppend(flags: Flags): Promise<void> {
+  const repo = await requireRepo();
+  const body = await readStdin();
+  const drafts: EventDraft[] = body
+    .split("\n")
+    .filter((l) => l.trim())
+    .map((l) => JSON.parse(l) as EventDraft);
+  if (drafts.length === 0) return;
+  const result = await appendEvents(repo, drafts);
+  if (!flags["quiet"]) {
+    for (const e of result.appended) process.stdout.write(e.id + "\n");
+    process.stderr.write(
+      `appended ${result.appended.length}, deduped ${result.deduped}` +
+        (result.anchor ? ` (anchor ${result.anchor.slice(0, 12)})` : " (pending: no commits yet)") +
+        "\n",
+    );
+  }
+}
+
+async function cmdLog(flags: Flags): Promise<void> {
+  const repo = await requireRepo();
+  const events = await readEvents(repo, readOptionsFrom(flags));
+  if (flags["json"]) printJsonl(events, false);
+  else printHuman(events);
+}
+
+async function cmdShow(positional: string[], flags: Flags): Promise<void> {
+  const prefix = positional[0];
+  if (!prefix) {
+    process.stderr.write("usage: cledger show <conversation-id-prefix>\n");
+    process.exit(2);
+  }
+  const repo = await requireRepo();
+  const events = await readEvents(repo, { conversation: prefix });
+  if (events.length === 0) {
+    process.stderr.write(`no events for conversation ${prefix}\n`);
+    process.exit(1);
+  }
+  if (flags["json"]) {
+    printJsonl(events, true);
+    return;
+  }
+  for (const e of sortEvents(events)) {
+    const c = e.content as Record<string, unknown>;
+    const role = typeof c === "object" && c ? String(c["role"] ?? e.actor.type) : e.actor.type;
+    const text =
+      typeof c === "object" && c && typeof c["text"] === "string"
+        ? (c["text"] as string)
+        : JSON.stringify(e.content, null, 2);
+    process.stdout.write(`\n[${e.occurred_at}] ${role} (${e.kind}, ${e.id.slice(0, 16)})\n`);
+    process.stdout.write(text.trimEnd() + "\n");
+  }
+}
+
+async function cmdConversations(flags: Flags): Promise<void> {
+  const repo = await requireRepo();
+  const events = await readEvents(repo, readOptionsFrom(flags));
+  const byConv = new Map<string, { count: number; first: string; last: string; source: string }>();
+  for (const e of events) {
+    const id = e.conversation?.id ?? "(none)";
+    const entry = byConv.get(id) ?? {
+      count: 0,
+      first: e.occurred_at,
+      last: e.occurred_at,
+      source: e.producer.source ?? e.producer.tool,
+    };
+    entry.count++;
+    if (e.occurred_at < entry.first) entry.first = e.occurred_at;
+    if (e.occurred_at > entry.last) entry.last = e.occurred_at;
+    byConv.set(id, entry);
+  }
+  for (const [id, s] of [...byConv.entries()].sort((a, b) => a[1].last.localeCompare(b[1].last))) {
+    process.stdout.write(`${id}  ${s.source}  ${s.count} events  ${s.first} .. ${s.last}\n`);
+  }
+}
+
+async function cmdExport(flags: Flags): Promise<void> {
+  const repo = await requireRepo();
+  const opts: ReadOptions = {};
+  if (typeof flags["rev"] === "string") opts.reachableFrom = flags["rev"];
+  const events = await readEvents(repo, opts);
+  printJsonl(events, true);
+}
+
+async function cmdSync(flags: Flags): Promise<void> {
+  const repo = await requireRepo();
+  const remote = typeof flags["remote"] === "string" ? flags["remote"] : "origin";
+  const mode = flags["push"] ? "push" : flags["fetch"] ? "fetch" : "both";
+  const result = await sync(repo, remote, mode);
+  process.stderr.write(
+    `sync ${remote}: ${result.fetched ? "fetched+merged" : "nothing fetched"}, ` +
+      `${result.pushed ? "pushed" : "not pushed"}\n`,
+  );
+}
+
+async function main(): Promise<void> {
+  const [, , command, ...rest] = process.argv;
+  const { positional, flags } = parseArgs(rest);
+
+  if (!command || command === "--help" || command === "help") {
+    process.stdout.write(USAGE + "\n");
+    return;
+  }
+  if (command === "--version") {
+    process.stdout.write(version() + "\n");
+    return;
+  }
+  switch (command) {
+    case "append":
+      return cmdAppend(flags);
+    case "log":
+      return cmdLog(flags);
+    case "show":
+      return cmdShow(positional, flags);
+    case "conversations":
+      return cmdConversations(flags);
+    case "export":
+      return cmdExport(flags);
+    case "sync":
+      return cmdSync(flags);
+    case "install":
+      return installAdapters(positional[0] ?? "all");
+    case "hook": {
+      if (positional[0] === "claude-code") {
+        return runClaudeCodeHook(await readStdin());
+      }
+      if (positional[0] === "codex") {
+        return runCodexHook(await readStdin());
+      }
+      process.stderr.write(`unknown hook source: ${positional[0]}\n`);
+      process.exit(2);
+      return;
+    }
+    case "capture": {
+      const source = positional[0];
+      const transcript = typeof flags["transcript"] === "string" ? flags["transcript"] : undefined;
+      if (source === "claude-code" && transcript) {
+        return captureClaudeTranscript(transcript, process.cwd());
+      }
+      if (source === "codex" && transcript) {
+        return captureCodexTranscript(transcript, process.cwd());
+      }
+      process.stderr.write("usage: cledger capture <claude-code|codex> --transcript PATH\n");
+      process.exit(2);
+      return;
+    }
+    default:
+      process.stderr.write(`unknown command: ${command}\n\n${USAGE}\n`);
+      process.exit(2);
+  }
+}
+
+main().catch((err: unknown) => {
+  process.stderr.write(`cledger: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.exit(1);
+});
+
+export { parseEventLine };

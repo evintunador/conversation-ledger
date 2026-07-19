@@ -1,0 +1,33 @@
+{
+  "name": "conversation-ledger",
+  "version": "0.1.0",
+  "description": "Durable, attributable records of visible coding-agent conversations, stored as git notes.",
+  "type": "module",
+  "license": "MIT",
+  "author": "evintunador",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/evintunador/conversation-ledger"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "conversation-ledger": "dist/cli.js",
+    "cledger": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
+    "test": "npm run build && node --test \"dist/test/**/*.test.js\"",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}
