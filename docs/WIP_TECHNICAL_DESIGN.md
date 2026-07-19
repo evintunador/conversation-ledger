@@ -25,7 +25,13 @@ An `EvidenceEvent` is immutable and has:
   verbatim so downstream tools can extend without a schema release;
 - `occurred_at` (from the source) and `recorded_at` (at append) timestamps;
 - `actor` (human/agent/system + identity) and `producer` (capture tool,
-  source system, native session id) provenance;
+  source system, native session id) provenance; adapters stamp human turns
+  with the repo's `git config user.email`/`user.name` (`actor.id`/`.display`)
+  so multi-user clients can filter by author. Because `actor.id` is part of
+  the event identity subset, sessions captured before this stamping existed
+  will produce new event ids if fully re-scanned — the per-session cursor
+  normally prevents that, but a forced rescan can duplicate pre-identity
+  turns;
 - `content`, stored inline, with an optional `media_type`
   (default `application/json`);
 - `context`: repository identity, branch, `HEAD` SHA, cwd, and a

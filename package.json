@@ -1,6 +1,6 @@
 {
   "name": "conversation-ledger",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Durable, attributable records of visible coding-agent conversations, stored as git notes.",
   "type": "module",
   "license": "MIT",
@@ -15,6 +15,14 @@
   "bin": {
     "conversation-ledger": "dist/cli.js",
     "cledger": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "files": [
     "dist",

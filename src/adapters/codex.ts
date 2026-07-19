@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { findRepo, type RepoInfo } from "../git.js";
+import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft } from "../schema.js";
 
@@ -104,6 +104,7 @@ function convertLine(
   sessionId: string,
   baseTime: string,
   version: string,
+  identity: GitUserIdentity,
 ): EventDraft | null {
   if (line.type !== "response_item") return null;
   const payload = line.payload;
@@ -122,6 +123,10 @@ function convertLine(
     const role = payload["role"];
     const roleStr = typeof role === "string" ? role : "user";
     actor = roleStr === "assistant" ? { type: "agent" } : { type: "human" };
+    if (actor.type === "human") {
+      if (identity.email) actor.id = identity.email;
+      if (identity.name) actor.display = identity.name;
+    }
     content = { role: roleStr, blocks: convertMessageBlocks(payload["content"]) };
   } else if (payloadType === "function_call" || payloadType === "custom_tool_call") {
     actor = { type: "agent" };
@@ -195,6 +200,7 @@ export async function captureCodexTranscript(transcriptPath: string, cwd: string
 
   const baseTime = await sessionBaseTime(transcriptPath);
   const version = packageVersion();
+  const identity = await gitUserIdentity(repo);
   const drafts: EventDraft[] = [];
   for (let i = cursor; i < lines.length; i++) {
     const text = lines[i]!;
@@ -205,7 +211,7 @@ export async function captureCodexTranscript(transcriptPath: string, cwd: string
     } catch {
       continue; // partial line — normal at the tail of a live transcript
     }
-    const draft = convertLine(parsed, i, sessionId, baseTime, version);
+    const draft = convertLine(parsed, i, sessionId, baseTime, version, identity);
     if (draft) drafts.push(draft);
   }
 

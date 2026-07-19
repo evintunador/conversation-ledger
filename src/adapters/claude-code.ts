@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { findRepo, type RepoInfo } from "../git.js";
+import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft } from "../schema.js";
 
@@ -83,7 +83,12 @@ function convertBlock(block: unknown): unknown {
   return b;
 }
 
-function convertLine(line: ClaudeTranscriptLine, seq: number, version: string): EventDraft | null {
+function convertLine(
+  line: ClaudeTranscriptLine,
+  seq: number,
+  version: string,
+  identity: GitUserIdentity,
+): EventDraft | null {
   if (line.type !== "user" && line.type !== "assistant") return null;
   if (line.isSidechain === true) return null;
   if (!line.message) return null;
@@ -91,6 +96,10 @@ function convertLine(line: ClaudeTranscriptLine, seq: number, version: string): 
   const sessionId = line.sessionId ?? "";
 
   const actor: Actor = line.type === "user" ? { type: "human" } : { type: "agent" };
+  if (line.type === "user") {
+    if (identity.email) actor.id = identity.email;
+    if (identity.name) actor.display = identity.name;
+  }
   if (line.type === "assistant" && line.message.model) actor.id = line.message.model;
 
   return {
@@ -137,6 +146,7 @@ export async function captureClaudeTranscript(transcriptPath: string, cwd: strin
   if (cursor > lines.length) cursor = 0; // transcript is shorter than expected — rescan from the start
 
   const version = packageVersion();
+  const identity = await gitUserIdentity(repo);
   const drafts: EventDraft[] = [];
   for (let i = cursor; i < lines.length; i++) {
     const text = lines[i]!;
@@ -147,7 +157,7 @@ export async function captureClaudeTranscript(transcriptPath: string, cwd: strin
     } catch {
       continue; // partial line — normal at the tail of a live transcript
     }
-    const draft = convertLine(parsed, i, version);
+    const draft = convertLine(parsed, i, version, identity);
     if (draft) drafts.push(draft);
   }
 

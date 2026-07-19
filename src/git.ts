@@ -86,6 +86,24 @@ export async function repoIdentity(repo: RepoInfo): Promise<string> {
   return url || (repo.root.split("/").pop() ?? repo.root);
 }
 
+export interface GitUserIdentity {
+  email: string | null;
+  name: string | null;
+}
+
+/** The committer identity configured for this repo (user.email / user.name). */
+export async function gitUserIdentity(repo: RepoInfo): Promise<GitUserIdentity> {
+  const email = (await git(["config", "user.email"], {
+    cwd: repo.root,
+    allowFailure: true,
+  })).trim();
+  const name = (await git(["config", "user.name"], {
+    cwd: repo.root,
+    allowFailure: true,
+  })).trim();
+  return { email: email || null, name: name || null };
+}
+
 export async function statusPorcelain(repo: RepoInfo): Promise<string> {
   return git(["status", "--porcelain"], { cwd: repo.root, allowFailure: true });
 }

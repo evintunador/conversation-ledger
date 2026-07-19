@@ -88,6 +88,8 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
 
     const userMsg = bySeq.get(1)!;
     assert.strictEqual(userMsg.actor.type, "human");
+    assert.strictEqual(userMsg.actor.id, "test@example.com");
+    assert.strictEqual(userMsg.actor.display, "Test User");
     assert.deepStrictEqual(userMsg.content, {
       role: "user",
       blocks: [{ type: "text", text: "Please run tests" }],

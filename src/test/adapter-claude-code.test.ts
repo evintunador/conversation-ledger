@@ -105,7 +105,8 @@ test("captureClaudeTranscript: converts a synthetic transcript end to end", asyn
 
     const line0 = bySeq.get(0)!;
     assert.strictEqual(line0.actor.type, "human");
-    assert.strictEqual(line0.actor.id, undefined);
+    assert.strictEqual(line0.actor.id, "test@example.com");
+    assert.strictEqual(line0.actor.display, "Test User");
     assert.deepStrictEqual(line0.content, {
       role: "user",
       blocks: [{ type: "text", text: "Hello there" }],

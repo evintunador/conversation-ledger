@@ -1,0 +1,31 @@
+/** Public library surface for programmatic clients (e.g. turnbridge). */
+export {
+  appendEvents,
+  readEvents,
+  sortEvents,
+  sync,
+  listAnchors,
+  readNoteEvents,
+  captureContext,
+} from "./store.js";
+export type { AppendResult, ReadOptions } from "./store.js";
+export {
+  finalizeEvent,
+  eventId,
+  validateEvent,
+  serializeEvent,
+  parseEventLine,
+} from "./schema.js";
+export type { Actor, EventDraft, EvidenceEvent, RepoContext } from "./schema.js";
+export {
+  findRepo,
+  headSha,
+  currentBranch,
+  repoIdentity,
+  gitUserIdentity,
+  git,
+  GitError,
+} from "./git.js";
+export type { GitUserIdentity, RepoInfo } from "./git.js";
+export { captureClaudeTranscript, runClaudeCodeHook } from "./adapters/claude-code.js";
+export { captureCodexTranscript, runCodexHook } from "./adapters/codex.js";
