@@ -164,6 +164,20 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   append-only and idempotent. *Remaining:* this is a manual command —
   auto-running it after an adapter/version bump on capture is deferred
   (detecting "the adapter changed" is its own problem).
+- **Close the capture/scan-tier gap (redaction feedback loop)** — the pre-push
+  scan (broad) can flag a value the capture-tier redaction (conservative) let
+  through. When the flagged content sits in a *conversation about* secrets,
+  the sessions spent fixing it are themselves captured, re-ingesting the same
+  raw value into new events that the next scan flags again — a feedback loop.
+  Allowlisting escapes it (fingerprint-keyed, so it neutralizes every
+  recurrence at once), but *redaction* does not: it scrubs per-event and can't
+  stop the value being re-captured, so a naive fix-sync-fix cycle can churn
+  indefinitely. The structural fix is to make capture-tier coverage a superset
+  of scan-tier — anything that would *block* a sync must also be *redacted at
+  ingest* — so nothing scan-blockable can ever be captured raw and the loop is
+  impossible by construction. Cheap first step: feed allowlisted / known-secret
+  fingerprints back into capture-time redaction so known values are scrubbed on
+  the way in.
 - **Purge tooling** — true content removal behind a `redaction` event.
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 
