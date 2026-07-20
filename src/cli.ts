@@ -308,6 +308,12 @@ async function cmdRedact(positional: string[], flags: Flags): Promise<void> {
       `companion event: ${result.redactionEvent.id.slice(0, 16)}\n` +
       `history squashed: ${result.squashed ? "yes" : "no"}\n`,
   );
+  if (result.knownSecretsRemembered > 0) {
+    process.stderr.write(
+      `remembered ${result.knownSecretsRemembered} secret value(s) for capture-time redaction ` +
+        `(redact.knownSecrets is on)\n`,
+    );
+  }
 }
 
 async function cmdRenormalize(): Promise<void> {

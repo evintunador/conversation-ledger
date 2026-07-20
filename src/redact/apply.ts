@@ -40,10 +40,23 @@ export function redactText(
   return { text: result, matches };
 }
 
-/** Scrub exact secret values (e.g. env vars), longest-first so overlapping values don't leave partial matches. */
+/**
+ * A set of exact secret values to scrub, tagged with the rule id they are
+ * recorded under (e.g. "env-value" for opt-in env masking, "known-secret"
+ * for values a prior `cledger redact` remembered). Kept distinct so the
+ * redaction records — and therefore the audit trail — say which mechanism
+ * scrubbed each span.
+ */
+export interface ExtraValueGroup {
+  ruleId: string;
+  values: string[];
+}
+
+/** Scrub exact secret values, longest-first so overlapping values don't leave partial matches. */
 function redactExtraValues(
   text: string,
   values: string[],
+  ruleId: string,
   path: string,
   records: RedactionRecord[],
 ): string {
@@ -53,11 +66,26 @@ function redactExtraValues(
     const fingerprint = sha256Hex(value).slice(0, 12);
     const re = new RegExp(escapeRegExp(value), "g");
     result = result.replace(re, () => {
-      records.push({ rule: "env-value", ruleset: RULESET_VERSION, fingerprint, path });
-      return placeholder("env-value", fingerprint);
+      records.push({ rule: ruleId, ruleset: RULESET_VERSION, fingerprint, path });
+      return placeholder(ruleId, fingerprint);
     });
   }
   return result;
+}
+
+/**
+ * Collect every match of `pattern` across the string leaves of `value`
+ * (read-only; keys are never inspected). Used by the redact command to learn
+ * the exact plaintext it scrubbed so it can remember it in the known-secrets
+ * store. `pattern` must carry the global flag.
+ */
+export function collectMatches(value: unknown, pattern: RegExp): string[] {
+  const found: string[] = [];
+  walkStrings(value, "", (s) => {
+    for (const m of s.matchAll(pattern)) found.push(m[0]);
+    return s;
+  });
+  return found;
 }
 
 /**
@@ -94,16 +122,18 @@ export function walkStrings(
  */
 export function redactDraft(
   draft: EventDraft,
-  opts: { rules: RedactionRule[]; extraValues?: string[] },
+  opts: { rules: RedactionRule[]; extraValues?: ExtraValueGroup[] },
 ): { draft: EventDraft; records: RedactionRecord[] } {
   const records: RedactionRecord[] = [];
-  const extraValues =
-    opts.extraValues && opts.extraValues.length > 0
-      ? [...opts.extraValues].sort((a, b) => b.length - a.length)
-      : undefined;
+  // Sort each group's values longest-first so a longer secret is scrubbed
+  // before a shorter one it contains, never leaving a partial match behind.
+  const groups = (opts.extraValues ?? [])
+    .map((g) => ({ ruleId: g.ruleId, values: [...g.values].sort((a, b) => b.length - a.length) }))
+    .filter((g) => g.values.length > 0);
 
   function redactString(value: string, path: string): string {
-    const scrubbed = extraValues ? redactExtraValues(value, extraValues, path, records) : value;
+    let scrubbed = value;
+    for (const g of groups) scrubbed = redactExtraValues(scrubbed, g.values, g.ruleId, path, records);
     const { text, matches } = redactText(scrubbed, opts.rules);
     for (const m of matches) {
       records.push({ rule: m.rule, ruleset: RULESET_VERSION, fingerprint: m.fingerprint, path });

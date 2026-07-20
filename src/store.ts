@@ -29,8 +29,9 @@ import {
   type EvidenceEvent,
   type RepoContext,
 } from "./schema.js";
-import { redactDraft, type RedactionRecord } from "./redact/apply.js";
+import { collectMatches, redactDraft, type ExtraValueGroup, type RedactionRecord } from "./redact/apply.js";
 import { captureRules, collectEnvValues, loadConfig } from "./redact/config.js";
+import { addKnownSecrets, loadKnownSecrets } from "./redact/known-secrets.js";
 import { RULESET_VERSION, type RedactionRule } from "./redact/rules.js";
 import { filterFindings, formatFinding, loadAllowlist, scanEvents } from "./redact/scan.js";
 
@@ -149,16 +150,26 @@ export async function appendEvents(
   // refspec); later calls are cheap re-checks. Never throws.
   await ensureTransport(repo, config);
   const rules = captureRules(config);
-  const extraValues =
-    rules.length > 0 && config.redact?.env === true
-      ? await collectEnvValues(repo.root)
-      : undefined;
+  // Exact-value scrubbing layers, each tagged with its own rule id for the
+  // audit trail. Only consulted when capture redaction is active at all
+  // (rules.length > 0); known-secrets additionally requires its opt-in flag.
+  const extraValues: ExtraValueGroup[] = [];
+  if (rules.length > 0) {
+    if (config.redact?.knownSecrets === true) {
+      const known = await loadKnownSecrets(repo);
+      if (known.length > 0) extraValues.push({ ruleId: "known-secret", values: known });
+    }
+    if (config.redact?.env === true) {
+      const env = await collectEnvValues(repo.root);
+      if (env.length > 0) extraValues.push({ ruleId: "env-value", values: env });
+    }
+  }
   const events = drafts.map((draft) => {
     const withContext = { ...draft, context: draft.context ?? context };
     if (rules.length === 0) return finalizeEvent(withContext);
     const { draft: redacted, records } = redactDraft(withContext, {
       rules,
-      ...(extraValues ? { extraValues } : {}),
+      ...(extraValues.length > 0 ? { extraValues } : {}),
     });
     return finalizeEvent(records.length > 0 ? { ...redacted, redactions: records } : redacted);
   });
@@ -480,6 +491,12 @@ export interface RedactResult {
   redactionEvent: EvidenceEvent;
   /** True when the pre-redaction notes history was squashed away locally (see below). */
   squashed: boolean;
+  /**
+   * Count of newly-remembered secret values written to the opt-in
+   * known-secrets store (0 unless `redact.knownSecrets` is on and this was a
+   * `--pattern` redaction that matched at least one not-already-known value).
+   */
+  knownSecretsRemembered: number;
 }
 
 /**
@@ -501,13 +518,21 @@ export async function redactEvent(
     throw new Error("cledger redact: exactly one of --pattern or --all is required");
   }
 
-  const { located, rewritten, newRecords } = await withLock(repo, async () => {
+  // Opt-in: when on, remember the exact values a --pattern redaction scrubs so
+  // capture-time redaction can keep them out of future events (see
+  // redact/known-secrets.ts). The --all path blanks whole content, so there is
+  // no reusable value to remember there.
+  const config = await loadConfig(repo.root);
+  const rememberSecrets = hasPattern && config.redact?.knownSecrets === true;
+
+  const { located, rewritten, newRecords, secretValues } = await withLock(repo, async () => {
     const located = await locateEvent(repo, idPrefix);
     const original = located.event;
 
     let rewrittenContent: unknown = original.content;
     let rewrittenRaw = original.raw;
     const newRecords: RedactionRecord[] = [];
+    const secretValues: string[] = [];
 
     if (hasPattern) {
       let pattern: RegExp;
@@ -531,6 +556,10 @@ export async function redactEvent(
       rewrittenContent = patched.content;
       rewrittenRaw = patched.raw;
       newRecords.push(...records);
+      if (rememberSecrets) {
+        secretValues.push(...collectMatches(original.content, pattern));
+        if (original.raw) secretValues.push(...collectMatches(original.raw.data, pattern));
+      }
     } else {
       const fingerprint = sha256Hex(canonicalJson(original.content)).slice(0, 12);
       rewrittenContent = `[REDACTED:manual:${fingerprint}]`;
@@ -583,8 +612,18 @@ export async function redactEvent(
       await writeFile(pendingPath(repo), newLines.join("\n") + "\n");
     }
 
-    return { located, rewritten, newRecords };
+    return { located, rewritten, newRecords, secretValues };
   });
+
+  // Persist remembered secret values outside the notes lock (the store is its
+  // own file under .git/, unrelated to the notes ref). addKnownSecrets applies
+  // the min-length filter and dedups, returning how many were newly stored.
+  let knownSecretsRemembered = 0;
+  if (rememberSecrets && secretValues.length > 0) {
+    const before = (await loadKnownSecrets(repo)).length;
+    await addKnownSecrets(repo, secretValues);
+    knownSecretsRemembered = (await loadKnownSecrets(repo)).length - before;
+  }
 
   // Companion event: goes through the normal appendEvents path (its own
   // lock cycle) rather than being written inline above, so it behaves
@@ -645,5 +684,5 @@ export async function redactEvent(
     }
   }
 
-  return { event: rewritten, redactionEvent, squashed };
+  return { event: rewritten, redactionEvent, squashed, knownSecretsRemembered };
 }

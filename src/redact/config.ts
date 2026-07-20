@@ -7,6 +7,13 @@ export interface CledgerConfig {
   redact?: {
     capture?: boolean;
     env?: boolean;
+    /**
+     * Opt-in (default false). When true, `cledger redact --pattern` remembers
+     * the exact values it scrubbed in a local, git-invisible store, and
+     * capture-time redaction exact-matches them out of every future event.
+     * Off means the store is never read or created. See redact/known-secrets.ts.
+     */
+    knownSecrets?: boolean;
     patterns?: { id?: string; pattern: string }[];
   };
   scan?: {

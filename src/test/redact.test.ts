@@ -172,7 +172,10 @@ test("redactDraft: extraValues scrub exact secrets, longest match wins on overla
     content: { text: `a=${long} b=${short} c=unrelated` },
   });
 
-  const { draft: out, records } = redactDraft(input, { rules: [], extraValues: [short, long] });
+  const { draft: out, records } = redactDraft(input, {
+    rules: [],
+    extraValues: [{ ruleId: "env-value", values: [short, long] }],
+  });
   const text = (out.content as { text: string }).text;
 
   assert.ok(!text.includes(long));
@@ -187,6 +190,25 @@ test("redactDraft: extraValues scrub exact secrets, longest match wins on overla
   );
   // Different exact values must yield different fingerprints.
   assert.notStrictEqual(fingerprints[0], fingerprints[1]);
+});
+
+test("redactDraft: extraValue groups scrub under their own rule ids", () => {
+  const input = draft({ content: { text: "a=knownvalue123 b=envvalue456 c=unrelated" } });
+
+  const { draft: out, records } = redactDraft(input, {
+    rules: [],
+    extraValues: [
+      { ruleId: "known-secret", values: ["knownvalue123"] },
+      { ruleId: "env-value", values: ["envvalue456"] },
+    ],
+  });
+  const text = (out.content as { text: string }).text;
+
+  assert.ok(!text.includes("knownvalue123"));
+  assert.ok(!text.includes("envvalue456"));
+  assert.ok(text.includes("c=unrelated"));
+  assert.strictEqual(records.find((r) => r.path.endsWith("text") && r.rule === "known-secret") !== undefined, true);
+  assert.strictEqual(records.some((r) => r.rule === "env-value"), true);
 });
 
 test("loadConfig: repo config wins per-section over user config (shallow merge)", async () => {
