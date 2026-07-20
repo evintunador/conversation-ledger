@@ -177,7 +177,14 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   ingest* — so nothing scan-blockable can ever be captured raw and the loop is
   impossible by construction. Cheap first step: feed allowlisted / known-secret
   fingerprints back into capture-time redaction so known values are scrubbed on
-  the way in.
+  the way in. A second cheap step closes the loop's *sync-report* channel
+  specifically: the scan/sync failure output should mask the matched span
+  itself (`...config says <redacted> fine...`, context only) instead of the
+  current elided-middle form that still prints the value's leading/trailing
+  characters — so the report shows zero secret characters and can't seed the
+  next finding when it is itself captured. Nothing is lost operationally:
+  `cledger allow` keys on the fingerprint and `cledger redact` on the event id,
+  neither of which needs the value visible.
 - **Purge tooling** — true content removal behind a `redaction` event.
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 
