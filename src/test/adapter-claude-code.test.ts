@@ -153,6 +153,37 @@ test("captureClaudeTranscript: converts a synthetic transcript end to end", asyn
   }
 });
 
+test("captureClaudeTranscript: unrecognized line types are counted, known ones stay silent", async () => {
+  const repo = await makeTempRepo("cledger-cc-drift-");
+  const transcriptDir = await mkdtemp(join(tmpdir(), "cledger-cc-drift-"));
+  try {
+    await makeCommit(repo, "init");
+    const path = join(transcriptDir, `${SESSION_ID}.jsonl`);
+    const lines = [
+      {
+        type: "user",
+        sessionId: SESSION_ID,
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: { role: "user", content: "hi" },
+      },
+      // Known bookkeeping types: skipped without complaint.
+      { type: "file-history-snapshot", sessionId: SESSION_ID },
+      { type: "queue-operation", sessionId: SESSION_ID },
+      // A type this adapter has never heard of — the drift tripwire.
+      { type: "holo-message", sessionId: SESSION_ID, hologram: "new content kind" },
+      { type: "holo-message", sessionId: SESSION_ID, hologram: "again" },
+    ];
+    await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+
+    const result = await captureClaudeTranscript(path, repo.root);
+    assert.strictEqual(result.appended, 1);
+    assert.deepStrictEqual(result.unrecognized, { "holo-message": 2 });
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(transcriptDir);
+  }
+});
+
 test("captureClaudeTranscript: a later capture only ingests newly appended lines", async () => {
   const repo = await makeTempRepo("cledger-cc-growth-");
   const transcriptDir = await mkdtemp(join(tmpdir(), "cledger-cc-transcript-growth-"));

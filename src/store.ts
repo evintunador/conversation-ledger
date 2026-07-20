@@ -13,6 +13,14 @@ import {
   type RepoInfo,
 } from "./git.js";
 import {
+  absorbIncoming,
+  ensureMergeConfig,
+  ensureTransport,
+  INCOMING_REF,
+  NOTES_NAME,
+  NOTES_REF,
+} from "./transport.js";
+import {
   finalizeEvent,
   parseEventLine,
   serializeEvent,
@@ -26,8 +34,7 @@ import { captureRules, collectEnvValues, loadConfig } from "./redact/config.js";
 import { RULESET_VERSION, type RedactionRule } from "./redact/rules.js";
 import { filterFindings, formatFinding, loadAllowlist, scanEvents } from "./redact/scan.js";
 
-export const NOTES_NAME = "conversation-ledger";
-export const NOTES_REF = `refs/notes/${NOTES_NAME}`;
+export { ensureMergeConfig, NOTES_NAME, NOTES_REF } from "./transport.js";
 
 /**
  * Storage model: one git note per anchor commit under refs/notes/
@@ -53,17 +60,6 @@ function pendingPath(repo: RepoInfo): string {
 /** Local, rebuildable cache/state only — never the record of truth. */
 async function ensureStateDir(repo: RepoInfo): Promise<void> {
   await mkdir(stateDir(repo), { recursive: true });
-}
-
-export async function ensureMergeConfig(repo: RepoInfo): Promise<void> {
-  const key = `notes.${NOTES_NAME}.mergeStrategy`;
-  const current = (await git(["config", "--get", key], {
-    cwd: repo.root,
-    allowFailure: true,
-  })).trim();
-  if (current !== "cat_sort_uniq") {
-    await git(["config", key, "cat_sort_uniq"], { cwd: repo.root });
-  }
 }
 
 export async function captureContext(repo: RepoInfo): Promise<RepoContext> {
@@ -149,6 +145,9 @@ export async function appendEvents(
 ): Promise<AppendResult> {
   const context = opts.context ?? (await captureContext(repo));
   const config = await loadConfig(repo.root);
+  // First capture in a repo wires up transport (pre-push hook + fetch
+  // refspec); later calls are cheap re-checks. Never throws.
+  await ensureTransport(repo, config);
   const rules = captureRules(config);
   const extraValues =
     rules.length > 0 && config.redact?.env === true
@@ -230,6 +229,8 @@ export interface ReadOptions {
 }
 
 export async function readEvents(repo: RepoInfo, opts: ReadOptions = {}): Promise<EvidenceEvent[]> {
+  // Lazy transport: fold in anything a plain `git fetch`/`git pull` staged.
+  await absorbIncoming(repo);
   let anchors = await listAnchors(repo);
   if (opts.reachableFrom) {
     const reachable = await revList(repo, opts.reachableFrom);
@@ -295,6 +296,13 @@ async function remoteNoteIds(repo: RepoInfo, remote: string): Promise<Set<string
   }
 }
 
+/** Thrown when the layer-E scan gate blocks a push; carries no secrets. */
+export class ScanBlockedError extends Error {
+  constructor(public readonly findings: number) {
+    super(`cledger sync: push blocked — ${findings} potential secret(s) found (see report above)`);
+  }
+}
+
 /**
  * Layer E: before push, scan only the events the remote does not yet have
  * (already-pushed events are not rescanned every time). On any surviving
@@ -326,12 +334,15 @@ async function runScanGate(repo: RepoInfo, remote: string, tier: "standard" | "p
       "  cledger allow <fingerprint>   mark a fingerprint as a known false positive\n" +
       "  cledger sync --no-scan        skip this gate for this sync only\n",
   );
-  throw new Error(
-    `cledger sync: push blocked — ${findings.length} potential secret(s) found (see report above)`,
-  );
+  throw new ScanBlockedError(findings.length);
 }
 
-/** Explicit, opt-in sync of the single ledger ref. Never runs implicitly. */
+/**
+ * Sync of the single ledger ref: explicit via `cledger sync`, or run by the
+ * pre-push transport hook (see transportPush). The fetch phase stages into
+ * INCOMING_REF and absorbs it — the same path a plain `git fetch` plus a
+ * later read takes.
+ */
 export async function sync(
   repo: RepoInfo,
   remote = "origin",
@@ -341,24 +352,11 @@ export async function sync(
   const result: SyncResult = { fetched: false, pushed: false };
   await ensureMergeConfig(repo);
   if (mode !== "push") {
-    const incoming = "refs/notes/conversation-ledger-incoming";
-    const fetched = await git(
-      ["fetch", remote, `+${NOTES_REF}:${incoming}`],
+    await git(
+      ["fetch", remote, `+${NOTES_REF}:${INCOMING_REF}`],
       { cwd: repo.root, allowFailure: true },
     );
-    void fetched;
-    const hasIncoming = (await git(["rev-parse", "--verify", "--quiet", incoming], {
-      cwd: repo.root,
-      allowFailure: true,
-    })).trim();
-    if (hasIncoming) {
-      await git(
-        ["notes", "--ref", NOTES_NAME, "merge", "-s", "cat_sort_uniq", incoming],
-        { cwd: repo.root },
-      );
-      await git(["update-ref", "-d", incoming], { cwd: repo.root, allowFailure: true });
-      result.fetched = true;
-    }
+    result.fetched = await absorbIncoming(repo);
   }
   if (mode !== "fetch") {
     const config = await loadConfig(repo.root);
@@ -368,10 +366,63 @@ export async function sync(
         opts.paranoid === true || config.scan?.tier === "paranoid" ? "paranoid" : "standard";
       await runScanGate(repo, remote, tier);
     }
-    await git(["push", remote, `${NOTES_REF}:${NOTES_REF}`], { cwd: repo.root });
+    // The pushed child git inherits CLEDGER_INTERNAL, telling the pre-push
+    // transport hook this push *is* the ledger push — no recursion.
+    const prior = process.env["CLEDGER_INTERNAL"];
+    process.env["CLEDGER_INTERNAL"] = "1";
+    try {
+      await git(["push", remote, `${NOTES_REF}:${NOTES_REF}`], { cwd: repo.root });
+    } finally {
+      if (prior === undefined) delete process.env["CLEDGER_INTERNAL"];
+      else process.env["CLEDGER_INTERNAL"] = prior;
+    }
     result.pushed = true;
   }
   return result;
+}
+
+export interface TransportPushResult {
+  pushed: boolean;
+  /** True when scan findings held the ledger back (non-strict mode). */
+  held: boolean;
+}
+
+/**
+ * Pre-push hook entrypoint policy. Pushes the ledger ref alongside the
+ * user's own push. A scan finding blocks only the ledger by default —
+ * secrets never leave the machine, but a false positive never blocks
+ * shipping code; {"transport": {"strict": true}} escalates to aborting the
+ * whole push (rethrows ScanBlockedError; the CLI exits nonzero). Any other
+ * failure (network, missing remote ref perms) warns and lets the push
+ * proceed — the hook must never make `git push` flaky.
+ */
+export async function transportPush(repo: RepoInfo, remote: string): Promise<TransportPushResult> {
+  const config = await loadConfig(repo.root);
+  if (config.transport?.hook === false) return { pushed: false, held: false };
+  const hasNotes = (await git(["rev-parse", "--verify", "--quiet", NOTES_REF], {
+    cwd: repo.root,
+    allowFailure: true,
+  })).trim();
+  if (!hasNotes) return { pushed: false, held: false };
+
+  try {
+    await sync(repo, remote, "push");
+    return { pushed: true, held: false };
+  } catch (err) {
+    if (err instanceof ScanBlockedError) {
+      if (config.transport?.strict === true) throw err;
+      process.stderr.write(
+        "cledger: conversation records were held back from this push (potential secrets — " +
+          "see report above); your code push continues. Run `cledger sync` to review and " +
+          "remediate.\n",
+      );
+      return { pushed: false, held: true };
+    }
+    process.stderr.write(
+      `cledger: ledger push skipped (${err instanceof Error ? err.message : String(err)})\n`,
+    );
+    return { pushed: false, held: false };
+  }
 }
 
 interface LocatedEvent {

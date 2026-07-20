@@ -6,10 +6,11 @@
 
 Conversation Ledger defines a canonical append-only event format plus a local,
 git-backed storage protocol. It preserves exact visible content while staying
-out of the working tree. Transport of the ledger ref is explicit today
-(`cledger sync`); the decided direction is an optional, on-by-default git
-pre-push hook plus fetch refspec so records propagate with normal git use
-(see open questions).
+out of the working tree. Transport is on by default and rides normal git use:
+a pre-push hook pushes the ledger ref alongside `git push` (scan-gated), and
+a fetch refspec stages the remote's ref for lazy merge at read time (see
+"Transport"); `cledger sync` remains the explicit path and the fallback when
+hooks are declined.
 
 ## Canonical objects
 
@@ -29,12 +30,18 @@ An `EvidenceEvent` is immutable and has:
 - `occurred_at` (from the source) and `recorded_at` (at append) timestamps;
 - `actor` (human/agent/system + identity) and `producer` (capture tool,
   source system, native session id) provenance; adapters stamp human turns
-  with the repo's `git config user.email`/`user.name` (`actor.id`/`.display`)
-  so multi-user clients can filter by author. Because `actor.id` is part of
-  the event identity subset, sessions captured before this stamping existed
-  will produce new event ids if fully re-scanned — the per-session cursor
-  normally prevents that, but a forced rescan can duplicate pre-identity
-  turns;
+  with the identity a commit made right now would be authored under,
+  resolved by git itself (`git -c user.useConfigOnly=true var
+  GIT_AUTHOR_IDENT`) in git's own precedence: `GIT_AUTHOR_EMAIL` env, then
+  `user.email` config (includeIf and all), then `EMAIL` env — never a
+  hostname/OS-username guess, which churns (DHCP renames) and would churn
+  event ids. Explicit config is the fallback when strict resolution
+  refuses over one missing field (email set, no name anywhere). When git
+  would have to guess the email too, turns stay unattributed;
+  `cledger install` warns. Because `actor.id` is part of the event identity subset, sessions
+  captured before this stamping existed will produce new event ids if fully
+  re-scanned — the per-session cursor normally prevents that, but a forced
+  rescan can duplicate pre-identity turns;
 - `content`, stored inline, with an optional `media_type`
   (default `application/json`);
 - `context`: repository identity, branch, `HEAD` SHA, cwd, and a
@@ -51,7 +58,11 @@ under `raw` as an opaque, versioned attachment for lossless export.
 Reasoning policy: record model reasoning when the provider exposes it
 (Claude Code's thinking text is kept, minus opaque signatures); never chase
 it when the provider withholds it (Codex's encrypted `reasoning` payloads
-are skipped, not stored, and never reconstructed).
+are skipped, not stored, and never reconstructed). The same rule applies
+inside otherwise-visible content: Codex `agent_message` items (inter-agent
+messages) convert with their visible text blocks kept and their
+`encrypted_content` blocks dropped from both `content` and `raw`, leaving a
+bare type marker so the omission is visible.
 
 ## Storage
 
@@ -73,11 +84,10 @@ Why this shape:
    lines mean git's `cat_sort_uniq` notes merge strategy (configured per-ref
    at first append) unions concurrent appends cleanly — the same mechanism
    git-bug and git-appraise rely on.
-4. **Clean working tree.** Notes never appear in `git status`; sharing is a
-   `cledger sync` (fetch → `git notes merge -s cat_sort_uniq` → push) of
-   that single ref — explicit-only today, with an optional on-by-default
-   pre-push hook planned so it rides normal `git push` (still
-   user-disableable; the E scan gates it either way).
+4. **Clean working tree.** Notes never appear in `git status`; sharing is
+   the fetch → `git notes merge -s cat_sort_uniq` → push of that single
+   ref, run by the default-on transport hooks or explicitly via `cledger
+   sync` (the E scan gates the push either way — see "Transport").
 
 Events captured before the first commit exists (unborn `HEAD`) queue in
 `.git/conversation-ledger/pending.jsonl` and flush into the first real
@@ -90,6 +100,35 @@ A squash merge discards the source branch's commits, so their conversations
 remain in the ledger (notes are enumerable regardless of reachability;
 `cledger log --all` sees them) but drop out of the target branch's
 reachability view. A future `re-anchor` operation is the intended fix.
+
+## Transport
+
+Default-on, wired by the first capture in a repo (`ensureTransport`, run on
+every append as cheap re-checks so a remote added later still gets covered;
+never throws — it runs inside capture):
+
+- **Push half.** A `pre-push` hook calls `cledger transport-push <remote>`,
+  which pushes the ledger ref gated by the layer-E scan. Policy: a finding
+  holds back *only the ledger* — secrets never leave the machine, but a
+  false positive never blocks shipping code; `{"transport": {"strict":
+  true}}` escalates to aborting the entire push. Any other failure warns
+  and lets the push proceed. Installation is chain-safe: append to an
+  existing shell hook, back off with a one-time warning when
+  `core.hooksPath` or a non-shell hook owns the file. The hook script
+  embeds the installing cledger's absolute node+cli.js path (PATH fallback
+  in the script), treats "cledger gone" as success, and a
+  `CLEDGER_INTERNAL` env guard (set by `sync` around its own push) stops
+  the ledger push from re-triggering the hook.
+- **Fetch half.** A `+refs/notes/conversation-ledger:refs/notes/
+  cledger-incoming` refspec on `origin` makes plain `git fetch`/`git pull`
+  stage the remote's ref; `absorbIncoming` folds the staging ref into the
+  local ref lazily at read time (every `readEvents`) via the same
+  `cat_sort_uniq` union — absorption can only add events, and the local
+  ref is never force-overwritten. `cledger sync`'s fetch phase uses the
+  identical staging path.
+- **Opt-out.** `{"transport": {"hook": false, "fetchRefspec": false}}`
+  (config), or delete the marked hook block. `cledger sync` stays available
+  regardless.
 
 ## Capture adapters
 
@@ -175,39 +214,34 @@ Three layers exist today:
 
 1. `schema` on every event (`conversation-ledger/v1`) versions the ledger's
    own envelope.
-2. `raw.format` (`claude-code-jsonl/1`, `codex-rollout-jsonl/1`) versions
+2. `raw.format` (`claude-code-jsonl/1`, `codex-rollout-jsonl/2`) versions
    each adapter's interpretation of its native format; it must be bumped
    whenever the mapping changes, allowing later reprocessing to know which
-   parser produced an event.
+   parser produced an event. (codex `/2`: `agent_message` payloads convert,
+   encrypted blocks omitted — `/1` dropped those lines entirely.)
 3. The native payload inside `raw.data` retains the harness's own version
    markers (Claude Code lines carry `version`; Codex `session_meta` carries
    `cli_version`), so captured content can always be re-normalized under a
    newer mapping without recapture.
 
-What does not exist yet: drift detection. Adapters are tolerant parsers that
-skip unrecognized line types, which handles additive upstream changes
-gracefully but means a genuinely new message type is dropped entirely (raw
-included — only converted lines are stored). See the format-drift roadmap
-item.
+Drift detection: adapters are tolerant parsers, but each maintains an
+explicit known-skipped list (bookkeeping/UI line types, Codex's opaque
+`reasoning` payloads) alongside its convertible set; parsed lines matching
+neither are counted per type and reported in a capture-time warning
+(`CaptureResult.unrecognized`). What does not exist yet: preserving those
+unrecognized lines raw-only so a later adapter can re-normalize them —
+today they are still dropped. See the format-drift roadmap item.
 
 ## Open questions
 
-- Transport hooks (decided, unbuilt): optional-but-default-on `pre-push`
-  git hook running the sync push (with the E gate), and a staged fetch
-  refspec (`+refs/notes/conversation-ledger:refs/notes/cledger-incoming`)
-  merged lazily at read time — never force-overwriting the local ref.
-  Amends the "sharing is explicit" commitment here and in Turnbridge's
-  product intent.
 - Path-based capture exclusion (the path half of layer D): requires
   correlating tool_use file paths with their tool_result events.
 - Post-push purge tooling (force-push the notes ref + collaborator
   re-fetch coordination).
-- Unset `git config user.email` leaves human turns unattributed
-  (`gitUserIdentity` returns null; common on fresh machines/containers).
-  Planned fix: fall back to git's *effective* author identity so
-  `actor.id` matches commit authorship, and have `cledger install` warn
-  when user.email is unset. Hostname/OS-username anchors are ruled out —
-  they churn (DHCP renames) and would churn event ids.
+- Transport currently wires `origin` only; fork workflows (per-remote
+  staging refs, refspecs on other remotes) are unhandled — the pre-push
+  hook does push to whichever remote is being pushed, but fetch staging is
+  origin-scoped.
 - Sub-turn citation anchors for downstream consumers (intent-recall).
 - Re-anchoring after squash merges and history rewrites — ideally default
   behavior (squash commit inherits its branch's conversations), which

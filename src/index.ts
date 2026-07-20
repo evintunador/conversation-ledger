@@ -4,11 +4,16 @@ export {
   readEvents,
   sortEvents,
   sync,
+  transportPush,
+  ScanBlockedError,
   listAnchors,
   readNoteEvents,
   captureContext,
 } from "./store.js";
-export type { AppendResult, ReadOptions } from "./store.js";
+export type { AppendResult, ReadOptions, TransportPushResult } from "./store.js";
+export { absorbIncoming, ensureTransport, INCOMING_REF, NOTES_NAME, NOTES_REF } from "./transport.js";
+export type { TransportSetup } from "./transport.js";
+export type { CaptureResult } from "./adapters/drift.js";
 export {
   finalizeEvent,
   eventId,

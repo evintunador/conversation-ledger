@@ -12,6 +12,18 @@ export interface CledgerConfig {
   scan?: {
     tier?: "standard" | "paranoid" | "off";
   };
+  transport?: {
+    /** Install/run the pre-push hook that shares the ledger ref (default true). */
+    hook?: boolean;
+    /**
+     * When the pre-push scan finds a potential secret: false (default)
+     * holds back only the ledger push and lets the code push proceed;
+     * true aborts the entire git push.
+     */
+    strict?: boolean;
+    /** Add the fetch refspec that stages the remote's ledger ref (default true). */
+    fetchRefspec?: boolean;
+  };
 }
 
 /** Names that routinely hold long non-secret values; excluded from env scrubbing. */
@@ -34,8 +46,8 @@ async function readJsonConfig(path: string): Promise<CledgerConfig | null> {
 /**
  * Merges ~/.config/cledger/config.json then <repoRoot>/.cledger.json.
  * Repo wins, shallow per-section: whichever config defines a given
- * top-level section ("redact", "scan") supplies that whole section — the
- * two are never merged key-by-key within a section.
+ * top-level section ("redact", "scan", "transport") supplies that whole
+ * section — the two are never merged key-by-key within a section.
  */
 export async function loadConfig(repoRoot: string): Promise<CledgerConfig> {
   const userPath = join(homedir(), ".config", "cledger", "config.json");
@@ -48,9 +60,11 @@ export async function loadConfig(repoRoot: string): Promise<CledgerConfig> {
   const override = repoConfig ?? {};
   const redact = override.redact ?? base.redact;
   const scan = override.scan ?? base.scan;
+  const transport = override.transport ?? base.transport;
   return {
     ...(redact !== undefined ? { redact } : {}),
     ...(scan !== undefined ? { scan } : {}),
+    ...(transport !== undefined ? { transport } : {}),
   };
 }
 

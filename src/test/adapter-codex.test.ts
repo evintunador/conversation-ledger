@@ -72,7 +72,7 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
     assert.strictEqual(events.length, 4, "session_meta, reasoning, and malformed lines must be dropped");
 
     for (const e of events) {
-      assert.strictEqual(e.raw?.format, "codex-rollout-jsonl/1");
+      assert.strictEqual(e.raw?.format, "codex-rollout-jsonl/2");
       assert.strictEqual(e.conversation?.id, `codex:${SESSION_ID}`);
       assert.strictEqual(e.producer.source, "codex");
       assert.strictEqual(
@@ -168,5 +168,95 @@ test("captureCodexTranscript: a later capture only ingests newly appended lines"
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(rolloutDir);
+  }
+});
+
+test("captureCodexTranscript: unrecognized line and payload types are counted for drift", async () => {
+  const repo = await makeTempRepo("cledger-codex-drift-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-drift-"));
+  try {
+    await makeCommit(repo, "init");
+    const path = join(dir, FILENAME);
+    const lines = [
+      { type: "session_meta", payload: { session_id: SESSION_ID } },
+      {
+        type: "response_item",
+        timestamp: "2026-01-01T00:00:01.000Z",
+        payload: { type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] },
+      },
+      // Known-skipped: reasoning payloads and bookkeeping line types.
+      { type: "response_item", timestamp: "2026-01-01T00:00:02.000Z", payload: { type: "reasoning" } },
+      { type: "turn_context", payload: {} },
+      // Drift: a payload type and a line type this adapter has never seen.
+      {
+        type: "response_item",
+        timestamp: "2026-01-01T00:00:03.000Z",
+        payload: { type: "holo_call", text: "future content kind" },
+      },
+      { type: "brand_new_line_kind", payload: {} },
+    ];
+    await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+
+    const result = await captureCodexTranscript(path, repo.root);
+    assert.strictEqual(result.appended, 1);
+    assert.deepStrictEqual(result.unrecognized, {
+      "response_item/holo_call": 1,
+      brand_new_line_kind: 1,
+    });
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
+  }
+});
+
+test("captureCodexTranscript: agent_message keeps visible text, drops encrypted blocks everywhere", async () => {
+  const repo = await makeTempRepo("cledger-codex-agentmsg-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-agentmsg-"));
+  try {
+    await makeCommit(repo, "init");
+    const path = join(dir, FILENAME);
+    const lines = [
+      { type: "session_meta", payload: { session_id: SESSION_ID } },
+      {
+        type: "response_item",
+        timestamp: "2026-01-01T00:00:01.000Z",
+        payload: {
+          type: "agent_message",
+          author: "/root",
+          recipient: "/root/subagent",
+          content: [
+            { type: "input_text", text: "Message Type: NEW_TASK\nTask name: /root/subagent" },
+            { type: "encrypted_content", encrypted_content: "gAAAAAB-opaque-blob-must-never-be-stored" },
+          ],
+        },
+      },
+    ];
+    await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+
+    const result = await captureCodexTranscript(path, repo.root);
+    assert.strictEqual(result.appended, 1);
+    assert.deepStrictEqual(result.unrecognized, {}, "agent_message is a recognized type now");
+
+    const events = await readEvents(repo);
+    const e = events[0]!;
+    assert.strictEqual(e.actor.type, "agent");
+    assert.strictEqual(e.actor.id, "/root");
+    assert.deepStrictEqual(e.content, {
+      role: "agent_message",
+      author: "/root",
+      recipient: "/root/subagent",
+      blocks: [{ type: "text", text: "Message Type: NEW_TASK\nTask name: /root/subagent" }],
+    });
+
+    // The encrypted payload must be gone from the event wholesale — content
+    // and raw alike — leaving only the bare type marker in raw.
+    const serialized = JSON.stringify(e);
+    assert.ok(!serialized.includes("opaque-blob"), "encrypted content must never be stored");
+    const rawContent = ((e.raw?.data as { payload?: { content?: unknown[] } }).payload?.content) ?? [];
+    assert.deepStrictEqual(rawContent[1], { type: "encrypted_content" });
+    assert.strictEqual(e.raw?.format, "codex-rollout-jsonl/2");
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
   }
 });

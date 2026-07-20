@@ -6,8 +6,10 @@ import {
   appendEvents,
   readEvents,
   redactEvent,
+  ScanBlockedError,
   sortEvents,
   sync,
+  transportPush,
   type ReadOptions,
 } from "./store.js";
 import { parseEventLine, type EventDraft, type EvidenceEvent } from "./schema.js";
@@ -31,8 +33,11 @@ Usage:
   cledger conversations [--rev R]         list conversations on current branch (--all for every branch)
   cledger export [--rev R]                lossless JSONL dump (default: everything)
   cledger sync [--remote R] [--push|--fetch] [--no-scan] [--paranoid]
-                                           explicit opt-in fetch/merge/push of the ledger ref;
+                                           fetch/merge/push of the ledger ref;
                                            push is gated by a secret scan unless --no-scan
+  cledger transport-push [remote]         pre-push hook entrypoint (installed automatically):
+                                           pushes the ledger ref alongside git push; scan findings
+                                           hold back only the ledger unless transport.strict
   cledger scan [--all|--rev R] [--paranoid]   scan local events for potential secrets (CI-friendly:
                                            exits 1 if any finding, 0 otherwise); default scope is
                                            every local event, --rev restricts by reachability
@@ -235,6 +240,26 @@ async function cmdSync(flags: Flags): Promise<void> {
   );
 }
 
+async function cmdTransportPush(positional: string[]): Promise<void> {
+  const repo = await findRepo(process.cwd());
+  if (!repo) return; // a hook must never fail the user's push
+  const remote = positional[0] || "origin";
+  try {
+    await transportPush(repo, remote);
+  } catch (err) {
+    if (err instanceof ScanBlockedError) {
+      // transport.strict: nonzero exit makes git abort the entire push.
+      process.stderr.write("cledger: entire push blocked (transport.strict is enabled)\n");
+      process.exit(1);
+    }
+    // Anything else is a cledger bug or environment problem; the user's
+    // code push must proceed regardless.
+    process.stderr.write(
+      `cledger: transport-push error (push continues): ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+  }
+}
+
 async function cmdScan(flags: Flags): Promise<void> {
   const repo = await requireRepo();
   const tier: "standard" | "paranoid" = flags["paranoid"] ? "paranoid" : "standard";
@@ -306,6 +331,8 @@ async function main(): Promise<void> {
       return cmdExport(flags);
     case "sync":
       return cmdSync(flags);
+    case "transport-push":
+      return cmdTransportPush(positional);
     case "scan":
       return cmdScan(flags);
     case "allow":
@@ -329,10 +356,12 @@ async function main(): Promise<void> {
       const source = positional[0];
       const transcript = typeof flags["transcript"] === "string" ? flags["transcript"] : undefined;
       if (source === "claude-code" && transcript) {
-        return captureClaudeTranscript(transcript, process.cwd());
+        await captureClaudeTranscript(transcript, process.cwd());
+        return;
       }
       if (source === "codex" && transcript) {
-        return captureCodexTranscript(transcript, process.cwd());
+        await captureCodexTranscript(transcript, process.cwd());
+        return;
       }
       process.stderr.write("usage: cledger capture <claude-code|codex> --transcript PATH\n");
       process.exit(2);

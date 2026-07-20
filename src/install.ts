@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { hasAuthorIdentity } from "./transport.js";
 
 const execFileP = promisify(execFile);
 
@@ -114,4 +115,12 @@ export async function installAdapters(which: string): Promise<void> {
     process.exit(2);
   }
   for (const line of results) process.stdout.write(line + "\n");
+  if (!(await hasAuthorIdentity())) {
+    process.stderr.write(
+      "cledger: warning — git has no author identity configured, so your conversation turns " +
+        "will be recorded unattributed (no actor.id). Fix with:\n" +
+        '  git config --global user.email "you@example.com"\n' +
+        '  git config --global user.name "Your Name"\n',
+    );
+  }
 }

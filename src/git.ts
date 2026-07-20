@@ -91,8 +91,26 @@ export interface GitUserIdentity {
   name: string | null;
 }
 
-/** The committer identity configured for this repo (user.email / user.name). */
+/**
+ * The identity a commit made right now would be authored under, resolved by
+ * git itself in git's own precedence order (GIT_AUTHOR_EMAIL env, then
+ * user.email config — includeIf and all — then EMAIL env).
+ * user.useConfigOnly keeps git from auto-detecting a hostname-based
+ * identity — hostname anchors churn (DHCP renames) and actor.id is part of
+ * event identity, so a guessed value would churn event ids. Strict
+ * resolution refuses when *either* field would need guessing, so explicit
+ * config is read as a fallback (a repo with user.email but no user.name
+ * anywhere still attributes turns). When git would have to guess the email
+ * too, turns stay unattributed (both fields null).
+ */
 export async function gitUserIdentity(repo: RepoInfo): Promise<GitUserIdentity> {
+  const ident = (await git(["-c", "user.useConfigOnly=true", "var", "GIT_AUTHOR_IDENT"], {
+    cwd: repo.root,
+    allowFailure: true,
+  })).trim();
+  const match = ident.match(/^(.*?)\s*<([^<>]*)>\s+\d+\s+[+-]\d{4}$/);
+  if (match) return { email: match[2] || null, name: match[1] || null };
+
   const email = (await git(["config", "user.email"], {
     cwd: repo.root,
     allowFailure: true,

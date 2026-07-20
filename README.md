@@ -8,7 +8,8 @@ utility in the unix tradition: it appends immutable JSONL evidence events to
 `refs/notes/conversation-ledger`, anchored to the commit you were on when the
 conversation happened. Records ride the commit DAG — merge a branch and its
 conversations come along — never touch your working tree or `git status`, and
-only leave your machine when you explicitly `cledger sync`.
+ride your normal `git push`/`git fetch` via an auto-installed, scan-gated
+pre-push hook and fetch refspec (or explicitly, via `cledger sync`).
 
 Conversation Ledger is the neutral foundation of a small ecosystem:
 
@@ -48,9 +49,33 @@ cledger log --all --json        # every event, as JSONL for jq & friends
 cledger conversations           # sessions touching this branch
 cledger show claude-code:3f9a   # replay one conversation in order
 cledger export > ledger.jsonl   # lossless dump, incl. source-native payloads
-cledger sync                    # explicit opt-in fetch/merge/push of the ledger ref
+cledger sync                    # explicit fetch/merge/push of the ledger ref
 echo '{"kind":"decision",...}' | cledger append   # any tool can write events
 ```
+
+## Sharing (transport)
+
+The ledger travels with normal git use, no extra commands:
+
+- **Push**: the first capture in a repo installs a `pre-push` hook (chaining
+  safely onto any existing shell hook; backing off with a warning when
+  `core.hooksPath`/husky owns the hooks). On `git push` it pushes the ledger
+  ref alongside, gated by the secret scan. A finding holds back **only the
+  ledger** — your code push proceeds — unless you opt into
+  `{"transport": {"strict": true}}`, which aborts the whole push.
+- **Fetch**: the same first capture adds a fetch refspec on `origin`, so
+  `git fetch`/`git pull` stages teammates' events; any read command
+  (`cledger log`, `show`, ...) folds them in via the conflict-free
+  `cat_sort_uniq` union. The local ref is never force-overwritten.
+- **Opting out**: `{"transport": {"hook": false, "fetchRefspec": false}}` in
+  `.cledger.json` or `~/.config/cledger/config.json`, or just delete the
+  marked block from `.git/hooks/pre-push`. `cledger sync` always works
+  explicitly either way.
+
+If git has no author identity configured (`user.email` unset), human turns
+are recorded unattributed; `cledger install` warns about this. cledger uses
+the same identity a commit would be authored under (config or environment)
+and never guesses a hostname-based one.
 
 ## Adapters
 
@@ -59,7 +84,7 @@ Supported today (built-in, hook-based, per-turn):
 | Source | Trigger | Transcript store | Notes |
 |---|---|---|---|
 | Claude Code CLI | `Stop`/`SessionEnd` hooks | `~/.claude/projects/*/*.jsonl` | Also covers the VS Code extension and JetBrains plugin (both share `~/.claude/settings.json` hooks and transcripts), and desktop-app local/SSH/WSL sessions. Cloud "Remote" sessions and the Cowork tab run server-side — not captured. |
-| Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. |
+| Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. Inter-agent messages (`agent_message`) are captured with their visible text; their encrypted blocks are never stored, same policy as reasoning. |
 
 TODO adapters, roughly in order of how ledger-friendly their storage/hook
 story looks (all have local session stores; most grew Claude-Code-style hook
@@ -93,7 +118,7 @@ Visible tool output can contain secrets: API keys in error messages, credentials
 - Threat addressed: unstructured secrets in local config.
 - Cost of enabling: `.env` plain-config values get masked too; machine-dependent (rescans produce duplicate events with different ids).
 
-**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the push with a report and remediation instructions.
+**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push with a report and remediation instructions; in the pre-push hook, a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
 - Threat addressed: secrets from older capture rules or new tool formats slipping through.
 - Cost of disabling: `{"scan": {"tier": "off"}}` — secrets in tool output push silently.
 - Remediation paths: `cledger redact <event-id>` (real secrets), `cledger allow <fingerprint>` (false positives), `cledger sync --no-scan` (bypass once). `--paranoid` tier adds entropy-based detection (noisier but broader).
@@ -110,10 +135,6 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 
 ## Roadmap
 
-- **Transport hooks** (decided, unbuilt) — optional-but-default-on `pre-push`
-  git hook running the sync push (scan-gated) plus a staged fetch refspec
-  merged lazily at read time, so the ledger rides normal `git push`/`pull`
-  instead of requiring explicit `cledger sync`.
 - **Path-based capture exclusion** — the path half of the redaction config
   ("never record reads of `secrets/**`"); requires correlating `tool_use`
   file paths with their `tool_result` events.
@@ -131,11 +152,10 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   with a worktree or live outside the repo (e.g. Claude Code auto-memory
   directories, session state). They fit the `document` kind; the question is
   scope and capture triggers.
-- **Format-drift resilience** — adapters currently skip transcript line
-  types they don't recognize, so a harness update that introduces new
-  message types would silently leave that content uncaptured (see
-  "Versioning" in the design doc). At minimum: count and warn about
-  skipped-but-substantive lines; possibly preserve them raw-only.
+- **Format-drift: raw preservation** — adapters now count and warn about
+  transcript line types they don't recognize (the detection half shipped in
+  0.4.0), but those lines are still not stored. Possibly preserve them
+  raw-only so a later adapter version can re-normalize them.
 - **Purge tooling** — true content removal behind a `redaction` event.
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 

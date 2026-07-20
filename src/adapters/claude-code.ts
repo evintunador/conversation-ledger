@@ -4,6 +4,29 @@ import { basename, join } from "node:path";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft } from "../schema.js";
+import { countUnrecognized, warnUnrecognized, type CaptureResult } from "./drift.js";
+
+const CONVERTIBLE_LINE_TYPES = new Set(["user", "assistant"]);
+
+/**
+ * Line types we deliberately do not capture: session bookkeeping, UI state,
+ * and file-history machinery, not visible conversation content. A parsed
+ * line whose type is in neither set is *unrecognized* — likely new upstream
+ * content — and gets counted for the drift warning.
+ */
+const KNOWN_SKIPPED_LINE_TYPES = new Set([
+  "system",
+  "summary",
+  "progress",
+  "attachment",
+  "mode",
+  "permission-mode",
+  "ai-title",
+  "last-prompt",
+  "queue-operation",
+  "file-history-snapshot",
+  "file-history-delta",
+]);
 
 /** Claude Code hooks-engine payload (subset we read). */
 interface ClaudeCodeHookPayload {
@@ -128,15 +151,19 @@ export async function runClaudeCodeHook(stdinJson: string): Promise<void> {
   }
 }
 
-export async function captureClaudeTranscript(transcriptPath: string, cwd: string): Promise<void> {
+export async function captureClaudeTranscript(
+  transcriptPath: string,
+  cwd: string,
+): Promise<CaptureResult> {
   const repo = await findRepo(cwd);
   if (!repo) throw new Error("not inside a git repository");
 
+  const result: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
   let raw: string;
   try {
     raw = await readFile(transcriptPath, "utf8");
   } catch {
-    return; // transcript not written yet
+    return result; // transcript not written yet
   }
   const lines = raw.split("\n");
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
@@ -157,17 +184,24 @@ export async function captureClaudeTranscript(transcriptPath: string, cwd: strin
     } catch {
       continue; // partial line — normal at the tail of a live transcript
     }
+    const type = typeof parsed.type === "string" ? parsed.type : "(untyped)";
+    if (!CONVERTIBLE_LINE_TYPES.has(type)) {
+      if (!KNOWN_SKIPPED_LINE_TYPES.has(type)) countUnrecognized(result.unrecognized, type);
+      continue;
+    }
     const draft = convertLine(parsed, i, version, identity);
     if (draft) drafts.push(draft);
   }
 
-  let appended = 0;
-  let deduped = 0;
   if (drafts.length > 0) {
-    const result = await appendEvents(repo, drafts);
-    appended = result.appended.length;
-    deduped = result.deduped;
+    const appendResult = await appendEvents(repo, drafts);
+    result.appended = appendResult.appended.length;
+    result.deduped = appendResult.deduped;
   }
   await writeCursor(repo, sessionId, lines.length);
-  process.stderr.write(`cledger: claude-code +${appended} events (${deduped} deduped)\n`);
+  process.stderr.write(
+    `cledger: claude-code +${result.appended} events (${result.deduped} deduped)\n`,
+  );
+  warnUnrecognized("claude-code", result.unrecognized);
+  return result;
 }

@@ -4,6 +4,7 @@ import { basename, join } from "node:path";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft } from "../schema.js";
+import { countUnrecognized, warnUnrecognized, type CaptureResult } from "./drift.js";
 
 /** Codex CLI hooks-engine payload (subset we read). */
 interface CodexHookPayload {
@@ -27,7 +28,27 @@ const CONVERTIBLE_RESPONSE_TYPES = new Set([
   "function_call_output",
   "custom_tool_call",
   "custom_tool_call_output",
+  "agent_message",
 ]);
+
+/**
+ * Line types we deliberately do not capture: session/turn bookkeeping and
+ * the event_msg UI stream (whose conversation content duplicates
+ * response_item lines). Anything else is unrecognized — likely new upstream
+ * content — and counted for the drift warning; same for response_item
+ * payload types outside CONVERTIBLE_RESPONSE_TYPES (except reasoning,
+ * which is encrypted/opaque and skipped by policy).
+ */
+const KNOWN_SKIPPED_LINE_TYPES = new Set([
+  "session_meta",
+  "turn_context",
+  "compacted",
+  "event_msg",
+  "world_state",
+  "inter_agent_communication_metadata",
+]);
+
+const KNOWN_SKIPPED_RESPONSE_TYPES = new Set(["reasoning"]);
 
 function packageVersion(): string {
   try {
@@ -98,6 +119,35 @@ function convertMessageBlocks(content: unknown): unknown[] {
   });
 }
 
+function isEncryptedBlock(block: unknown): boolean {
+  return (
+    block !== null &&
+    typeof block === "object" &&
+    (block as Record<string, unknown>)["type"] === "encrypted_content"
+  );
+}
+
+/**
+ * Inter-agent messages mix visible input_text blocks with encrypted_content
+ * blocks — the same provider-withheld material as reasoning payloads, which
+ * policy says is skipped, not stored, never reconstructed. Visible blocks
+ * convert normally; encrypted blocks are dropped, leaving a bare
+ * {type: "encrypted_content"} marker in `raw` so the omission is visible.
+ * The transform is a pure function of the source line, so ids stay stable
+ * across rescans.
+ */
+function sanitizeAgentMessageRaw(line: CodexRolloutLine): CodexRolloutLine {
+  const content = line.payload?.["content"];
+  if (!Array.isArray(content) || !content.some(isEncryptedBlock)) return line;
+  return {
+    ...line,
+    payload: {
+      ...line.payload,
+      content: content.map((b) => (isEncryptedBlock(b) ? { type: "encrypted_content" } : b)),
+    },
+  };
+}
+
 function convertLine(
   line: CodexRolloutLine,
   seq: number,
@@ -128,6 +178,17 @@ function convertLine(
       if (identity.name) actor.display = identity.name;
     }
     content = { role: roleStr, blocks: convertMessageBlocks(payload["content"]) };
+  } else if (payloadType === "agent_message") {
+    actor = { type: "agent" };
+    if (typeof payload["author"] === "string") actor.id = payload["author"];
+    const rawBlocks = payload["content"];
+    const visible = Array.isArray(rawBlocks) ? rawBlocks.filter((b) => !isEncryptedBlock(b)) : [];
+    content = {
+      role: "agent_message",
+      ...(typeof payload["author"] === "string" ? { author: payload["author"] } : {}),
+      ...(typeof payload["recipient"] === "string" ? { recipient: payload["recipient"] } : {}),
+      blocks: convertMessageBlocks(visible),
+    } as { role: string; blocks: unknown[] };
   } else if (payloadType === "function_call" || payloadType === "custom_tool_call") {
     actor = { type: "agent" };
     const block: Record<string, unknown> = { type: "tool_use" };
@@ -152,7 +213,11 @@ function convertLine(
     producer: { tool: "cledger", version, source: "codex", session_id: sessionId },
     conversation: { id: `codex:${sessionId}`, seq },
     content,
-    raw: { format: "codex-rollout-jsonl/1", data: line },
+    // /2: agent_message payloads convert (encrypted blocks omitted) — /1 dropped them.
+    raw: {
+      format: "codex-rollout-jsonl/2",
+      data: payloadType === "agent_message" ? sanitizeAgentMessageRaw(line) : line,
+    },
   };
 }
 
@@ -171,15 +236,19 @@ export async function runCodexHook(stdinJson: string): Promise<void> {
   }
 }
 
-export async function captureCodexTranscript(transcriptPath: string, cwd: string): Promise<void> {
+export async function captureCodexTranscript(
+  transcriptPath: string,
+  cwd: string,
+): Promise<CaptureResult> {
   const repo = await findRepo(cwd);
   if (!repo) throw new Error("not inside a git repository");
 
+  const result: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
   let raw: string;
   try {
     raw = await readFile(transcriptPath, "utf8");
   } catch {
-    return; // transcript not written yet
+    return result; // transcript not written yet
   }
   const lines = raw.split("\n");
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
@@ -211,17 +280,29 @@ export async function captureCodexTranscript(transcriptPath: string, cwd: string
     } catch {
       continue; // partial line — normal at the tail of a live transcript
     }
+    const type = typeof parsed.type === "string" ? parsed.type : "(untyped)";
+    if (type === "response_item") {
+      const payloadType = parsed.payload?.["type"];
+      const pt = typeof payloadType === "string" ? payloadType : "(untyped)";
+      if (!CONVERTIBLE_RESPONSE_TYPES.has(pt) && !KNOWN_SKIPPED_RESPONSE_TYPES.has(pt)) {
+        countUnrecognized(result.unrecognized, `response_item/${pt}`);
+        continue;
+      }
+    } else if (!KNOWN_SKIPPED_LINE_TYPES.has(type)) {
+      countUnrecognized(result.unrecognized, type);
+      continue;
+    }
     const draft = convertLine(parsed, i, sessionId, baseTime, version, identity);
     if (draft) drafts.push(draft);
   }
 
-  let appended = 0;
-  let deduped = 0;
   if (drafts.length > 0) {
-    const result = await appendEvents(repo, drafts);
-    appended = result.appended.length;
-    deduped = result.deduped;
+    const appendResult = await appendEvents(repo, drafts);
+    result.appended = appendResult.appended.length;
+    result.deduped = appendResult.deduped;
   }
   await writeCursor(repo, sessionId, lines.length);
-  process.stderr.write(`cledger: codex +${appended} events (${deduped} deduped)\n`);
+  process.stderr.write(`cledger: codex +${result.appended} events (${result.deduped} deduped)\n`);
+  warnUnrecognized("codex", result.unrecognized);
+  return result;
 }
