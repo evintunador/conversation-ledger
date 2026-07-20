@@ -4,7 +4,14 @@ import { basename, join } from "node:path";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft } from "../schema.js";
-import { countUnrecognized, warnUnrecognized, type CaptureResult } from "./drift.js";
+import {
+  countUnrecognized,
+  unrecognizedDraft,
+  warnUnrecognized,
+  type CaptureResult,
+} from "./drift.js";
+
+const RAW_FORMAT = "codex-rollout-jsonl/2";
 
 /** Codex CLI hooks-engine payload (subset we read). */
 interface CodexHookPayload {
@@ -148,6 +155,28 @@ function sanitizeAgentMessageRaw(line: CodexRolloutLine): CodexRolloutLine {
   };
 }
 
+/** Raw-only preservation event for an unrecognized codex line (see drift.ts). */
+function preserve(
+  typeKey: string,
+  line: CodexRolloutLine,
+  occurredAt: string,
+  seq: number,
+  sessionId: string,
+  version: string,
+): EventDraft {
+  return unrecognizedDraft({
+    typeKey,
+    line,
+    occurredAt,
+    source: "codex",
+    sessionId,
+    seq,
+    version,
+    rawFormat: RAW_FORMAT,
+    conversationId: `codex:${sessionId}`,
+  });
+}
+
 function convertLine(
   line: CodexRolloutLine,
   seq: number,
@@ -215,7 +244,7 @@ function convertLine(
     content,
     // /2: agent_message payloads convert (encrypted blocks omitted) — /1 dropped them.
     raw: {
-      format: "codex-rollout-jsonl/2",
+      format: RAW_FORMAT,
       data: payloadType === "agent_message" ? sanitizeAgentMessageRaw(line) : line,
     },
   };
@@ -281,15 +310,19 @@ export async function captureCodexTranscript(
       continue; // partial line — normal at the tail of a live transcript
     }
     const type = typeof parsed.type === "string" ? parsed.type : "(untyped)";
+    const occurredAt = typeof parsed.timestamp === "string" ? parsed.timestamp : baseTime;
     if (type === "response_item") {
       const payloadType = parsed.payload?.["type"];
       const pt = typeof payloadType === "string" ? payloadType : "(untyped)";
       if (!CONVERTIBLE_RESPONSE_TYPES.has(pt) && !KNOWN_SKIPPED_RESPONSE_TYPES.has(pt)) {
-        countUnrecognized(result.unrecognized, `response_item/${pt}`);
+        const typeKey = `response_item/${pt}`;
+        countUnrecognized(result.unrecognized, typeKey);
+        drafts.push(preserve(typeKey, parsed, occurredAt, i, sessionId, version));
         continue;
       }
     } else if (!KNOWN_SKIPPED_LINE_TYPES.has(type)) {
       countUnrecognized(result.unrecognized, type);
+      drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version));
       continue;
     }
     const draft = convertLine(parsed, i, sessionId, baseTime, version, identity);

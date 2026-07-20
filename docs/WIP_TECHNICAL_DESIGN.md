@@ -224,13 +224,24 @@ Three layers exist today:
    `cli_version`), so captured content can always be re-normalized under a
    newer mapping without recapture.
 
-Drift detection: adapters are tolerant parsers, but each maintains an
-explicit known-skipped list (bookkeeping/UI line types, Codex's opaque
-`reasoning` payloads) alongside its convertible set; parsed lines matching
-neither are counted per type and reported in a capture-time warning
-(`CaptureResult.unrecognized`). What does not exist yet: preserving those
-unrecognized lines raw-only so a later adapter can re-normalize them —
-today they are still dropped. See the format-drift roadmap item.
+Drift detection and raw preservation: adapters are tolerant parsers, but
+each maintains an explicit known-skipped list (bookkeeping/UI line types,
+Codex's opaque `reasoning` payloads) alongside its convertible set; parsed
+lines matching neither are *unrecognized*. Each such line is both counted
+per type for a capture-time warning (`CaptureResult.unrecognized`) and
+preserved rather than dropped: the adapter emits an `unrecognized` event
+whose `content` is only a `{unrecognized_type}` label and whose `raw.data`
+holds the full source line, versioned by the adapter's native `raw.format`,
+so a later adapter version can re-normalize (and supersede) it. Because
+`raw` is outside the identity subset, distinctness and idempotency come from
+`conversation.seq` (the source line index) exactly as for interpreted turns,
+and format-version bumps never churn ids. Crucially these events ride the
+normal `appendEvents` path, so the capture-tier redaction stack walks their
+`raw.data` — an unrecognized line is not a bypass around secret redaction.
+Encrypted/opaque payloads that policy forbids storing (Codex `reasoning`)
+stay on the known-skipped list and are never preserved. What does not exist
+yet: automatic re-normalization of these preserved lines under a newer
+adapter (the supersession half). See the format-drift roadmap item.
 
 ## Open questions
 

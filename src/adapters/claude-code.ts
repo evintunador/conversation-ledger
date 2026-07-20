@@ -1,12 +1,19 @@
 import { readFileSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft } from "../schema.js";
-import { countUnrecognized, warnUnrecognized, type CaptureResult } from "./drift.js";
+import {
+  countUnrecognized,
+  unrecognizedDraft,
+  warnUnrecognized,
+  type CaptureResult,
+} from "./drift.js";
 
 const CONVERTIBLE_LINE_TYPES = new Set(["user", "assistant"]);
+
+const RAW_FORMAT = "claude-code-jsonl/1";
 
 /**
  * Line types we deliberately do not capture: session bookkeeping, UI state,
@@ -106,6 +113,59 @@ function convertBlock(block: unknown): unknown {
   return b;
 }
 
+/**
+ * A deterministic session time for preserving unrecognized lines that carry
+ * no timestamp of their own: the first timestamp anywhere in the transcript
+ * (stable across rescans), falling back to the file mtime. Claude lines
+ * almost always carry a timestamp, so this is a rarely-hit safety net.
+ */
+function firstTimestamp(lines: string[]): string | null {
+  for (const text of lines) {
+    if (!text.trim()) continue;
+    try {
+      const parsed = JSON.parse(text) as ClaudeTranscriptLine;
+      if (typeof parsed.timestamp === "string" && !Number.isNaN(Date.parse(parsed.timestamp))) {
+        return parsed.timestamp;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/** File mtime as ISO, else now — last-resort deterministic-ish base time. */
+async function sessionMtime(transcriptPath: string): Promise<string> {
+  try {
+    return (await stat(transcriptPath)).mtime.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+/** Raw-only preservation event for an unrecognized claude-code line (see drift.ts). */
+function preserve(
+  type: string,
+  line: ClaudeTranscriptLine,
+  occurredAt: string,
+  seq: number,
+  fileSessionId: string,
+  version: string,
+): EventDraft {
+  const sessionId = line.sessionId ?? fileSessionId;
+  return unrecognizedDraft({
+    typeKey: type,
+    line,
+    occurredAt,
+    source: "claude-code",
+    sessionId,
+    seq,
+    version,
+    rawFormat: RAW_FORMAT,
+    conversationId: `claude-code:${sessionId}`,
+  });
+}
+
 function convertLine(
   line: ClaudeTranscriptLine,
   seq: number,
@@ -132,7 +192,7 @@ function convertLine(
     producer: { tool: "cledger", version, source: "claude-code", session_id: sessionId },
     conversation: { id: `claude-code:${sessionId}`, seq },
     content: { role: line.message.role, blocks: convertContentBlocks(line.message.content) },
-    raw: { format: "claude-code-jsonl/1", data: line },
+    raw: { format: RAW_FORMAT, data: line },
   };
 }
 
@@ -174,6 +234,7 @@ export async function captureClaudeTranscript(
 
   const version = packageVersion();
   const identity = await gitUserIdentity(repo);
+  let baseTime: string | null = null; // computed lazily, only if a timestampless unrecognized line needs it
   const drafts: EventDraft[] = [];
   for (let i = cursor; i < lines.length; i++) {
     const text = lines[i]!;
@@ -186,7 +247,12 @@ export async function captureClaudeTranscript(
     }
     const type = typeof parsed.type === "string" ? parsed.type : "(untyped)";
     if (!CONVERTIBLE_LINE_TYPES.has(type)) {
-      if (!KNOWN_SKIPPED_LINE_TYPES.has(type)) countUnrecognized(result.unrecognized, type);
+      if (!KNOWN_SKIPPED_LINE_TYPES.has(type)) {
+        countUnrecognized(result.unrecognized, type);
+        if (baseTime === null) baseTime = firstTimestamp(lines) ?? (await sessionMtime(transcriptPath));
+        const occurredAt = typeof parsed.timestamp === "string" ? parsed.timestamp : baseTime;
+        drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version));
+      }
       continue;
     }
     const draft = convertLine(parsed, i, version, identity);

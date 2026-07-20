@@ -4,9 +4,16 @@ import type { RedactionRecord } from "./redact/apply.js";
 export const SCHEMA_VERSION = "conversation-ledger/v1";
 
 /**
- * The six well-known event kinds. `kind` is an open string so downstream
- * tools can extend the ledger without a schema release; unknown kinds are
- * stored verbatim. The ledger never interprets content, whatever the kind.
+ * The well-known event kinds. `kind` is an open string so downstream tools
+ * can extend the ledger without a schema release; unknown kinds are stored
+ * verbatim. The ledger never interprets content, whatever the kind.
+ *
+ * `unrecognized` is the one kind the ledger emits for content it could *not*
+ * interpret: an adapter that meets a transcript line type it has no mapping
+ * for preserves the line raw-only under `raw.data` rather than dropping it,
+ * so a later adapter version can re-normalize (and supersede) it. Its
+ * `content` carries only a `{unrecognized_type}` label — the payload lives in
+ * `raw` — but identity still separates distinct lines via `conversation.seq`.
  */
 export const KNOWN_KINDS = [
   "conversation_turn",
@@ -15,6 +22,7 @@ export const KNOWN_KINDS = [
   "annotation",
   "redaction",
   "supersession",
+  "unrecognized",
 ] as const;
 
 export interface Actor {

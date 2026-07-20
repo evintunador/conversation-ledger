@@ -170,14 +170,57 @@ test("captureClaudeTranscript: unrecognized line types are counted, known ones s
       { type: "file-history-snapshot", sessionId: SESSION_ID },
       { type: "queue-operation", sessionId: SESSION_ID },
       // A type this adapter has never heard of — the drift tripwire.
-      { type: "holo-message", sessionId: SESSION_ID, hologram: "new content kind" },
-      { type: "holo-message", sessionId: SESSION_ID, hologram: "again" },
+      { type: "holo-message", sessionId: SESSION_ID, timestamp: "2026-01-01T00:00:05.000Z", hologram: "new content kind" },
+      { type: "holo-message", sessionId: SESSION_ID, timestamp: "2026-01-01T00:00:06.000Z", hologram: "again" },
     ];
     await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
 
     const result = await captureClaudeTranscript(path, repo.root);
-    assert.strictEqual(result.appended, 1);
+    // 1 interpreted turn + 2 raw-only preservation events for the drift lines.
+    assert.strictEqual(result.appended, 3);
     assert.deepStrictEqual(result.unrecognized, { "holo-message": 2 });
+
+    // The unrecognized lines are preserved raw-only, not dropped.
+    const preserved = (await readEvents(repo)).filter((e) => e.kind === "unrecognized");
+    assert.strictEqual(preserved.length, 2);
+    const first = preserved.sort((a, b) => a.conversation!.seq - b.conversation!.seq)[0]!;
+    assert.strictEqual(first.actor.type, "system");
+    assert.deepStrictEqual(first.content, { unrecognized_type: "holo-message" });
+    assert.strictEqual(first.raw!.format, "claude-code-jsonl/1");
+    assert.deepStrictEqual(first.raw!.data, {
+      type: "holo-message",
+      sessionId: SESSION_ID,
+      timestamp: "2026-01-01T00:00:05.000Z",
+      hologram: "new content kind",
+    });
+    assert.strictEqual(first.occurred_at, "2026-01-01T00:00:05.000Z");
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(transcriptDir);
+  }
+});
+
+test("captureClaudeTranscript: a timestampless unrecognized line still gets a deterministic occurred_at", async () => {
+  const repo = await makeTempRepo("cledger-cc-drift-ts-");
+  const transcriptDir = await mkdtemp(join(tmpdir(), "cledger-cc-drift-ts-"));
+  try {
+    await makeCommit(repo, "init");
+    const path = join(transcriptDir, `${SESSION_ID}.jsonl`);
+    const lines = [
+      {
+        type: "user",
+        sessionId: SESSION_ID,
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: { role: "user", content: "hi" },
+      },
+      // No timestamp of its own — must fall back to the transcript's first timestamp.
+      { type: "holo-message", sessionId: SESSION_ID, hologram: "no timestamp here" },
+    ];
+    await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+
+    await captureClaudeTranscript(path, repo.root);
+    const preserved = (await readEvents(repo)).find((e) => e.kind === "unrecognized")!;
+    assert.strictEqual(preserved.occurred_at, "2026-01-01T00:00:00.000Z");
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(transcriptDir);

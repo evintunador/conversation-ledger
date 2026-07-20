@@ -198,11 +198,65 @@ test("captureCodexTranscript: unrecognized line and payload types are counted fo
     await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
 
     const result = await captureCodexTranscript(path, repo.root);
-    assert.strictEqual(result.appended, 1);
+    // 1 interpreted message + 2 raw-only preservation events for the drift lines.
+    assert.strictEqual(result.appended, 3);
     assert.deepStrictEqual(result.unrecognized, {
       "response_item/holo_call": 1,
       brand_new_line_kind: 1,
     });
+
+    // The unrecognized lines are preserved raw-only, not dropped.
+    const events = await readEvents(repo);
+    const preserved = events
+      .filter((e) => e.kind === "unrecognized")
+      .sort((a, b) => (a.conversation!.seq - b.conversation!.seq));
+    assert.strictEqual(preserved.length, 2);
+
+    const holo = preserved[0]!;
+    assert.strictEqual(holo.actor.type, "system");
+    assert.deepStrictEqual(holo.content, { unrecognized_type: "response_item/holo_call" });
+    assert.strictEqual(holo.raw!.format, "codex-rollout-jsonl/2");
+    // Full source line retained under raw.data for later re-normalization.
+    assert.deepStrictEqual(holo.raw!.data, {
+      type: "response_item",
+      timestamp: "2026-01-01T00:00:03.000Z",
+      payload: { type: "holo_call", text: "future content kind" },
+    });
+    assert.strictEqual(holo.occurred_at, "2026-01-01T00:00:03.000Z");
+
+    const brandNew = preserved[1]!;
+    assert.deepStrictEqual(brandNew.content, { unrecognized_type: "brand_new_line_kind" });
+    assert.deepStrictEqual(brandNew.raw!.data, { type: "brand_new_line_kind", payload: {} });
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
+  }
+});
+
+test("captureCodexTranscript: a secret inside an unrecognized line is redacted in raw", async () => {
+  const repo = await makeTempRepo("cledger-codex-drift-secret-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-drift-secret-"));
+  try {
+    await makeCommit(repo, "init");
+    const path = join(dir, FILENAME);
+    const secret = "ghp_" + "a".repeat(36);
+    const lines = [
+      { type: "session_meta", payload: { session_id: SESSION_ID } },
+      {
+        type: "response_item",
+        timestamp: "2026-01-01T00:00:03.000Z",
+        payload: { type: "holo_call", token: secret },
+      },
+    ];
+    await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+
+    await captureCodexTranscript(path, repo.root);
+    const events = await readEvents(repo);
+    const preserved = events.find((e) => e.kind === "unrecognized")!;
+    const serialized = JSON.stringify(preserved);
+    assert.ok(!serialized.includes(secret), "secret must not survive in the preserved event");
+    assert.ok(serialized.includes("[REDACTED:"), "secret must be replaced with a redaction placeholder");
+    assert.ok((preserved.redactions ?? []).length > 0, "a redaction record must be attached");
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(dir);
