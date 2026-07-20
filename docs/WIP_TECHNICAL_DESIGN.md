@@ -202,6 +202,12 @@ item.
   correlating tool_use file paths with their tool_result events.
 - Post-push purge tooling (force-push the notes ref + collaborator
   re-fetch coordination).
+- Unset `git config user.email` leaves human turns unattributed
+  (`gitUserIdentity` returns null; common on fresh machines/containers).
+  Planned fix: fall back to git's *effective* author identity so
+  `actor.id` matches commit authorship, and have `cledger install` warn
+  when user.email is unset. Hostname/OS-username anchors are ruled out —
+  they churn (DHCP renames) and would churn event ids.
 - Sub-turn citation anchors for downstream consumers (intent-recall).
 - Re-anchoring after squash merges and history rewrites — ideally default
   behavior (squash commit inherits its branch's conversations), which
