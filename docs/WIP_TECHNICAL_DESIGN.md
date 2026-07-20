@@ -6,7 +6,10 @@
 
 Conversation Ledger defines a canonical append-only event format plus a local,
 git-backed storage protocol. It preserves exact visible content while staying
-out of the working tree and syncing only on explicit request.
+out of the working tree. Transport of the ledger ref is explicit today
+(`cledger sync`); the decided direction is an optional, on-by-default git
+pre-push hook plus fetch refspec so records propagate with normal git use
+(see open questions).
 
 ## Canonical objects
 
@@ -70,9 +73,11 @@ Why this shape:
    lines mean git's `cat_sort_uniq` notes merge strategy (configured per-ref
    at first append) unions concurrent appends cleanly — the same mechanism
    git-bug and git-appraise rely on.
-4. **Clean working tree.** Notes never appear in `git status`; sharing is an
-   explicit `cledger sync` (fetch → `git notes merge -s cat_sort_uniq` →
-   push) of that single ref, never implicit.
+4. **Clean working tree.** Notes never appear in `git status`; sharing is a
+   `cledger sync` (fetch → `git notes merge -s cat_sort_uniq` → push) of
+   that single ref — explicit-only today, with an optional on-by-default
+   pre-push hook planned so it rides normal `git push` (still
+   user-disableable; the E scan gates it either way).
 
 Events captured before the first commit exists (unborn `HEAD`) queue in
 `.git/conversation-ledger/pending.jsonl` and flush into the first real
@@ -98,12 +103,71 @@ idempotent ids make duplicate capture harmless. Per-session cursors under
 
 ## Privacy and integrity
 
-Visible tool output can contain secrets. The ledger stays local until an
-explicit `sync`; retention and remote-sharing policy belong to the repository
-owner. Redaction appends a `redaction` event linking to its target rather
-than pretending the original never existed; actually purging content is a
-deliberate, separate operation (planned) since note history retains prior
-blobs. Content hashes (event ids) make accidental mutation detectable.
+Visible tool output can contain secrets. The trust boundary is transport:
+native transcripts already sit in plaintext on the capturing machine, so
+redaction protects the *shared* record, not the local disk. But once a
+secret reaches a note, removal is expensive (the notes ref's own history
+retains prior blobs), so prevention layers run at capture and the last
+checkpoint runs at sync. Content hashes (event ids) make accidental
+mutation detectable.
+
+### Redaction layers
+
+Defense in depth, ordered by where they run and what they may do:
+
+- **A. Capture-time pattern redaction (default on).** A deliberately
+  conservative, versioned ruleset of unambiguous secret formats — prefixed
+  API tokens (`ghp_…`, `sk-ant-…`, `AKIA…`, `xox…-`, `AIza…`, `glpat-…`,
+  `npm_…`, `sk_live_…`), PEM private-key blocks, JWTs — applied to every
+  draft inside `appendEvents`, before ids are computed. Matches in both
+  `content` and `raw.data` are replaced with a deterministic placeholder
+  (see below). No entropy heuristics here: a false positive silently
+  rewrites the record, which violates the preservation commitment, so
+  capture-tier rules must be near-zero-false-positive by construction.
+- **B. External scanners as test oracle only.** gitleaks/trufflehog-class
+  rulesets are used in the test suite to prove the capture tier catches
+  what it claims (secret corpus in, zero findings out) — never vendored
+  into the runtime path.
+- **C. Env-value masking (opt-in, default off).** Scrub exact values of
+  local environment variables / `.env` entries from captured content.
+  Highest recall for unstructured secrets, but `.env` is often plain
+  config, and the transform depends on machine state — so it is
+  nondeterministic across rescans (id churn is the documented cost of
+  opting in).
+- **D. User pattern rules (config).** Extra redaction regexes merged into
+  the capture tier from config. Path-based exclusion ("never record reads
+  of `secrets/**`") is planned; it requires correlating `tool_use` inputs
+  with `tool_result` events and is not in v1.
+- **E. Sync-time scan (default on, tiered).** Before push, scan only the
+  events the remote does not yet have. The default profile runs
+  medium/high-precision rules (capture ruleset re-run for events captured
+  under older rules, keyword-anchored assignments, URL credentials); on a
+  hit the push blocks with an interactive finding report — allowlist the
+  false positive (persisted by fingerprint) or `cledger redact` the real
+  secret while purge is still a local operation. Entropy heuristics live
+  behind an opt-in paranoid tier; `--no-scan`/config disables the gate
+  entirely. Scan-tier rules may be noisy precisely because they only warn
+  a human — they never rewrite anything.
+
+### Redaction metadata
+
+A capture-time redaction replaces the matched span with
+`[REDACTED:<rule-id>:<fingerprint>]` — fingerprint is a truncated
+`sha256(secret)`, letting identical secrets correlate across events without
+being recoverable (brute-forceable only for low-entropy values, which the
+capture tier does not target). The event also carries a `redactions` array
+(rule id, ruleset version, fingerprint, location path); it sits outside the
+identity subset, since the rewritten `content` already determines the id.
+Determinism rule: capture-tier redaction must be a pure function of source
+content + versioned ruleset, or rescans duplicate events. Ruleset upgrades
+therefore change ids on forced rescan — same accepted caveat as identity
+stamping; cursors prevent it in normal operation.
+
+A human redaction of an *existing* event (the E flow) instead rewrites the
+note line and appends a companion `redaction` event with `links.redacts`,
+then squashes the local notes ref so the prior blob is unreachable —
+honest history without secret retention. Post-push purge (force-push +
+collaborator coordination) is deliberately separate, deferred tooling.
 
 ## Versioning against harness format changes
 
@@ -128,11 +192,16 @@ item.
 
 ## Open questions
 
-- Secret-safety at capture time: automatic detection/redaction of API keys,
-  tokens, and credentials in tool output before events are written (plus
-  path/pattern-based exclusion rules). Tool output is the highest-risk
-  content in the ledger and currently stored verbatim.
-- Purge tooling for true content removal after redaction.
+- Transport hooks (decided, unbuilt): optional-but-default-on `pre-push`
+  git hook running the sync push (with the E gate), and a staged fetch
+  refspec (`+refs/notes/conversation-ledger:refs/notes/cledger-incoming`)
+  merged lazily at read time — never force-overwriting the local ref.
+  Amends the "sharing is explicit" commitment here and in Turnbridge's
+  product intent.
+- Path-based capture exclusion (the path half of layer D): requires
+  correlating tool_use file paths with their tool_result events.
+- Post-push purge tooling (force-push the notes ref + collaborator
+  re-fetch coordination).
 - Sub-turn citation anchors for downstream consumers (intent-recall).
 - Re-anchoring after squash merges and history rewrites — ideally default
   behavior (squash commit inherits its branch's conversations), which

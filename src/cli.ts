@@ -5,6 +5,7 @@ import { findRepo, type RepoInfo } from "./git.js";
 import {
   appendEvents,
   readEvents,
+  redactEvent,
   sortEvents,
   sync,
   type ReadOptions,
@@ -13,6 +14,13 @@ import { parseEventLine, type EventDraft, type EvidenceEvent } from "./schema.js
 import { runClaudeCodeHook, captureClaudeTranscript } from "./adapters/claude-code.js";
 import { runCodexHook, captureCodexTranscript } from "./adapters/codex.js";
 import { installAdapters } from "./install.js";
+import {
+  addToAllowlist,
+  filterFindings,
+  formatFinding,
+  loadAllowlist,
+  scanEvents,
+} from "./redact/scan.js";
 
 const USAGE = `conversation-ledger — durable records of coding-agent conversations, in git notes
 
@@ -22,7 +30,16 @@ Usage:
   cledger show <conversation-id-prefix> [--json]
   cledger conversations [--rev R]         list conversations on current branch (--all for every branch)
   cledger export [--rev R]                lossless JSONL dump (default: everything)
-  cledger sync [--remote R] [--push|--fetch]   explicit opt-in fetch/merge/push of the ledger ref
+  cledger sync [--remote R] [--push|--fetch] [--no-scan] [--paranoid]
+                                           explicit opt-in fetch/merge/push of the ledger ref;
+                                           push is gated by a secret scan unless --no-scan
+  cledger scan [--all|--rev R] [--paranoid]   scan local events for potential secrets (CI-friendly:
+                                           exits 1 if any finding, 0 otherwise); default scope is
+                                           every local event, --rev restricts by reachability
+  cledger allow <fingerprint...>          mark scan finding fingerprint(s) as known false positives
+  cledger redact <event-id-prefix> (--pattern REGEX | --all) [--reason TEXT]
+                                           rewrite an existing event to remove a secret, keeping its
+                                           id stable, and squash local notes history if unpushed
   cledger install <claude-code|codex|all>  hook capture into coding CLIs (global)
   cledger hook <claude-code>              capture entrypoint invoked by CLI hooks (stdin: hook payload)
   cledger capture <claude-code|codex> --transcript PATH   manual/backfill ingestion
@@ -208,10 +225,59 @@ async function cmdSync(flags: Flags): Promise<void> {
   const repo = await requireRepo();
   const remote = typeof flags["remote"] === "string" ? flags["remote"] : "origin";
   const mode = flags["push"] ? "push" : flags["fetch"] ? "fetch" : "both";
-  const result = await sync(repo, remote, mode);
+  const result = await sync(repo, remote, mode, {
+    skipScan: flags["no-scan"] === true,
+    paranoid: flags["paranoid"] === true,
+  });
   process.stderr.write(
     `sync ${remote}: ${result.fetched ? "fetched+merged" : "nothing fetched"}, ` +
       `${result.pushed ? "pushed" : "not pushed"}\n`,
+  );
+}
+
+async function cmdScan(flags: Flags): Promise<void> {
+  const repo = await requireRepo();
+  const tier: "standard" | "paranoid" = flags["paranoid"] ? "paranoid" : "standard";
+  const opts: ReadOptions = {};
+  if (typeof flags["rev"] === "string") opts.reachableFrom = flags["rev"];
+  const events = await readEvents(repo, opts);
+  const findings = filterFindings(scanEvents(events, tier), await loadAllowlist(repo));
+  if (findings.length === 0) {
+    process.stderr.write("cledger scan: no findings\n");
+    return;
+  }
+  for (const f of findings) process.stdout.write(formatFinding(f) + "\n");
+  process.stderr.write(`cledger scan: ${findings.length} finding(s)\n`);
+  process.exit(1);
+}
+
+async function cmdAllow(positional: string[]): Promise<void> {
+  if (positional.length === 0) {
+    process.stderr.write("usage: cledger allow <fingerprint...>\n");
+    process.exit(2);
+  }
+  const repo = await requireRepo();
+  await addToAllowlist(repo, positional);
+  process.stderr.write(`allowlisted ${positional.length} fingerprint(s)\n`);
+}
+
+async function cmdRedact(positional: string[], flags: Flags): Promise<void> {
+  const idPrefix = positional[0];
+  if (!idPrefix) {
+    process.stderr.write("usage: cledger redact <event-id-prefix> (--pattern REGEX | --all) [--reason TEXT]\n");
+    process.exit(2);
+  }
+  const repo = await requireRepo();
+  const redactOpts: { pattern?: string; all?: boolean; reason?: string } = {};
+  if (typeof flags["pattern"] === "string") redactOpts.pattern = flags["pattern"];
+  if (flags["all"] === true) redactOpts.all = true;
+  if (typeof flags["reason"] === "string") redactOpts.reason = flags["reason"];
+  const result = await redactEvent(repo, idPrefix, redactOpts);
+  const fingerprints = result.event.redactions?.map((r) => r.fingerprint).join(", ") || "(none)";
+  process.stderr.write(
+    `cledger redact: rewrote ${result.event.id.slice(0, 16)} — fingerprints: ${fingerprints}\n` +
+      `companion event: ${result.redactionEvent.id.slice(0, 16)}\n` +
+      `history squashed: ${result.squashed ? "yes" : "no"}\n`,
   );
 }
 
@@ -240,6 +306,12 @@ async function main(): Promise<void> {
       return cmdExport(flags);
     case "sync":
       return cmdSync(flags);
+    case "scan":
+      return cmdScan(flags);
+    case "allow":
+      return cmdAllow(positional);
+    case "redact":
+      return cmdRedact(positional, flags);
     case "install":
       return installAdapters(positional[0] ?? "all");
     case "hook": {

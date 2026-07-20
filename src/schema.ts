@@ -1,4 +1,5 @@
 import { canonicalJson, sha256Hex } from "./canonical.js";
+import type { RedactionRecord } from "./redact/apply.js";
 
 export const SCHEMA_VERSION = "conversation-ledger/v1";
 
@@ -85,6 +86,16 @@ export interface EvidenceEvent {
    * transcript line(s). Versioned by `format`. Not part of identity.
    */
   raw?: { format: string; data: unknown };
+  /**
+   * Capture-time redaction records (rule id, ruleset version, fingerprint,
+   * location path), present when the capture-tier ruleset rewrote part of
+   * `content`/`raw.data` before this event was finalized. Deliberately
+   * excluded from the identity subset: the rewritten `content` already
+   * determines `id`, so including this here would double-count the same
+   * fact and would churn ids on ruleset upgrades even when the visible
+   * content is unchanged.
+   */
+  redactions?: RedactionRecord[];
 }
 
 /** Fields an adapter supplies; id/schema/recorded_at are filled at append. */

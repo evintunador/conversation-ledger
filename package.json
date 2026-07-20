@@ -1,6 +1,6 @@
 {
   "name": "conversation-ledger",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Durable, attributable records of visible coding-agent conversations, stored as git notes.",
   "type": "module",
   "license": "MIT",

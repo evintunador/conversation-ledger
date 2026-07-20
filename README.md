@@ -75,10 +75,51 @@ systems):
 - **aider** — plain `.aider.chat.history.md`; no hook mechanism found, would need file watching.
 - **Goose / Amp** — SQLite store / cloud-synced threads; hook stories unclear or absent.
 
+## Security & redaction
+
+Visible tool output can contain secrets: API keys in error messages, credentials in logs, etc. The trust boundary is transport — native transcripts are plaintext locally, so redaction protects the *shared* record, not the local disk. Once content reaches a note, removal is expensive, so prevention runs first at capture, with the last checkpoint at sync.
+
+### Redaction layers
+
+**Capture-time redaction** (default on): Replaces prefixed tokens (`ghp_…`, `sk-ant-…`, `AKIA…`, `xox…-`, `AIza…`, `glpat-…`, `npm_…`, `sk_live_…`), PEM private keys, JWTs with `[REDACTED:<rule-id>:<fingerprint>]`. Conservative, near-zero false-positive ruleset applied before event ids are computed.
+- Threat addressed: API tokens and private keys in tool output land in shared history.
+- Cost of disabling: `.cledger.json` `{"redact": {"capture": false}}` — every secret lands verbatim.
+
+**Custom patterns**: Extend capture rules via `{"redact": {"patterns": [{"id": "my-rule", "pattern": "..."}]}}` in `~/.config/cledger/config.json` (global) or `<repo>/.cledger.json` (repo wins).
+- Threat addressed: domain-specific secrets unmatched by standard rules.
+- Cost: manual configuration required.
+
+**Env-value masking** (opt-in, default off): Scrub exact values of environment variables and `.env` entries via `{"redact": {"env": true}}`.
+- Threat addressed: unstructured secrets in local config.
+- Cost of enabling: `.env` plain-config values get masked too; machine-dependent (rescans produce duplicate events with different ids).
+
+**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the push with a report and remediation instructions.
+- Threat addressed: secrets from older capture rules or new tool formats slipping through.
+- Cost of disabling: `{"scan": {"tier": "off"}}` — secrets in tool output push silently.
+- Remediation paths: `cledger redact <event-id>` (real secrets), `cledger allow <fingerprint>` (false positives), `cledger sync --no-scan` (bypass once). `--paranoid` tier adds entropy-based detection (noisier but broader).
+
+### Commands
+
+`cledger redact <event-id> (--pattern REGEX | --all) [--reason TEXT]`: Rewrites stored event to placeholder + audit metadata, appends a `redaction` event, and squashes local notes history so prior content is unrecoverable (pre-push only; post-push purge tooling is planned, not yet built).
+
+`cledger scan [--paranoid]`: Standalone check with exit 1 on findings — CI-friendly.
+
+### Maximum safety recipe
+
+Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cledger.json` for domain-specific secrets, enable env masking only if `.env` holds secrets (not config), run `cledger scan` in CI, and treat `--no-scan` as a deliberate exception you document.
+
 ## Roadmap
 
-- **Secret redaction at capture** — detect/scrub API keys and credentials in
-  tool output before events are written; the highest-priority open item.
+- **Transport hooks** (decided, unbuilt) — optional-but-default-on `pre-push`
+  git hook running the sync push (scan-gated) plus a staged fetch refspec
+  merged lazily at read time, so the ledger rides normal `git push`/`pull`
+  instead of requiring explicit `cledger sync`.
+- **Path-based capture exclusion** — the path half of the redaction config
+  ("never record reads of `secrets/**`"); requires correlating `tool_use`
+  file paths with their `tool_result` events.
+- **Post-push purge** — true content removal after the ledger ref has been
+  shared (force-push + collaborator re-fetch coordination); the local
+  pre-push squash shipped with `cledger redact`.
 - **`re-anchor`** — reattach events orphaned by squash merges or history
   rewrites. The desired end state is that this happens by default: a squash
   commit should end up carrying the conversations of the branch it squashed.
