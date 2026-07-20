@@ -34,8 +34,20 @@ test("scanEvents: standard tier finds a keyword-anchored secret in both content 
     assert.strictEqual(f.eventId, e.id);
     assert.match(f.fingerprint, /^[0-9a-f]{12}$/);
     assert.ok(!f.excerpt.includes(secret), "excerpt must never contain the full secret");
-    assert.ok(formatFinding(f).includes("…"), "excerpt should mask the match, not omit it entirely");
-    assert.ok(!formatFinding(f).includes(secret));
+    assert.ok(
+      formatFinding(f).includes("<redacted>"),
+      "excerpt should mask the match with the marker, not omit it entirely",
+    );
+    // The masked report must leak *zero* characters of the secret — not even
+    // the leading/trailing ones an elided-middle form would print. Every
+    // 6-char window of the secret must be absent from the rendered finding.
+    const rendered = formatFinding(f);
+    for (let i = 0; i + 6 <= secret.length; i++) {
+      assert.ok(
+        !rendered.includes(secret.slice(i, i + 6)),
+        `rendered finding leaked a substring of the secret: ${secret.slice(i, i + 6)}`,
+      );
+    }
   }
 });
 

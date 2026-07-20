@@ -35,17 +35,24 @@ function overlapsPlaceholder(text: string, start: number, end: number): boolean 
   return false;
 }
 
-/** First 6 chars + … + last 4 chars — the matched secret itself must never be printed in full. */
-function maskMatch(secret: string): string {
-  return `${secret.slice(0, 6)}…${secret.slice(-4)}`;
-}
+/**
+ * Marker that stands in for the matched secret in a finding excerpt. Prints
+ * zero characters of the secret itself — not even leading/trailing ones —
+ * so the excerpt can be safely re-captured (e.g. when the scan report itself
+ * lands in a later conversation) without re-seeding the very finding it
+ * describes. See the redaction-feedback-loop discussion in the README roadmap.
+ */
+const MATCH_MARKER = "<redacted>";
 
-/** ~60 chars of surrounding context, with the match masked (never printed in full). */
+/**
+ * ~20 chars of surrounding context on each side, with the matched span
+ * replaced by MATCH_MARKER. The context gives a human enough of a "what was
+ * this" cue to act; the secret's own characters are never printed.
+ */
 function buildExcerpt(text: string, start: number, end: number): string {
-  const masked = maskMatch(text.slice(start, end));
   const pre = text.slice(Math.max(0, start - 20), start);
   const post = text.slice(end, end + 20);
-  return `${pre}${masked}${post}`.replace(/\s+/g, " ").trim();
+  return `${pre}${MATCH_MARKER}${post}`.replace(/\s+/g, " ").trim();
 }
 
 const PURE_HEX_RE = /^[0-9a-fA-F]+$/;
