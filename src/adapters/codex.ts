@@ -3,7 +3,7 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
-import type { Actor, EventDraft } from "../schema.js";
+import type { Actor, EventDraft, EvidenceEvent } from "../schema.js";
 import {
   countUnrecognized,
   unrecognizedDraft,
@@ -248,6 +248,39 @@ function convertLine(
       data: payloadType === "agent_message" ? sanitizeAgentMessageRaw(line) : line,
     },
   };
+}
+
+/**
+ * Re-normalization hook (see renormalize.ts): given a preserved
+ * `unrecognized` event this adapter's `producer.source` owns, try to turn its
+ * stored `raw.data` into the `conversation_turn` a live capture would produce.
+ *
+ * Id fidelity is the whole point (see the claude-code twin for the general
+ * argument). Two codex-specific inputs are not derivable from the line alone
+ * and are recovered from the preserved event: the session id lives in
+ * `producer.session_id`, and the `baseTime` fallback (used only when the line
+ * carries no timestamp of its own) is the preserved event's `occurred_at` —
+ * which is exactly the value the preservation path computed via
+ * `sessionBaseTime`, i.e. what a live capture of the same rollout file would
+ * compute too. `reasoning` payloads are never preserved in the first place and
+ * `convertLine` refuses them regardless, so no provider-withheld encrypted
+ * content is ever reconstructed here. Returns null when still uninterpretable.
+ */
+export function renormalizeUnrecognized(
+  event: EvidenceEvent,
+  identity: GitUserIdentity,
+): EventDraft | null {
+  if (!event.raw || event.conversation === undefined) return null;
+  const line = event.raw.data as CodexRolloutLine;
+  const sessionId = event.producer.session_id ?? "";
+  return convertLine(
+    line,
+    event.conversation.seq,
+    sessionId,
+    event.occurred_at,
+    packageVersion(),
+    identity,
+  );
 }
 
 export async function runCodexHook(stdinJson: string): Promise<void> {

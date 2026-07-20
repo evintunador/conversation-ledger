@@ -152,13 +152,18 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   with a worktree or live outside the repo (e.g. Claude Code auto-memory
   directories, session state). They fit the `document` kind; the question is
   scope and capture triggers.
-- **Format-drift: re-normalization** — unrecognized transcript line types
-  are now detected (0.4.0) *and* preserved raw-only as `unrecognized` events
-  rather than dropped (0.5.0), so nothing is lost when the harness format
-  drifts and their `raw.data` still passes through secret redaction. What
-  remains: an adapter upgrade should be able to re-normalize a preserved
-  `unrecognized` line into a proper `conversation_turn` and supersede it,
-  instead of leaving it raw forever.
+- **Format-drift: re-normalization** — unrecognized transcript line types are
+  detected (0.4.0), preserved raw-only as `unrecognized` events rather than
+  dropped (0.5.0), and now re-normalizable (0.6.0): `cledger renormalize`
+  re-feeds each preserved line's `raw.data` through its owning adapter's
+  current convert path and, for the ones this version can now interpret,
+  appends the proper `conversation_turn` plus a `supersession` event linking
+  it to the raw placeholder. The turn is reconstructed with the exact id a
+  live capture would produce (same seq/session/timestamp handling), so a later
+  live capture of the same session dedups rather than duplicating; the run is
+  append-only and idempotent. *Remaining:* this is a manual command —
+  auto-running it after an adapter/version bump on capture is deferred
+  (detecting "the adapter changed" is its own problem).
 - **Purge tooling** — true content removal behind a `redaction` event.
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 

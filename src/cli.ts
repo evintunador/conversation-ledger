@@ -15,6 +15,7 @@ import {
 import { parseEventLine, type EventDraft, type EvidenceEvent } from "./schema.js";
 import { runClaudeCodeHook, captureClaudeTranscript } from "./adapters/claude-code.js";
 import { runCodexHook, captureCodexTranscript } from "./adapters/codex.js";
+import { renormalize } from "./renormalize.js";
 import { installAdapters } from "./install.js";
 import {
   addToAllowlist,
@@ -45,6 +46,9 @@ Usage:
   cledger redact <event-id-prefix> (--pattern REGEX | --all) [--reason TEXT]
                                            rewrite an existing event to remove a secret, keeping its
                                            id stable, and squash local notes history if unpushed
+  cledger renormalize                      re-interpret preserved unrecognized transcript lines this
+                                           cledger version can now parse into conversation_turns,
+                                           superseding the raw-only placeholders (append-only, idempotent)
   cledger install <claude-code|codex|all>  hook capture into coding CLIs (global)
   cledger hook <claude-code>              capture entrypoint invoked by CLI hooks (stdin: hook payload)
   cledger capture <claude-code|codex> --transcript PATH   manual/backfill ingestion
@@ -306,6 +310,16 @@ async function cmdRedact(positional: string[], flags: Flags): Promise<void> {
   );
 }
 
+async function cmdRenormalize(): Promise<void> {
+  const repo = await requireRepo();
+  const result = await renormalize(repo);
+  process.stderr.write(
+    `cledger renormalize: scanned ${result.scanned}, interpreted ${result.interpreted} ` +
+      `(+${result.turnsAppended} turn(s), +${result.supersessionsAppended} supersession(s)), ` +
+      `skipped ${result.skipped} still-unrecognized\n`,
+  );
+}
+
 async function main(): Promise<void> {
   const [, , command, ...rest] = process.argv;
   const { positional, flags } = parseArgs(rest);
@@ -339,6 +353,8 @@ async function main(): Promise<void> {
       return cmdAllow(positional);
     case "redact":
       return cmdRedact(positional, flags);
+    case "renormalize":
+      return cmdRenormalize();
     case "install":
       return installAdapters(positional[0] ?? "all");
     case "hook": {

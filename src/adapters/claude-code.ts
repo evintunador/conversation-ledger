@@ -3,7 +3,7 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
-import type { Actor, EventDraft } from "../schema.js";
+import type { Actor, EventDraft, EvidenceEvent } from "../schema.js";
 import {
   countUnrecognized,
   unrecognizedDraft,
@@ -194,6 +194,31 @@ function convertLine(
     content: { role: line.message.role, blocks: convertContentBlocks(line.message.content) },
     raw: { format: RAW_FORMAT, data: line },
   };
+}
+
+/**
+ * Re-normalization hook (see renormalize.ts): given a preserved
+ * `unrecognized` event this adapter's `producer.source` owns, try to turn its
+ * stored `raw.data` into the `conversation_turn` a live capture would produce.
+ *
+ * Id fidelity is the whole point: `convertLine` is fed the exact inputs the
+ * capture loop used — the same source line (`raw.data`), the same seq
+ * (`conversation.seq`), the same session id (carried in the line) — so the
+ * turn's identity subset, and therefore its id, is byte-identical to what a
+ * later live capture of the same line yields, and the two dedup instead of
+ * duplicating. `version`/`identity` are the current ones (version is not part
+ * of identity; identity is the same git identity a live capture here would
+ * read). Returns null when this adapter still cannot interpret the line —
+ * timestampless lines included, since `convertLine` requires a timestamp — in
+ * which case it stays preserved raw-only.
+ */
+export function renormalizeUnrecognized(
+  event: EvidenceEvent,
+  identity: GitUserIdentity,
+): EventDraft | null {
+  if (!event.raw || event.conversation === undefined) return null;
+  const line = event.raw.data as ClaudeTranscriptLine;
+  return convertLine(line, event.conversation.seq, packageVersion(), identity);
 }
 
 export async function runClaudeCodeHook(stdinJson: string): Promise<void> {

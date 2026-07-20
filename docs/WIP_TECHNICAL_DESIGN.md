@@ -239,9 +239,38 @@ and format-version bumps never churn ids. Crucially these events ride the
 normal `appendEvents` path, so the capture-tier redaction stack walks their
 `raw.data` — an unrecognized line is not a bypass around secret redaction.
 Encrypted/opaque payloads that policy forbids storing (Codex `reasoning`)
-stay on the known-skipped list and are never preserved. What does not exist
-yet: automatic re-normalization of these preserved lines under a newer
-adapter (the supersession half). See the format-drift roadmap item.
+stay on the known-skipped list and are never preserved.
+
+Re-normalization (the supersession half): `cledger renormalize` (library
+`renormalize()`, in `renormalize.ts`) turns a preserved line the current
+adapter can now interpret into the `conversation_turn` it should have been.
+For each `unrecognized` event it routes by `producer.source` to that adapter's
+`renormalizeUnrecognized`, which re-feeds the stored `raw.data` through the
+*same* `convertLine` the live capture loop uses, with the same identity-
+determining inputs recovered from the preserved event: `conversation.seq`,
+the session id (in `raw.data` for Claude Code, in `producer.session_id` for
+Codex), and — for a Codex line with no timestamp of its own — `occurred_at` as
+the `baseTime` fallback (which is exactly the `sessionBaseTime` value a live
+capture would compute). The turn therefore gets the byte-identical id a live
+capture of the same line would, so a later live capture dedups against it
+instead of duplicating — the property the whole scheme rests on. When the
+adapter still cannot interpret the line (`convertLine` returns null, e.g. a
+timestampless Claude line, or a genuinely unknown type) it stays preserved.
+
+The rewrite is append-only and idempotent: the `unrecognized` event is never
+deleted but superseded by a `supersession` event carrying
+`links:[{rel:"supersedes",target}]` (mirroring how `cledger redact` records a
+rewrite via a companion event). Re-runs are no-ops — already-superseded events
+are skipped, and every produced id (turn and supersession) is deterministic,
+so anything that slips through dedups on append. The reconstructed turn's
+`raw.data` is the already-redacted stored copy and rides the normal
+`appendEvents` redaction path, which is idempotent on placeholdered text, so
+nothing is re-exposed and the recomputed id is stable. Encrypted/opaque
+`reasoning` payloads can never reach this path (they are never preserved) and
+`convertLine` refuses them regardless, so re-normalization never reconstructs
+provider-withheld content. What does not exist yet: running this automatically
+on capture when an adapter/version bump is detected — it is a manual command
+for now (see the format-drift roadmap item).
 
 ## Open questions
 
