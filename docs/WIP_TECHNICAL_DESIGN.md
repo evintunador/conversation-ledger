@@ -186,7 +186,23 @@ Defense in depth, ordered by where they run and what they may do:
   secret while purge is still a local operation. Entropy heuristics live
   behind an opt-in paranoid tier; `--no-scan`/config disables the gate
   entirely. Scan-tier rules may be noisy precisely because they only warn
-  a human — they never rewrite anything.
+  a human — they never rewrite anything. Finding reports mask the matched
+  span entirely (surrounding context + fingerprint, zero secret characters),
+  so a captured report cannot re-seed the finding it describes.
+- **F. Known-secret learning (opt-in, default off).** Runs at capture like
+  A/C/D, but is *sourced* from the E flow: a `cledger redact --pattern`
+  remembers the exact values it scrubbed in a local, git-invisible store
+  (`.git/conversation-ledger/known-secrets.json`), and capture-time redaction
+  exact-matches them out of every future draft under a `known-secret` rule id.
+  This closes the capture side of the capture/scan feedback loop — a value E
+  catches but A missed can never be re-captured raw once confirmed. Like C it
+  is exact-value and therefore machine-dependent (id churn is the accepted
+  cost); only `--pattern` feeds it (`--all` blanks whole content, no reusable
+  value) and sub-8-char values are dropped to avoid over-matching. It stores
+  plaintext by necessity (fingerprints are one-way and can't drive exact
+  matching) but under `.git/`, exactly as local-and-unshared as the
+  transcripts the values came from — consistent with the transport boundary.
+  Off by default: the store is never read or created unless the flag is set.
 
 ### Redaction metadata
 
@@ -205,8 +221,10 @@ stamping; cursors prevent it in normal operation.
 A human redaction of an *existing* event (the E flow) instead rewrites the
 note line and appends a companion `redaction` event with `links.redacts`,
 then squashes the local notes ref so the prior blob is unreachable —
-honest history without secret retention. Post-push purge (force-push +
-collaborator coordination) is deliberately separate, deferred tooling.
+honest history without secret retention (when `knownSecrets` is on, a
+`--pattern` redaction also feeds the F store; see above). Post-push purge
+(force-push + collaborator coordination) is deliberately separate, deferred
+tooling.
 
 ## Versioning against harness format changes
 

@@ -118,7 +118,11 @@ Visible tool output can contain secrets: API keys in error messages, credentials
 - Threat addressed: unstructured secrets in local config.
 - Cost of enabling: `.env` plain-config values get masked too; machine-dependent (rescans produce duplicate events with different ids).
 
-**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push with a report and remediation instructions; in the pre-push hook, a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
+**Known-secret learning** (opt-in, default off): Remember the exact values a `cledger redact <event-id> --pattern` scrubbed, then exact-match them out of every future capture (under a `known-secret` rule id). Enable with `{"redact": {"knownSecrets": true}}`. Confirmed values are stored locally under `.git/conversation-ledger/known-secrets.json` — never tracked or pushed by git, the same tier as the allowlist. Only `--pattern` feeds it; values under 8 chars are never remembered.
+- Threat addressed: the capture/scan feedback loop — a value the broad sync scan catches but the conservative capture tier misses gets re-ingested raw every time you revisit it while fixing it. Once redacted, capture learns it and it can never be re-captured raw again.
+- Cost of enabling: confirmed secret plaintext lives in a new (local, unshared) file; like env masking, capture becomes machine-dependent for those values (another machine without the store captures the same line raw, under a different id).
+
+**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push with a report and remediation instructions; the report shows ~20 chars of surrounding context with the matched value **fully masked** (`<redacted>`, zero secret characters) so the report itself can't re-seed the next scan. In the pre-push hook, a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
 - Threat addressed: secrets from older capture rules or new tool formats slipping through.
 - Cost of disabling: `{"scan": {"tier": "off"}}` — secrets in tool output push silently.
 - Remediation paths: `cledger redact <event-id>` (real secrets), `cledger allow <fingerprint>` (false positives), `cledger sync --no-scan` (bypass once). `--paranoid` tier adds entropy-based detection (noisier but broader).
@@ -164,28 +168,34 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   append-only and idempotent. *Remaining:* this is a manual command —
   auto-running it after an adapter/version bump on capture is deferred
   (detecting "the adapter changed" is its own problem).
-- **Close the capture/scan-tier gap (redaction feedback loop)** — the pre-push
-  scan (broad) can flag a value the capture-tier redaction (conservative) let
-  through. When the flagged content sits in a *conversation about* secrets,
-  the sessions spent fixing it are themselves captured, re-ingesting the same
-  raw value into new events that the next scan flags again — a feedback loop.
-  Allowlisting escapes it (fingerprint-keyed, so it neutralizes every
-  recurrence at once), but *redaction* does not: it scrubs per-event and can't
-  stop the value being re-captured, so a naive fix-sync-fix cycle can churn
-  indefinitely. The structural fix is to make capture-tier coverage a superset
-  of scan-tier — anything that would *block* a sync must also be *redacted at
-  ingest* — so nothing scan-blockable can ever be captured raw and the loop is
-  impossible by construction. Cheap first step: feed allowlisted / known-secret
-  fingerprints back into capture-time redaction so known values are scrubbed on
-  the way in. A second cheap step closes the loop's *sync-report* channel
-  specifically: the scan/sync failure output should mask the matched span
-  itself (`...config says <redacted> fine...`, context only) instead of the
-  current elided-middle form that still prints the value's leading/trailing
-  characters — so the report shows zero secret characters and can't seed the
-  next finding when it is itself captured. Nothing is lost operationally:
-  `cledger allow` keys on the fingerprint and `cledger redact` on the event id,
-  neither of which needs the value visible.
-- **Purge tooling** — true content removal behind a `redaction` event.
+- **Capture/scan redaction feedback loop** *(shipped, 0.6.1 + 0.7.0)* — the
+  broad pre-push scan can flag a value the conservative capture tier let
+  through, and because the sessions spent fixing it are themselves captured, a
+  naive fix-sync-fix cycle can re-ingest the same raw value indefinitely.
+  Allowlisting escapes it (fingerprint-keyed), but per-event redaction alone
+  did not. Two channels are now closed: (a) the sync-report output masks the
+  matched span entirely — surrounding context plus fingerprint, zero secret
+  characters — so a captured report can't re-seed the finding it describes
+  (0.6.1); (b) the opt-in `knownSecrets` store lets `cledger redact --pattern`
+  teach capture-time redaction the exact confirmed values, so they can never
+  be re-captured raw (0.7.0). *Deferred / rejected:* the fuller "capture-tier
+  is a strict superset of scan-tier" framing was considered and set aside —
+  promoting the deliberately-noisy scan rules to run at capture would silently
+  rewrite innocent text, violating the near-zero-false-positive invariant that
+  makes capture-time rewriting safe. The value-based learning above is the
+  intended narrow form.
+- **Encrypt the known-secrets store at rest** — the opt-in store aggregates
+  confirmed secret plaintext into one predictably-named local file. This does
+  not change the transport threat model (the same values already sit in
+  plaintext transcripts), but the *aggregation* is a distinct accidental-read /
+  disk-snoop / backup-scoop risk. Because capture runs silently on every turn,
+  decryption must be non-interactive: an OS-keychain-held key (macOS Keychain /
+  libsecret / DPAPI) is the real design; `chmod 0600` on the file is a
+  near-free first step.
+- **Tighten the `keyword-assignment` scan rule** — it currently fires on
+  source-code identifiers (`secret: string`, `password:` object keys), a
+  false-positive class surfaced by dogfooding cledger on its own repo. It needs
+  to distinguish assigning a value from merely naming a parameter/field.
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 
 ## Storage model, in one paragraph
