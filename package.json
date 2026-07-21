@@ -24,14 +24,24 @@
       "default": "./dist/index.js"
     }
   },
+  "keywords": [
+    "git-notes",
+    "coding-agent",
+    "conversation-history",
+    "claude-code",
+    "codex",
+    "provenance"
+  ],
   "files": [
     "dist",
+    "!dist/test",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
     "test": "npm run build && node --test \"dist/test/**/*.test.js\"",
+    "prepublishOnly": "npm test",
     "prepare": "npm run build"
   },
   "devDependencies": {
