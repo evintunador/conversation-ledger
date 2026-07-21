@@ -4,8 +4,10 @@ import { stdin as input } from "node:process";
 import { findRepo, type RepoInfo } from "./git.js";
 import {
   appendEvents,
+  manualReAnchor,
   readEvents,
   redactEvent,
+  runReAnchor,
   ScanBlockedError,
   sortEvents,
   sync,
@@ -46,6 +48,12 @@ Usage:
   cledger redact <event-id-prefix> (--pattern REGEX | --all) [--reason TEXT]
                                            rewrite an existing event to remove a secret, keeping its
                                            id stable, and squash local notes history if unpushed
+  cledger re-anchor [--apply] [--target R]  detect branches squash-merged/rewritten onto the remote
+                                           default branch and map their conversations to the
+                                           surviving commits (dry-run by default; exact matches
+                                           also auto-apply on read unless reanchor.auto is false)
+  cledger re-anchor <old-rev...> --onto REV   assert one mapping manually (edited squashes,
+                                           deleted branches, ambiguous matches)
   cledger renormalize                      re-interpret preserved unrecognized transcript lines this
                                            cledger version can now parse into conversation_turns,
                                            superseding the raw-only placeholders (append-only, idempotent)
@@ -316,6 +324,59 @@ async function cmdRedact(positional: string[], flags: Flags): Promise<void> {
   }
 }
 
+async function cmdReAnchor(positional: string[], flags: Flags): Promise<void> {
+  const repo = await requireRepo();
+
+  if (positional.length > 0) {
+    if (typeof flags["onto"] !== "string") {
+      process.stderr.write("usage: cledger re-anchor <old-rev...> --onto REV\n");
+      process.exit(2);
+    }
+    const { event, superseded, successor } = await manualReAnchor(repo, positional, flags["onto"]);
+    process.stderr.write(
+      event
+        ? `cledger re-anchor: mapped ${superseded.length} commit(s) onto ${successor.slice(0, 12)} ` +
+            `(event ${event.id.slice(0, 16)})\n`
+        : `cledger re-anchor: an identical mapping already exists — nothing appended\n`,
+    );
+    return;
+  }
+
+  const apply = flags["apply"] === true;
+  const opts: { target?: string; apply: boolean } = { apply };
+  if (typeof flags["target"] === "string") opts.target = flags["target"];
+  const result = await runReAnchor(repo, opts);
+  if (!result.target) {
+    process.stderr.write(
+      "cledger re-anchor: no target to compare against (no origin default branch or upstream); " +
+        "pass one with --target\n",
+    );
+    process.exit(2);
+  }
+  if (result.detected.length === 0 && result.ambiguous.length === 0) {
+    process.stderr.write(`cledger re-anchor: nothing to re-anchor against ${result.target}\n`);
+    return;
+  }
+  for (const d of result.detected) {
+    process.stderr.write(
+      `  branch ${d.mapping.branch}: ${d.mapping.superseded.length} commit(s) -> ` +
+        `${d.mapping.successor.slice(0, 12)} (${d.mapping.method} match, ` +
+        `${d.notedAnchors} with conversations)\n`,
+    );
+  }
+  for (const branch of result.ambiguous) {
+    process.stderr.write(
+      `  branch ${branch}: matches more than one commit on ${result.target} — map manually with\n` +
+        `    cledger re-anchor <old-rev...> --onto REV\n`,
+    );
+  }
+  process.stderr.write(
+    apply
+      ? `cledger re-anchor: applied ${result.applied.length} mapping(s)\n`
+      : `cledger re-anchor: dry run — apply with \`cledger re-anchor --apply\`\n`,
+  );
+}
+
 async function cmdRenormalize(): Promise<void> {
   const repo = await requireRepo();
   const result = await renormalize(repo);
@@ -359,6 +420,8 @@ async function main(): Promise<void> {
       return cmdAllow(positional);
     case "redact":
       return cmdRedact(positional, flags);
+    case "re-anchor":
+      return cmdReAnchor(positional, flags);
     case "renormalize":
       return cmdRenormalize();
     case "install":

@@ -30,6 +30,7 @@ import {
   type RepoContext,
 } from "./schema.js";
 import {
+  commitDateIso,
   defaultRewriteTarget,
   detectRewrites,
   parseReAnchor,
@@ -384,6 +385,57 @@ export async function runReAnchor(
     }
   }
   return { target, detected, ambiguous, applied };
+}
+
+/**
+ * Manual mapping — the escape hatch for everything mechanical matching
+ * cannot assert: a maintainer edited during the squash, the branch is long
+ * gone, an ambiguous match needed a human eye. Asserted by the user, so the
+ * actor is the user (two humans asserting the same mapping yield two
+ * events; honest provenance, and the reads they affect are identical).
+ */
+export async function manualReAnchor(
+  repo: RepoInfo,
+  supersededRevs: string[],
+  ontoRev: string,
+): Promise<{ event: EvidenceEvent | null; superseded: string[]; successor: string }> {
+  const resolve = async (rev: string): Promise<string> => {
+    const sha = (await git(["rev-parse", "--verify", "--quiet", `${rev}^{commit}`], {
+      cwd: repo.root,
+      allowFailure: true,
+    })).trim();
+    if (!sha) throw new Error(`cledger re-anchor: cannot resolve "${rev}" to a commit`);
+    return sha;
+  };
+  const successor = await resolve(ontoRev);
+  const superseded = [];
+  for (const rev of supersededRevs) {
+    // A superseded commit may already be GC'd (its branch deleted long ago)
+    // — the mapping is how its still-enumerable note stays meaningful — so a
+    // full SHA is taken at its word; only shorthand needs a live object.
+    superseded.push(/^[0-9a-f]{40}$/.test(rev) ? rev : await resolve(rev));
+  }
+
+  const identity = await gitUserIdentity(repo);
+  const actor: Actor = { type: "human" };
+  if (identity.email) actor.id = identity.email;
+  if (identity.name) actor.display = identity.name;
+
+  const result = await appendEvents(
+    repo,
+    [
+      reAnchorDraft({
+        superseded,
+        successor,
+        method: "manual",
+        occurredAt: await commitDateIso(repo, successor),
+        actor,
+      }),
+    ],
+    { anchor: successor },
+  );
+  // null means an identical mapping already exists — dedup, not failure.
+  return { event: result.appended[0] ?? null, superseded, successor };
 }
 
 /**

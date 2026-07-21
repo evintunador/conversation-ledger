@@ -10,6 +10,7 @@ export {
   readNoteEvents,
   captureContext,
   runReAnchor,
+  manualReAnchor,
 } from "./store.js";
 export type { AppendResult, ReadOptions, ReAnchorRunResult, TransportPushResult } from "./store.js";
 export { absorbIncoming, ensureTransport, INCOMING_REF, NOTES_NAME, NOTES_REF } from "./transport.js";

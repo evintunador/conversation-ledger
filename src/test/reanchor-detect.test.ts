@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { git, type RepoInfo } from "../git.js";
-import { appendEvents, readEvents, runReAnchor } from "../store.js";
+import { appendEvents, manualReAnchor, readEvents, runReAnchor } from "../store.js";
 import { parseReAnchor } from "../reanchor.js";
 import { cleanupRepo, draft, makeTempRepo } from "./helpers.js";
 
@@ -173,6 +173,46 @@ test("auto re-anchor: fetch-shaped state + plain read maps the squash, cursor ga
     const cursor = join(repo.gitDir, "conversation-ledger", "reanchor-cursor");
     const tip = (await git(["rev-parse", "refs/remotes/origin/main"], { cwd: repo.root })).trim();
     assert.equal((await readFile(cursor, "utf8")).trim(), tip);
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("manual re-anchor: human actor, dedup on repeat, GC'd full SHAs accepted", async () => {
+  const repo = await makeTempRepo();
+  try {
+    await commitFile(repo, "base.txt", "base\n", "base");
+    await git(["checkout", "-q", "-b", "feat"], { cwd: repo.root });
+    const a = await commitFile(repo, "f1.txt", "one\n", "feat 1");
+    await appendEvents(repo, [draft({ content: { text: "edited-squash turn" } })]);
+
+    // A maintainer-edited squash: content differs, so detection cannot match
+    // it — the human asserts the mapping instead.
+    await git(["checkout", "-q", "main"], { cwd: repo.root });
+    const squash = await commitFile(repo, "f1.txt", "one, edited during merge\n", "feat (#5)");
+
+    const first = await manualReAnchor(repo, [a], "main");
+    assert.ok(first.event);
+    assert.equal(first.event.actor.type, "human");
+    assert.equal(first.event.actor.id, "test@example.com");
+    assert.equal(first.successor, squash);
+
+    const events = await readEvents(repo, { reachableFrom: "main", kind: "conversation_turn" });
+    assert.deepEqual(events.map((e) => (e.content as { text: string }).text), ["edited-squash turn"]);
+
+    // Same assertion again: identical identity, dedups instead of duplicating.
+    const second = await manualReAnchor(repo, [a], "main");
+    assert.equal(second.event, null);
+
+    // A full SHA whose object no longer exists is accepted verbatim — the
+    // note may outlive its GC'd anchor commit.
+    const ghost = "d".repeat(40);
+    const third = await manualReAnchor(repo, [ghost], "main");
+    assert.ok(third.event);
+    assert.deepEqual(third.superseded, [ghost]);
+
+    // Shorthand that resolves to nothing is a hard error, not a guess.
+    await assert.rejects(() => manualReAnchor(repo, ["nonexistent-branch"], "main"), /cannot resolve/);
   } finally {
     await cleanupRepo(repo);
   }

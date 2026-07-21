@@ -97,7 +97,8 @@ async function treeOf(repo: RepoInfo, rev: string): Promise<string | null> {
   return out.trim() || null;
 }
 
-async function commitDateIso(repo: RepoInfo, rev: string): Promise<string> {
+/** Committer timestamp (strict ISO) — the deterministic occurred_at for mappings. */
+export async function commitDateIso(repo: RepoInfo, rev: string): Promise<string> {
   return (await git(["show", "-s", "--format=%cI", rev], { cwd: repo.root })).trim();
 }
 
