@@ -37,6 +37,7 @@ import {
   reAnchorDraft,
   type DetectedRewrite,
   type ReAnchorMapping,
+  type UnmatchedBranch,
 } from "./reanchor.js";
 import { collectMatches, redactDraft, type ExtraValueGroup, type RedactionRecord } from "./redact/apply.js";
 import { captureRules, collectEnvValues, loadConfig } from "./redact/config.js";
@@ -355,6 +356,8 @@ export interface ReAnchorRunResult {
   target: string | null;
   detected: DetectedRewrite[];
   ambiguous: string[];
+  /** Noted, rewritten-looking branches exact matching could not map. */
+  unmatched: UnmatchedBranch[];
   /** Mapping events actually appended — empty on dry runs and re-runs. */
   applied: EvidenceEvent[];
 }
@@ -371,10 +374,14 @@ export async function runReAnchor(
   opts: { target?: string; apply: boolean },
 ): Promise<ReAnchorRunResult> {
   const target = opts.target ?? (await defaultRewriteTarget(repo));
-  if (!target) return { target: null, detected: [], ambiguous: [], applied: [] };
+  if (!target) return { target: null, detected: [], ambiguous: [], unmatched: [], applied: [] };
   const { anchors, alreadySuperseded } = await reAnchorState(repo);
-  if (anchors.size === 0) return { target, detected: [], ambiguous: [], applied: [] };
-  const { detected, ambiguous } = await detectRewrites(repo, { target, anchors, alreadySuperseded });
+  if (anchors.size === 0) return { target, detected: [], ambiguous: [], unmatched: [], applied: [] };
+  const { detected, ambiguous, unmatched } = await detectRewrites(repo, {
+    target,
+    anchors,
+    alreadySuperseded,
+  });
   const applied: EvidenceEvent[] = [];
   if (opts.apply) {
     for (const rewrite of detected) {
@@ -384,7 +391,7 @@ export async function runReAnchor(
       applied.push(...result.appended);
     }
   }
-  return { target, detected, ambiguous, applied };
+  return { target, detected, ambiguous, unmatched, applied };
 }
 
 /**

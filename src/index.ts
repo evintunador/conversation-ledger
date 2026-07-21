@@ -44,4 +44,9 @@ export type {
   DetectRewritesResult,
   ReAnchorMapping,
   ReAnchorDraftOptions,
+  UnmatchedBranch,
 } from "./reanchor.js";
+export { suggestMappings } from "./reanchor-suggest.js";
+export type { BranchSuggestions, Suggestion } from "./reanchor-suggest.js";
+export { forgeForRepo } from "./forge/forge.js";
+export type { ForgeDriver, ForgePullRequest } from "./forge/forge.js";

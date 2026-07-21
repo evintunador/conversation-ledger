@@ -19,6 +19,9 @@ import { runClaudeCodeHook, captureClaudeTranscript } from "./adapters/claude-co
 import { runCodexHook, captureCodexTranscript } from "./adapters/codex.js";
 import { renormalize } from "./renormalize.js";
 import { installAdapters } from "./install.js";
+import { forgeForRepo } from "./forge/forge.js";
+import { suggestMappings } from "./reanchor-suggest.js";
+import { loadConfig } from "./redact/config.js";
 import {
   addToAllowlist,
   filterFindings,
@@ -48,10 +51,14 @@ Usage:
   cledger redact <event-id-prefix> (--pattern REGEX | --all) [--reason TEXT]
                                            rewrite an existing event to remove a secret, keeping its
                                            id stable, and squash local notes history if unpushed
-  cledger re-anchor [--apply] [--target R]  detect branches squash-merged/rewritten onto the remote
+  cledger re-anchor [--apply] [--target R] [--no-forge]
+                                           detect branches squash-merged/rewritten onto the remote
                                            default branch and map their conversations to the
                                            surviving commits (dry-run by default; exact matches
-                                           also auto-apply on read unless reanchor.auto is false)
+                                           also auto-apply on read unless reanchor.auto is false).
+                                           Inexact cases get evidence-ranked suggestions — forge PR
+                                           metadata via your own gh session, commit-message
+                                           corroboration, per-file content match — never auto-applied
   cledger re-anchor <old-rev...> --onto REV   assert one mapping manually (edited squashes,
                                            deleted branches, ambiguous matches)
   cledger renormalize                      re-interpret preserved unrecognized transcript lines this
@@ -353,7 +360,7 @@ async function cmdReAnchor(positional: string[], flags: Flags): Promise<void> {
     );
     process.exit(2);
   }
-  if (result.detected.length === 0 && result.ambiguous.length === 0) {
+  if (result.detected.length === 0 && result.unmatched.length === 0) {
     process.stderr.write(`cledger re-anchor: nothing to re-anchor against ${result.target}\n`);
     return;
   }
@@ -364,16 +371,53 @@ async function cmdReAnchor(positional: string[], flags: Flags): Promise<void> {
         `${d.notedAnchors} with conversations)\n`,
     );
   }
-  for (const branch of result.ambiguous) {
-    process.stderr.write(
-      `  branch ${branch}: matches more than one commit on ${result.target} — map manually with\n` +
-        `    cledger re-anchor <old-rev...> --onto REV\n`,
-    );
+
+  if (result.unmatched.length > 0) {
+    const config = await loadConfig(repo.root);
+    let forge = null;
+    if (flags["no-forge"] === true || config.reanchor?.forge === false) {
+      process.stderr.write("  (forge lookups disabled — offline evidence only)\n");
+    } else {
+      forge = await forgeForRepo(repo);
+      if (!forge) {
+        process.stderr.write("  (no forge driver for this origin — offline evidence only)\n");
+      }
+    }
+    for (const unmatched of result.unmatched) {
+      const reason =
+        unmatched.reason === "ambiguous" ? "several commits tie" : "no exact content match";
+      process.stderr.write(
+        `  branch ${unmatched.branch}: looks rewritten onto ${result.target}, but ${reason} ` +
+          `(${unmatched.notedAnchors} commit(s) with conversations)\n`,
+      );
+      const { suggestions, notes } = await suggestMappings(repo, unmatched, {
+        target: result.target,
+        forge,
+      });
+      for (const note of notes) process.stderr.write(`    note: ${note}\n`);
+      if (suggestions.length === 0) {
+        process.stderr.write(
+          `    no candidates with evidence; if you know the commit, map it yourself:\n` +
+            `      cledger re-anchor ${unmatched.superseded.join(" ")} --onto REV\n`,
+        );
+        continue;
+      }
+      for (const s of suggestions) {
+        process.stderr.write(`    candidate ${s.candidate.slice(0, 12)} "${s.subject}"\n`);
+        for (const line of s.evidence) process.stderr.write(`      - ${line}\n`);
+      }
+      // Never auto-applied: the human runs the printed command to confirm.
+      process.stderr.write(
+        `    confirm with: cledger re-anchor ${unmatched.superseded.join(" ")} ` +
+          `--onto ${suggestions[0]!.candidate}\n`,
+      );
+    }
   }
+
   process.stderr.write(
     apply
       ? `cledger re-anchor: applied ${result.applied.length} mapping(s)\n`
-      : `cledger re-anchor: dry run — apply with \`cledger re-anchor --apply\`\n`,
+      : `cledger re-anchor: dry run — apply exact matches with \`cledger re-anchor --apply\`\n`,
   );
 }
 

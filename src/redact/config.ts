@@ -39,6 +39,13 @@ export interface CledgerConfig {
      * auto-applied regardless of this flag — see `cledger re-anchor`.
      */
     auto?: boolean;
+    /**
+     * Query the forge (via the user's own CLI session, e.g. `gh`) for PR
+     * metadata when ranking suggestion candidates in the explicit
+     * `cledger re-anchor` command (default true). Never queried in the
+     * auto read path, which stays offline regardless.
+     */
+    forge?: boolean;
   };
 }
 

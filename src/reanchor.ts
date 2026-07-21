@@ -81,8 +81,14 @@ export interface ReAnchorDraftOptions {
  * does not perturb the fingerprint. Null when the diff is empty (an empty
  * change fingerprints nothing and would match every other empty change).
  */
-async function patchIdOf(repo: RepoInfo, base: string, tip: string): Promise<string | null> {
-  const diff = await git(["diff", "-U0", base, tip], { cwd: repo.root, allowFailure: true });
+export async function patchIdOf(
+  repo: RepoInfo,
+  base: string,
+  tip: string,
+  path?: string,
+): Promise<string | null> {
+  const args = ["diff", "-U0", base, tip, ...(path ? ["--", path] : [])];
+  const diff = await git(args, { cwd: repo.root, allowFailure: true });
   if (!diff.trim()) return null;
   const out = await git(["patch-id", "--stable"], { cwd: repo.root, input: diff, allowFailure: true });
   const id = out.trim().split(/\s+/)[0];
@@ -127,6 +133,23 @@ export interface DetectedRewrite {
   notedAnchors: number;
 }
 
+/**
+ * A noted branch that looks rewritten but could not be exactly mapped —
+ * the input to `cledger re-anchor`'s suggestion tier (reanchor-suggest.ts).
+ */
+export interface UnmatchedBranch {
+  branch: string;
+  tip: string;
+  mergeBase: string;
+  /** Commits a mapping would supersede (mergeBase..tip). */
+  superseded: string[];
+  notedAnchors: number;
+  /** "ambiguous": several candidates tied; "no-match": none fingerprint-matched. */
+  reason: "ambiguous" | "no-match";
+  /** The tied candidates, when reason is "ambiguous". */
+  candidates?: string[];
+}
+
 export interface DetectRewritesResult {
   detected: DetectedRewrite[];
   /**
@@ -134,6 +157,8 @@ export interface DetectRewritesResult {
    * single successor can be mechanically asserted. Surfaced, never guessed.
    */
   ambiguous: string[];
+  /** Noted, rewritten-looking branches that exact matching could not map. */
+  unmatched: UnmatchedBranch[];
 }
 
 /**
@@ -160,6 +185,7 @@ export async function detectRewrites(
 ): Promise<DetectRewritesResult> {
   const detected: DetectedRewrite[] = [];
   const ambiguous: string[] = [];
+  const unmatched: UnmatchedBranch[] = [];
 
   const branchesOut = await git(
     ["for-each-ref", "refs/heads", "--format=%(refname:short) %(objectname)"],
@@ -239,6 +265,15 @@ export async function detectRewrites(
     }
     if (squashMatches.length > 1) {
       ambiguous.push(branch.name);
+      unmatched.push({
+        branch: branch.name,
+        tip: branch.sha,
+        mergeBase,
+        superseded: branchCommits,
+        notedAnchors: noted.length,
+        reason: "ambiguous",
+        candidates: squashMatches.map((m) => m.sha),
+      });
       continue;
     }
     if (squashMatches.length === 1) {
@@ -258,21 +293,31 @@ export async function detectRewrites(
 
     // Rebase shape: per-commit equivalents. Only noted commits get mappings
     // — one event per rescued anchor, none for conversation-less commits.
+    let unmappedNoted = 0;
+    let sawAmbiguity = false;
     for (const sha of noted) {
       if (opts.alreadySuperseded.has(sha)) continue;
       const parent = (await git(["rev-parse", "--verify", "--quiet", `${sha}^`], {
         cwd: repo.root,
         allowFailure: true,
       })).trim();
-      if (!parent) continue;
+      if (!parent) {
+        unmappedNoted++;
+        continue;
+      }
       const commitPatchId = await patchIdOf(repo, parent, sha);
-      if (!commitPatchId) continue;
+      if (!commitPatchId) {
+        unmappedNoted++;
+        continue;
+      }
       const equivalents: string[] = [];
       for (const candidate of candidates) {
         if ((await fingerprint(candidate)).patchId === commitPatchId) equivalents.push(candidate);
       }
       if (equivalents.length > 1) {
         if (!ambiguous.includes(branch.name)) ambiguous.push(branch.name);
+        sawAmbiguity = true;
+        unmappedNoted++;
         continue;
       }
       if (equivalents.length === 1) {
@@ -286,11 +331,25 @@ export async function detectRewrites(
           },
           notedAnchors: 1,
         });
+      } else {
+        unmappedNoted++;
       }
+    }
+    // Something noted on this branch is still orphaned after both shapes —
+    // hand it to the suggestion tier rather than dropping it silently.
+    if (unmappedNoted > 0) {
+      unmatched.push({
+        branch: branch.name,
+        tip: branch.sha,
+        mergeBase,
+        superseded: branchCommits,
+        notedAnchors: noted.length,
+        reason: sawAmbiguity ? "ambiguous" : "no-match",
+      });
     }
   }
 
-  return { detected, ambiguous };
+  return { detected, ambiguous, unmatched };
 }
 
 async function isAncestorOf(repo: RepoInfo, ancestor: string, descendant: string): Promise<boolean> {
