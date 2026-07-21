@@ -29,6 +29,7 @@ import {
   type EvidenceEvent,
   type RepoContext,
 } from "./schema.js";
+import { parseReAnchor, type ReAnchorMapping } from "./reanchor.js";
 import { collectMatches, redactDraft, type ExtraValueGroup, type RedactionRecord } from "./redact/apply.js";
 import { captureRules, collectEnvValues, loadConfig } from "./redact/config.js";
 import { addKnownSecrets, loadKnownSecrets } from "./redact/known-secrets.js";
@@ -142,7 +143,7 @@ export interface AppendResult {
 export async function appendEvents(
   repo: RepoInfo,
   drafts: EventDraft[],
-  opts: { context?: RepoContext } = {},
+  opts: { context?: RepoContext; anchor?: string } = {},
 ): Promise<AppendResult> {
   const context = opts.context ?? (await captureContext(repo));
   const config = await loadConfig(repo.root);
@@ -175,7 +176,10 @@ export async function appendEvents(
   });
   return withLock(repo, async () => {
     await ensureMergeConfig(repo);
-    const anchor = await headSha(repo);
+    // Almost everything anchors to HEAD at capture time; re-anchor mapping
+    // events override this to anchor at the successor commit so the mapping
+    // rides the surviving branch's DAG regardless of where it was created.
+    const anchor = opts.anchor ?? (await headSha(repo));
     if (!anchor) {
       return appendPending(repo, events);
     }
@@ -243,13 +247,21 @@ export async function readEvents(repo: RepoInfo, opts: ReadOptions = {}): Promis
   // Lazy transport: fold in anything a plain `git fetch`/`git pull` staged.
   await absorbIncoming(repo);
   let anchors = await listAnchors(repo);
+  const noteCache = new Map<string, EvidenceEvent[]>();
+  const readNote = async (anchor: string): Promise<EvidenceEvent[]> => {
+    let events = noteCache.get(anchor);
+    if (!events) {
+      events = await readNoteEvents(repo, anchor);
+      noteCache.set(anchor, events);
+    }
+    return events;
+  };
   if (opts.reachableFrom) {
-    const reachable = await revList(repo, opts.reachableFrom);
-    anchors = anchors.filter((a) => reachable.has(a));
+    anchors = await resolveAnchors(repo, anchors, opts.reachableFrom, readNote);
   }
   const events: EvidenceEvent[] = [];
   for (const anchor of anchors) {
-    events.push(...(await readNoteEvents(repo, anchor)));
+    events.push(...(await readNote(anchor)));
   }
   events.push(...(await readPending(repo)));
   const filtered = events.filter(
@@ -260,6 +272,55 @@ export async function readEvents(repo: RepoInfo, opts: ReadOptions = {}): Promis
         e.conversation?.id.startsWith(opts.conversation)),
   );
   return sortEvents(filtered);
+}
+
+/**
+ * Reachability with re-anchor resolution. Plain reachability drops any
+ * conversation whose anchor commit was rewritten away (a GitHub squash merge
+ * discards the branch's commits, so their notes fall out of `rev-list` even
+ * though the work survives in the squash commit). A `re_anchor` event —
+ * anchored to the successor commit, so it is discoverable exactly when the
+ * successor is in view — repairs this: an anchor counts as reachable when the
+ * rev reaches it, or when a mapping whose successor is reachable names it as
+ * superseded. Superseded commits can themselves anchor further mappings
+ * (a squash commit later rewritten again), so resolution loops to a fixpoint:
+ * grow the reachable set, read the notes that just became visible, repeat.
+ * The set only grows and each note is read once, so it terminates.
+ */
+async function resolveAnchors(
+  repo: RepoInfo,
+  anchors: string[],
+  rev: string,
+  readNote: (anchor: string) => Promise<EvidenceEvent[]>,
+): Promise<string[]> {
+  const reachable = await revList(repo, rev);
+  const visited = new Set<string>();
+  const mappings: ReAnchorMapping[] = [];
+  for (;;) {
+    const frontier = anchors.filter((a) => reachable.has(a) && !visited.has(a));
+    for (const anchor of frontier) {
+      visited.add(anchor);
+      for (const event of await readNote(anchor)) {
+        const mapping = parseReAnchor(event);
+        if (mapping) mappings.push(mapping);
+      }
+    }
+    let grew = false;
+    for (const mapping of mappings) {
+      // A mapping only applies once its successor is in view; one pointing
+      // at an unreachable successor (e.g. asserted from another branch)
+      // changes nothing here.
+      if (!reachable.has(mapping.successor)) continue;
+      for (const sha of mapping.superseded) {
+        if (!reachable.has(sha)) {
+          reachable.add(sha);
+          grew = true;
+        }
+      }
+    }
+    if (frontier.length === 0 && !grew) break;
+  }
+  return anchors.filter((a) => reachable.has(a));
 }
 
 /** Stable order: conversation, then seq, then time, then id. */

@@ -36,3 +36,5 @@ export { captureClaudeTranscript, runClaudeCodeHook } from "./adapters/claude-co
 export { captureCodexTranscript, runCodexHook } from "./adapters/codex.js";
 export { renormalize } from "./renormalize.js";
 export type { RenormalizeResult } from "./renormalize.js";
+export { parseReAnchor, reAnchorDraft } from "./reanchor.js";
+export type { ReAnchorMapping, ReAnchorDraftOptions } from "./reanchor.js";

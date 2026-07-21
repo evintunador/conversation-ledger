@@ -22,6 +22,7 @@ export const KNOWN_KINDS = [
   "annotation",
   "redaction",
   "supersession",
+  "re_anchor",
   "unrecognized",
 ] as const;
 
