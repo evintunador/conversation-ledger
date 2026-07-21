@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { addKnownSecrets, loadKnownSecrets } from "../redact/known-secrets.js";
@@ -134,6 +134,24 @@ test("redact --all (opt-in on): whole-content blanking remembers nothing (no reu
     const result = await redactEvent(repo, original.id.slice(4, 12), { all: true });
     assert.strictEqual(result.knownSecretsRemembered, 0);
     assert.ok(!existsSync(knownSecretsPath(repo.gitDir)));
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("known-secrets store is written owner-read/write only (0600), and bad perms are repaired", async () => {
+  const repo = await makeTempRepo();
+  try {
+    await addKnownSecrets(repo, ["longenoughvalue"]);
+    const path = knownSecretsPath(repo.gitDir);
+    assert.strictEqual((await stat(path)).mode & 0o777, 0o600, "store must be 0600 on create");
+
+    // Loosen perms as if an older version (or a stray umask) had created it,
+    // then confirm the next write repairs them.
+    await chmod(path, 0o644);
+    assert.strictEqual((await stat(path)).mode & 0o777, 0o644);
+    await addKnownSecrets(repo, ["secondgoodvalue"]);
+    assert.strictEqual((await stat(path)).mode & 0o777, 0o600, "store perms must be repaired");
   } finally {
     await cleanupRepo(repo);
   }

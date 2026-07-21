@@ -5,11 +5,33 @@
  * caller (see cleanupRepo/cleanupDir) — tests must never touch this
  * project's own repo.
  */
+import { mkdtempSync, rmSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { git, findRepo, type RepoInfo } from "../git.js";
 import { finalizeEvent, type EventDraft, type EvidenceEvent } from "../schema.js";
+
+/**
+ * Isolate every test process from the developer's real home directory.
+ *
+ * loadConfig() reads user-level config at `~/.config/cledger/config.json` via
+ * os.homedir() (which honors $HOME on POSIX), so a developer who has, say,
+ * `redact.knownSecrets` enabled globally would silently change test behavior
+ * — tests asserting *default* behavior would exercise an opt-in layer and
+ * fail, and worse, tests could pass or fail depending on whose machine ran
+ * them. The node test runner gives each test *file* its own process, so
+ * setting HOME at module load is safe and scoped to that file.
+ */
+const ISOLATED_HOME = mkdtempSync(join(tmpdir(), "cledger-test-home-"));
+process.env.HOME = ISOLATED_HOME;
+process.on("exit", () => {
+  try {
+    rmSync(ISOLATED_HOME, { recursive: true, force: true });
+  } catch {
+    /* best effort */
+  }
+});
 
 /** Create a fresh repo under the OS temp dir, with local git identity set. */
 export async function makeTempRepo(prefix = "cledger-test-"): Promise<RepoInfo> {

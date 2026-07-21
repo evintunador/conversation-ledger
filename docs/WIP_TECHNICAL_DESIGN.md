@@ -200,9 +200,14 @@ Defense in depth, ordered by where they run and what they may do:
   cost); only `--pattern` feeds it (`--all` blanks whole content, no reusable
   value) and sub-8-char values are dropped to avoid over-matching. It stores
   plaintext by necessity (fingerprints are one-way and can't drive exact
-  matching) but under `.git/`, exactly as local-and-unshared as the
-  transcripts the values came from — consistent with the transport boundary.
-  Off by default: the store is never read or created unless the flag is set.
+  matching) but under `.git/` and written `0600`, exactly as local-and-unshared
+  as the transcripts the values came from — consistent with the transport
+  boundary. Off by default: the store is never read or created unless the flag
+  is set. Note the interaction with the id-preservation rule below: once a
+  value is remembered, re-capturing a source line containing it yields
+  *scrubbed* content and therefore a different id, so it no longer dedups
+  against the redacted original — a second scrubbed copy, not a resurrected
+  secret. Id churn is the accepted cost, identical to C.
 
 ### Redaction metadata
 

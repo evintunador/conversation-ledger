@@ -16,9 +16,17 @@
  * pending queue — never the record of truth. Off by default: when the flag
  * is not set, this store is never read or created.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { RepoInfo } from "../git.js";
+
+/**
+ * Owner read/write only. This file holds confirmed secret plaintext, so it
+ * must not be group/world-readable even on a shared machine. `mode` on
+ * writeFile only applies when the file is *created*, so an explicit chmod
+ * follows to also repair permissions on a store created before this existed.
+ */
+const STORE_MODE = 0o600;
 
 /**
  * Values shorter than this are never remembered: an exact-string scrub of a
@@ -64,8 +72,15 @@ export async function addKnownSecrets(repo: RepoInfo, values: string[]): Promise
   }
   if (!added) return;
   await mkdir(join(repo.gitDir, "conversation-ledger"), { recursive: true });
-  await writeFile(
-    knownSecretsPath(repo),
-    JSON.stringify({ values: [...existing].sort() }, null, 2) + "\n",
-  );
+  const path = knownSecretsPath(repo);
+  await writeFile(path, JSON.stringify({ values: [...existing].sort() }, null, 2) + "\n", {
+    mode: STORE_MODE,
+  });
+  // Repair perms on a pre-existing store (writeFile's mode only applies on
+  // create). Never fail capture over a chmod that the filesystem refuses.
+  try {
+    await chmod(path, STORE_MODE);
+  } catch {
+    /* best effort */
+  }
 }

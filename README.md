@@ -118,9 +118,9 @@ Visible tool output can contain secrets: API keys in error messages, credentials
 - Threat addressed: unstructured secrets in local config.
 - Cost of enabling: `.env` plain-config values get masked too; machine-dependent (rescans produce duplicate events with different ids).
 
-**Known-secret learning** (opt-in, default off): Remember the exact values a `cledger redact <event-id> --pattern` scrubbed, then exact-match them out of every future capture (under a `known-secret` rule id). Enable with `{"redact": {"knownSecrets": true}}`. Confirmed values are stored locally under `.git/conversation-ledger/known-secrets.json` — never tracked or pushed by git, the same tier as the allowlist. Only `--pattern` feeds it; values under 8 chars are never remembered.
+**Known-secret learning** (opt-in, default off): Remember the exact values a `cledger redact <event-id> --pattern` scrubbed, then exact-match them out of every future capture (under a `known-secret` rule id). Enable with `{"redact": {"knownSecrets": true}}`. Confirmed values are stored locally under `.git/conversation-ledger/known-secrets.json`, written owner-only (`0600`) — never tracked or pushed by git, the same tier as the allowlist. Only `--pattern` feeds it; values under 8 chars are never remembered.
 - Threat addressed: the capture/scan feedback loop — a value the broad sync scan catches but the conservative capture tier misses gets re-ingested raw every time you revisit it while fixing it. Once redacted, capture learns it and it can never be re-captured raw again.
-- Cost of enabling: confirmed secret plaintext lives in a new (local, unshared) file; like env masking, capture becomes machine-dependent for those values (another machine without the store captures the same line raw, under a different id).
+- Cost of enabling: confirmed secret plaintext lives in a new (local, unshared) file; like env masking, capture becomes machine-dependent for those values. Concretely, re-capturing a source line whose value is now remembered yields *scrubbed* content and therefore a different event id, so it no longer dedups against the pre-existing event — you get a second, also-scrubbed copy rather than a resurrected secret. Id churn, not leakage.
 
 **Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push with a report and remediation instructions; the report shows ~20 chars of surrounding context with the matched value **fully masked** (`<redacted>`, zero secret characters) so the report itself can't re-seed the next scan. In the pre-push hook, a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
 - Threat addressed: secrets from older capture rules or new tool formats slipping through.
@@ -188,14 +188,10 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   confirmed secret plaintext into one predictably-named local file. This does
   not change the transport threat model (the same values already sit in
   plaintext transcripts), but the *aggregation* is a distinct accidental-read /
-  disk-snoop / backup-scoop risk. Because capture runs silently on every turn,
-  decryption must be non-interactive: an OS-keychain-held key (macOS Keychain /
-  libsecret / DPAPI) is the real design; `chmod 0600` on the file is a
-  near-free first step.
-- **Tighten the `keyword-assignment` scan rule** — it currently fires on
-  source-code identifiers (`secret: string`, `password:` object keys), a
-  false-positive class surfaced by dogfooding cledger on its own repo. It needs
-  to distinguish assigning a value from merely naming a parameter/field.
+  disk-snoop / backup-scoop risk. Owner-only `0600` perms shipped in 0.7.1;
+  the real remaining work is encryption with an OS-keychain-held key (macOS
+  Keychain / libsecret / DPAPI), which must decrypt *non-interactively* since
+  capture runs silently on every turn.
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 
 ## Storage model, in one paragraph

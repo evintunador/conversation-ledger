@@ -111,8 +111,23 @@ const STANDARD_RULES: RedactionRule[] = [
     id: "keyword-assignment",
     tier: "standard",
     description: "Keyword-anchored secret assignment (password=, api_key:, ...)",
+    /**
+     * The value charset deliberately excludes code punctuation — (){}[]<>;,$`\
+     * — as well as whitespace and quotes. A real credential is drawn from
+     * token-ish characters (alphanumerics, -_.+/=~ etc.), whereas the dominant
+     * false-positive class is *source code that talks about secrets*: type
+     * annotations (`secret: string): string {`) and template interpolation
+     * (`secret: ${secret.slice(i, i + 6)}`) both hit the excluded set
+     * immediately and now fall below the 8-char floor instead of matching.
+     * Surfaced by dogfooding cledger on its own repo, where the old charset
+     * flagged the redaction source files themselves.
+     *
+     * Note this cannot (and should not) suppress secret-*shaped* string
+     * literals in source, e.g. a test fixture containing "password=hunter2...":
+     * those are indistinguishable from the real thing by pattern alone.
+     */
     pattern:
-      /(?:password|passwd|secret|api_key|apikey|access_token|auth_token|credentials?)["']?\s*[:=]\s*["']?[^\s"']{8,}/gi,
+      /(?:password|passwd|secret|api_key|apikey|access_token|auth_token|credentials?)["']?\s*[:=]\s*["']?[^\s"'`(){}[\]<>;,$\\]{8,}/gi,
   },
   {
     id: "url-credentials",

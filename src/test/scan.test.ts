@@ -51,6 +51,41 @@ test("scanEvents: standard tier finds a keyword-anchored secret in both content 
   }
 });
 
+test("scanEvents: keyword-assignment ignores source code that merely talks about secrets", () => {
+  // The false-positive class that dogfooding surfaced: type annotations and
+  // template interpolation in cledger's own redaction source. None of these
+  // carry an actual credential.
+  const codeShapes = [
+    "function maskMatch(secret: string): string { return x; }",
+    "const msg = `leaked a substring of the secret: ${secret.slice(i, i + 6)}`;",
+    "interface Opts { password: string; api_key: string }",
+    "log(`credentials: ${JSON.stringify(creds)}`)",
+    "type Cfg = { access_token: string | undefined };",
+  ];
+  for (const text of codeShapes) {
+    const findings = scanEvents([event({ content: { text } })], "standard").filter(
+      (f) => f.rule === "keyword-assignment",
+    );
+    assert.strictEqual(findings.length, 0, `must not flag source code: ${text}`);
+  }
+});
+
+test("scanEvents: keyword-assignment still catches real credential assignments", () => {
+  const realShapes = [
+    "password=supersecret123456",
+    'db_password: "hunter2hunter2hunter2"',
+    "export password = 'aVeryLongPassphrase1'",
+    "api_key:sk_test_abcdefghijklmnop",
+    "access_token=ya29.A0ARrdaM-longtokenvalue",
+  ];
+  for (const text of realShapes) {
+    const findings = scanEvents([event({ content: { text } })], "standard").filter(
+      (f) => f.rule === "keyword-assignment",
+    );
+    assert.ok(findings.length > 0, `must still flag a real assignment: ${text}`);
+  }
+});
+
 test("scanEvents + filterFindings: an allowlisted fingerprint is suppressed", () => {
   const secret = "supersecret123456";
   const e = event({ content: { text: `password=${secret}` } });
