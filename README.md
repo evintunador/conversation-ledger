@@ -7,7 +7,8 @@ your repository as git notes.
 utility in the unix tradition: it appends immutable JSONL evidence events to
 `refs/notes/conversation-ledger`, anchored to the commit you were on when the
 conversation happened. Records ride the commit DAG — merge a branch and its
-conversations come along — never touch your working tree or `git status`, and
+conversations come along, and squash-merged branches are re-anchored onto the
+squash commit — never touch your working tree or `git status`, and
 ride your normal `git push`/`git fetch` via an auto-installed, scan-gated
 pre-push hook and fetch refspec (or explicitly, via `cledger sync`).
 
@@ -50,6 +51,7 @@ cledger conversations           # sessions touching this branch
 cledger show claude-code:3f9a   # replay one conversation in order
 cledger export > ledger.jsonl   # lossless dump, incl. source-native payloads
 cledger sync                    # explicit fetch/merge/push of the ledger ref
+cledger re-anchor               # what did the remote squash away? (--apply to map it)
 echo '{"kind":"decision",...}' | cledger append   # any tool can write events
 ```
 
@@ -76,6 +78,30 @@ If git has no author identity configured (`user.email` unset), human turns
 are recorded unattributed; `cledger install` warns about this. cledger uses
 the same identity a commit would be authored under (config or environment)
 and never guesses a hostname-based one.
+
+## Squash merges & history rewrites (re-anchoring)
+
+Events anchor to commits, and forges rewrite commits: a GitHub "Squash and
+merge" (or "Rebase and merge", or a bot amending your push) replaces your
+branch's commits with new SHAs, which would orphan their conversations from
+the default branch's view. cledger repairs this automatically:
+
+- After a fetch shows the remote default branch moved, any read compares
+  your local branches against it. A branch whose changes match a new commit
+  exactly — same tree, or same `git patch-id` fingerprint (squashes as one
+  cumulative diff, rebases commit-by-commit) — gets a `re_anchor` mapping
+  event, anchored to the surviving commit. `cledger log` then shows the
+  branch's conversations as part of the squash commit's history. Notes are
+  never moved or rewritten; the mapping is an ordinary append-only event,
+  and the original anchor stays in the record as provenance.
+- Only exact matches auto-apply. If a maintainer edited during the merge or
+  the change matches two commits, nothing is guessed: `cledger re-anchor`
+  (dry-run by default, `--apply` to act) reports what it found, and
+  `cledger re-anchor <old-rev...> --onto REV` lets you assert the mapping
+  yourself — recorded with you as the actor. Old SHAs are accepted even
+  after the commits themselves are garbage-collected.
+- Opt out with `{"reanchor": {"auto": false}}`; the explicit command keeps
+  working either way.
 
 ## Adapters
 
@@ -144,13 +170,27 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   file paths with their `tool_result` events.
 - **Post-push purge** — true content removal after the ledger ref has been
   shared (force-push + collaborator re-fetch coordination); the local
-  pre-push squash shipped with `cledger redact`.
-- **`re-anchor`** — reattach events orphaned by squash merges or history
-  rewrites. The desired end state is that this happens by default: a squash
-  commit should end up carrying the conversations of the branch it squashed.
-  Hard part: squashes often happen off-machine (GitHub "Squash and merge"),
-  so detection needs patch-id/branch-tip matching after fetch, not a local
-  hook.
+  pre-push squash shipped with `cledger redact`. Three hard parts scoped so
+  far: (a) the `cat_sort_uniq` union merge means any collaborator still
+  holding the old blob silently re-introduces it on their next sync, so purge
+  must pair the force-push with a loud reset-don't-merge instruction and
+  detection of resurrected blobs on later fetches; (b) hosts retain
+  unreachable objects for a window and may serve them via API after a
+  force-push, so purge reduces exposure but rotating the leaked credential is
+  the only real remedy — output must say so plainly; (c) the companion
+  `redaction` event and the rewritten event's original id must survive the
+  purge (remove the secret's content, never the evidence a redaction
+  happened, and don't break rescan dedup).
+- **`re-anchor`** *(shipped, 0.8.0)* — events orphaned by squash merges or
+  history rewrites follow the surviving commit by default: append-only
+  `re_anchor` mapping events (anchored to the successor, deterministic ids
+  so concurrent detection dedups), read-time reachability resolving them
+  transitively, fetch-side detection via tree/patch-id exact matching, and
+  the `cledger re-anchor` command for dry runs and manual assertions.
+  *Remaining:* evidence-ranked suggestions for maintainer-edited squashes
+  using forge metadata (squash subjects ending in `(#123)`, PR-for-branch
+  lookup cached while the PR is open) — confirm-only, never auto; belongs
+  behind the forge abstraction below.
 - **Harness-artifact capture** — decide whether the ledger should also
   preserve valuable non-git-controlled agent artifacts that normally die
   with a worktree or live outside the repo (e.g. Claude Code auto-memory
@@ -193,6 +233,22 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   Keychain / libsecret / DPAPI), which must decrypt *non-interactively* since
   capture runs silently on every turn.
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
+- **Forge (PR/MR) conversation adapter** — ingest pull-request review
+  discussions as ordinary conversation events anchored to the merge/squash
+  commit. The event schema already fits (a review comment is a visible turn
+  with a human actor); what doesn't slot into the existing adapter shape is
+  the capture surface — no local transcript file, no hook that fires on a
+  remote comment, needs API auth/pagination. Anything forge-specific goes
+  behind a forge abstraction (PR lookup, squash-message conventions, comment
+  fetch) with GitHub as the first and initially only driver; GitLab/Gitea
+  analogues exist for every piece.
+- **Forge-side integration (CI / GitHub App)** — an opt-in Action/webhook
+  that runs where the squash actually happens: append the re-anchor mapping
+  event at merge time (no post-hoc detection needed), ingest the PR
+  conversation on merge, and push the notes ref from CI. Solves the
+  "squashes happen off-machine" problem at the source instead of
+  reconstructing it after fetch; kept separate from core because it requires
+  forge credentials and per-host setup.
 
 ## Storage model, in one paragraph
 

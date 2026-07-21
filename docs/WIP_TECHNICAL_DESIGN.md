@@ -94,12 +94,43 @@ Events captured before the first commit exists (unborn `HEAD`) queue in
 anchor. Everything under `.git/conversation-ledger/` (pending queue, adapter
 cursors, lock) is local, rebuildable state — never the record of truth.
 
-### Known limitation: squash merges
+### Squash merges and history rewrites: re-anchoring
 
-A squash merge discards the source branch's commits, so their conversations
-remain in the ledger (notes are enumerable regardless of reachability;
-`cledger log --all` sees them) but drop out of the target branch's
-reachability view. A future `re-anchor` operation is the intended fix.
+A squash merge (or any rewrite) discards the source branch's commits, so
+their conversations remain in the ledger (notes are enumerable regardless of
+reachability; `cledger log --all` sees them) but would drop out of the target
+branch's reachability view. Re-anchoring (0.8.0) repairs this with the same
+append-plus-companion-event shape redaction uses — the union merge would
+resurrect any note line a "move" deleted, and the original anchor is honest
+provenance, so notes are never moved:
+
+- A `re_anchor` event asserts `{superseded: [SHAs], successor: SHA, method,
+  branch?}`. It is anchored to the successor commit, so it rides the
+  surviving branch's DAG and is discoverable exactly when the successor is
+  in view. Its identity is deterministic — sorted SHAs, `system` actor, the
+  successor's committer timestamp as `occurred_at` — so independent
+  detection on two machines dedups to a single event.
+- Read-time reachability resolves mappings to a fixpoint: an anchor counts
+  as reachable when the rev reaches it or a mapping whose successor is
+  reachable names it, transitively (a squash commit itself later squashed
+  still resolves). A mapping whose successor is not in view changes nothing.
+- Detection runs lazily inside every read, right after `absorbIncoming`,
+  gated on a cursor over the remote default branch's tip (origin/HEAD, else
+  the current branch's upstream) so the pass only runs when the target
+  moved, and it never throws. For each local branch no longer reachable
+  from the target: tree equality catches a squash of an unmoved target;
+  `git patch-id --stable` over zero-context diffs (cumulative for squashes,
+  per-commit for rebase/bot rewrites) catches the rest. Only exact matches
+  auto-apply; a fingerprint matching two target commits is reported as
+  ambiguous, never guessed — misattribution is worse than orphaning.
+  Branches with no noted commits are skipped (mappings rescue
+  conversations; they do not catalog merges). `{"reanchor": {"auto":
+  false}}` opts out.
+- `cledger re-anchor` is the explicit path: dry-run by default, `--apply`,
+  and `--onto` for what matching cannot assert (maintainer-edited squashes,
+  deleted branches, ambiguity) — those mappings carry the asserting user as
+  actor, and accept full 40-hex superseded SHAs verbatim since the commit
+  objects may already be GC'd while their notes live on.
 
 ## Transport
 
@@ -306,10 +337,14 @@ for now (see the format-drift roadmap item).
   hook does push to whichever remote is being pushed, but fetch staging is
   origin-scoped.
 - Sub-turn citation anchors for downstream consumers (intent-recall).
-- Re-anchoring after squash merges and history rewrites — ideally default
-  behavior (squash commit inherits its branch's conversations), which
-  requires detecting remote squashes (e.g. GitHub merges) via patch-id or
-  branch-tip matching after fetch.
+- Re-anchoring shipped as default behavior in 0.8.0 (see "Squash merges and
+  history rewrites"). Remaining: evidence-ranked suggestions for the cases
+  exact matching cannot assert (maintainer-edited squashes), using forge
+  metadata — GitHub squash subjects end in `(#123)`, the PR for a branch is
+  queryable while it is open — behind a forge abstraction (see the forge
+  roadmap items in README); and the accepted cursor gap, where conversations
+  captured onto an already-dead branch only auto-map on the next target move
+  (`cledger re-anchor` covers it manually).
 - Whether to preserve non-git-controlled harness artifacts that die with a
   worktree (agent memory directories, session state) as `document` events.
 - Whether an explicit `Conversation` manifest object earns its keep once
