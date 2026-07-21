@@ -29,7 +29,14 @@ import {
   type EvidenceEvent,
   type RepoContext,
 } from "./schema.js";
-import { parseReAnchor, type ReAnchorMapping } from "./reanchor.js";
+import {
+  defaultRewriteTarget,
+  detectRewrites,
+  parseReAnchor,
+  reAnchorDraft,
+  type DetectedRewrite,
+  type ReAnchorMapping,
+} from "./reanchor.js";
 import { collectMatches, redactDraft, type ExtraValueGroup, type RedactionRecord } from "./redact/apply.js";
 import { captureRules, collectEnvValues, loadConfig } from "./redact/config.js";
 import { addKnownSecrets, loadKnownSecrets } from "./redact/known-secrets.js";
@@ -246,6 +253,10 @@ export interface ReadOptions {
 export async function readEvents(repo: RepoInfo, opts: ReadOptions = {}): Promise<EvidenceEvent[]> {
   // Lazy transport: fold in anything a plain `git fetch`/`git pull` staged.
   await absorbIncoming(repo);
+  // Lazy re-anchoring, same shape: if the fetch revealed that the remote
+  // target branch rewrote noted commits (squash merge), map them before
+  // filtering by reachability below.
+  await autoReAnchor(repo);
   let anchors = await listAnchors(repo);
   const noteCache = new Map<string, EvidenceEvent[]>();
   const readNote = async (anchor: string): Promise<EvidenceEvent[]> => {
@@ -321,6 +332,110 @@ async function resolveAnchors(
     if (frontier.length === 0 && !grew) break;
   }
   return anchors.filter((a) => reachable.has(a));
+}
+
+/** Commits carrying notes, and the commits existing mappings already supersede. */
+async function reAnchorState(
+  repo: RepoInfo,
+): Promise<{ anchors: Set<string>; alreadySuperseded: Set<string> }> {
+  const anchors = new Set(await listAnchors(repo));
+  const alreadySuperseded = new Set<string>();
+  for (const anchor of anchors) {
+    for (const event of await readNoteEvents(repo, anchor)) {
+      const mapping = parseReAnchor(event);
+      if (mapping) for (const sha of mapping.superseded) alreadySuperseded.add(sha);
+    }
+  }
+  return { anchors, alreadySuperseded };
+}
+
+export interface ReAnchorRunResult {
+  /** Rev the detection compared against, or null when none could be resolved. */
+  target: string | null;
+  detected: DetectedRewrite[];
+  ambiguous: string[];
+  /** Mapping events actually appended — empty on dry runs and re-runs. */
+  applied: EvidenceEvent[];
+}
+
+/**
+ * One detection pass against `target` (default: the remote default branch),
+ * optionally appending the proposed exact mappings, each anchored to its
+ * successor commit. Re-running is a no-op: commits an existing mapping
+ * covers are excluded from detection, and identical mapping events dedup by
+ * id anyway. Ambiguous branches are reported, never guessed at.
+ */
+export async function runReAnchor(
+  repo: RepoInfo,
+  opts: { target?: string; apply: boolean },
+): Promise<ReAnchorRunResult> {
+  const target = opts.target ?? (await defaultRewriteTarget(repo));
+  if (!target) return { target: null, detected: [], ambiguous: [], applied: [] };
+  const { anchors, alreadySuperseded } = await reAnchorState(repo);
+  if (anchors.size === 0) return { target, detected: [], ambiguous: [], applied: [] };
+  const { detected, ambiguous } = await detectRewrites(repo, { target, anchors, alreadySuperseded });
+  const applied: EvidenceEvent[] = [];
+  if (opts.apply) {
+    for (const rewrite of detected) {
+      const result = await appendEvents(repo, [reAnchorDraft(rewrite.mapping)], {
+        anchor: rewrite.mapping.successor,
+      });
+      applied.push(...result.appended);
+    }
+  }
+  return { target, detected, ambiguous, applied };
+}
+
+/**
+ * Default-on half of re-anchoring (config: {"reanchor": {"auto": false}} to
+ * disable): runs inside every read, right after absorbIncoming, so a plain
+ * `git fetch` + `cledger log` is enough for a squash-merged branch's
+ * conversations to follow the squash commit. The detection pass costs a
+ * handful of subprocesses per local branch, so it is gated on a cursor over
+ * the target tip and only runs when the target actually moved. Never throws
+ * — a read must never fail because detection did. The known gap the cursor
+ * accepts: conversations captured onto an already-dead branch after the
+ * target was seen won't auto-map until the target moves again — `cledger
+ * re-anchor` covers that manually.
+ */
+async function autoReAnchor(repo: RepoInfo): Promise<void> {
+  try {
+    const config = await loadConfig(repo.root);
+    if (config.reanchor?.auto === false) return;
+    const target = await defaultRewriteTarget(repo);
+    if (!target) return;
+    const tip = (await git(["rev-parse", "--verify", "--quiet", target], {
+      cwd: repo.root,
+      allowFailure: true,
+    })).trim();
+    if (!tip) return;
+    const cursorPath = join(stateDir(repo), "reanchor-cursor");
+    let seen = "";
+    try {
+      seen = (await readFile(cursorPath, "utf8")).trim();
+    } catch {
+      // first run, or unreadable state — state is rebuildable
+    }
+    if (seen === tip) return;
+    const result = await runReAnchor(repo, { target, apply: true });
+    if (result.applied.length > 0) {
+      const anchors = result.detected.reduce((n, d) => n + d.notedAnchors, 0);
+      process.stderr.write(
+        `cledger: re-anchored ${anchors} conversation anchor(s) rewritten away by ${target} ` +
+          `(mappings recorded in the ledger)\n`,
+      );
+    }
+    if (result.ambiguous.length > 0) {
+      process.stderr.write(
+        `cledger: branch(es) ${result.ambiguous.join(", ")} look rewritten onto ${target} but ` +
+          `match more than one commit — run \`cledger re-anchor\` to resolve manually\n`,
+      );
+    }
+    await ensureStateDir(repo);
+    await writeFile(cursorPath, tip + "\n");
+  } catch {
+    // Reads must never fail because detection did.
+  }
 }
 
 /** Stable order: conversation, then seq, then time, then id. */

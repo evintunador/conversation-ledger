@@ -31,6 +31,15 @@ export interface CledgerConfig {
     /** Add the fetch refspec that stages the remote's ledger ref (default true). */
     fetchRefspec?: boolean;
   };
+  reanchor?: {
+    /**
+     * Auto-append re_anchor mappings for exact (tree / patch-id) matches
+     * when a fetch shows the remote target branch rewrote local commits
+     * that carry conversations (default true). Fuzzy matches are never
+     * auto-applied regardless of this flag — see `cledger re-anchor`.
+     */
+    auto?: boolean;
+  };
 }
 
 /** Names that routinely hold long non-secret values; excluded from env scrubbing. */
@@ -53,8 +62,8 @@ async function readJsonConfig(path: string): Promise<CledgerConfig | null> {
 /**
  * Merges ~/.config/cledger/config.json then <repoRoot>/.cledger.json.
  * Repo wins, shallow per-section: whichever config defines a given
- * top-level section ("redact", "scan", "transport") supplies that whole
- * section — the two are never merged key-by-key within a section.
+ * top-level section ("redact", "scan", "transport", "reanchor") supplies
+ * that whole section — the two are never merged key-by-key within a section.
  */
 export async function loadConfig(repoRoot: string): Promise<CledgerConfig> {
   const userPath = join(homedir(), ".config", "cledger", "config.json");
@@ -68,10 +77,12 @@ export async function loadConfig(repoRoot: string): Promise<CledgerConfig> {
   const redact = override.redact ?? base.redact;
   const scan = override.scan ?? base.scan;
   const transport = override.transport ?? base.transport;
+  const reanchor = override.reanchor ?? base.reanchor;
   return {
     ...(redact !== undefined ? { redact } : {}),
     ...(scan !== undefined ? { scan } : {}),
     ...(transport !== undefined ? { transport } : {}),
+    ...(reanchor !== undefined ? { reanchor } : {}),
   };
 }
 
