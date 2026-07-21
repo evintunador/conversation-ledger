@@ -141,8 +141,10 @@ export interface UnmatchedBranch {
   branch: string;
   tip: string;
   mergeBase: string;
-  /** Commits a mapping would supersede (mergeBase..tip). */
+  /** Commits a mapping would supersede (mergeBase..tip, newest first). */
   superseded: string[];
+  /** The subset of `superseded` that carries conversation notes — the ones a mapping must not drop. */
+  noted: string[];
   notedAnchors: number;
   /** "ambiguous": several candidates tied; "no-match": none fingerprint-matched. */
   reason: "ambiguous" | "no-match";
@@ -270,6 +272,7 @@ export async function detectRewrites(
         tip: branch.sha,
         mergeBase,
         superseded: branchCommits,
+        noted,
         notedAnchors: noted.length,
         reason: "ambiguous",
         candidates: squashMatches.map((m) => m.sha),
@@ -343,6 +346,7 @@ export async function detectRewrites(
         tip: branch.sha,
         mergeBase,
         superseded: branchCommits,
+        noted,
         notedAnchors: noted.length,
         reason: sawAmbiguity ? "ambiguous" : "no-match",
       });

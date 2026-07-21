@@ -407,9 +407,15 @@ async function cmdReAnchor(positional: string[], flags: Flags): Promise<void> {
         for (const line of s.evidence) process.stderr.write(`      - ${line}\n`);
       }
       // Never auto-applied: the human runs the printed command to confirm.
+      // The list is every commit on the branch since it forked — only the
+      // human knows whether the merge really covered all of them, so name
+      // the ones that carry conversations before inviting a trim.
       process.stderr.write(
-        `    confirm with: cledger re-anchor ${unmatched.superseded.join(" ")} ` +
-          `--onto ${suggestions[0]!.candidate}\n`,
+        `    carry conversations (keep these): ` +
+          `${unmatched.noted.map((sha) => sha.slice(0, 12)).join(" ")}\n` +
+          `    confirm with: cledger re-anchor ${unmatched.superseded.join(" ")} ` +
+          `--onto ${suggestions[0]!.candidate}\n` +
+          `    (newest first; trim commits that were not part of the merge)\n`,
       );
     }
   }

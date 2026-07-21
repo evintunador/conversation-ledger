@@ -68,6 +68,8 @@ test("edited squash surfaces as unmatched, not silently dropped", async () => {
     assert.equal(run.unmatched[0]!.reason, "no-match");
     assert.deepEqual(run.unmatched[0]!.superseded, branchCommits);
     assert.equal(run.unmatched[0]!.notedAnchors, 1);
+    // branchCommits is newest-first; the noted one is the older first commit.
+    assert.deepEqual(run.unmatched[0]!.noted, [branchCommits[1]]);
   } finally {
     await cleanupRepo(repo);
   }
