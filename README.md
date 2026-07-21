@@ -96,10 +96,18 @@ the default branch's view. cledger repairs this automatically:
   and the original anchor stays in the record as provenance.
 - Only exact matches auto-apply. If a maintainer edited during the merge or
   the change matches two commits, nothing is guessed: `cledger re-anchor`
-  (dry-run by default, `--apply` to act) reports what it found, and
-  `cledger re-anchor <old-rev...> --onto REV` lets you assert the mapping
-  yourself — recorded with you as the actor. Old SHAs are accepted even
-  after the commits themselves are garbage-collected.
+  (dry-run by default, `--apply` to act) presents evidence-ranked
+  candidates instead — GitHub's own record of the branch's PR and its
+  squash commit (queried through your existing `gh` session; cledger never
+  touches credentials), `(#N)` subject and squash-message corroboration,
+  and per-file content matches — each with its evidence spelled out, the
+  conversation-carrying commits named, and a ready-to-run
+  `cledger re-anchor <old-rev...> --onto REV` command that records the
+  mapping with you as the actor. Old SHAs are accepted even after the
+  commits themselves are garbage-collected. Forge lookups run only in this
+  explicit command (never the auto read path) and degrade to offline
+  evidence without `gh`; `--no-forge` or `{"reanchor": {"forge": false}}`
+  turns them off.
 - Opt out with `{"reanchor": {"auto": false}}`; the explicit command keeps
   working either way.
 
@@ -186,11 +194,11 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   `re_anchor` mapping events (anchored to the successor, deterministic ids
   so concurrent detection dedups), read-time reachability resolving them
   transitively, fetch-side detection via tree/patch-id exact matching, and
-  the `cledger re-anchor` command for dry runs and manual assertions.
-  *Remaining:* evidence-ranked suggestions for maintainer-edited squashes
-  using forge metadata (squash subjects ending in `(#123)`, PR-for-branch
-  lookup cached while the PR is open) — confirm-only, never auto; belongs
-  behind the forge abstraction below.
+  the `cledger re-anchor` command for dry runs and manual assertions. The
+  suggestion tier shipped in 0.9.0: unmatched branches get evidence-ranked
+  candidates (forge merge-commit assertion via `gh`, `(#N)`/squash-message
+  corroboration, per-file patch-id overlap), confirm-only, behind the forge
+  abstraction in `src/forge/` (GitHub driver first).
 - **Harness-artifact capture** — decide whether the ledger should also
   preserve valuable non-git-controlled agent artifacts that normally die
   with a worktree or live outside the repo (e.g. Claude Code auto-memory
@@ -238,10 +246,11 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   commit. The event schema already fits (a review comment is a visible turn
   with a human actor); what doesn't slot into the existing adapter shape is
   the capture surface — no local transcript file, no hook that fires on a
-  remote comment, needs API auth/pagination. Anything forge-specific goes
-  behind a forge abstraction (PR lookup, squash-message conventions, comment
-  fetch) with GitHub as the first and initially only driver; GitLab/Gitea
-  analogues exist for every piece.
+  remote comment, needs API auth/pagination. The forge abstraction now
+  exists (`src/forge/`, built for re-anchor suggestions: PR-for-branch
+  lookup, GitHub driver over the user's `gh` session); this adapter would
+  extend it with comment fetching. GitLab/Gitea analogues exist for every
+  piece.
 - **Forge-side integration (CI / GitHub App)** — an opt-in Action/webhook
   that runs where the squash actually happens: append the re-anchor mapping
   event at merge time (no post-hoc detection needed), ingest the PR

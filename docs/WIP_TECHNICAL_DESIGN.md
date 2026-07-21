@@ -130,7 +130,10 @@ provenance, so notes are never moved:
   and `--onto` for what matching cannot assert (maintainer-edited squashes,
   deleted branches, ambiguity) — those mappings carry the asserting user as
   actor, and accept full 40-hex superseded SHAs verbatim since the commit
-  objects may already be GC'd while their notes live on.
+  objects may already be GC'd while their notes live on. Since 0.9.0 the
+  inexact cases come with evidence-ranked suggestions (forge merge-commit
+  assertion, message corroboration, per-file overlap — see Open questions)
+  feeding that confirm flow.
 
 ## Transport
 
@@ -337,14 +340,17 @@ for now (see the format-drift roadmap item).
   hook does push to whichever remote is being pushed, but fetch staging is
   origin-scoped.
 - Sub-turn citation anchors for downstream consumers (intent-recall).
-- Re-anchoring shipped as default behavior in 0.8.0 (see "Squash merges and
-  history rewrites"). Remaining: evidence-ranked suggestions for the cases
-  exact matching cannot assert (maintainer-edited squashes), using forge
-  metadata — GitHub squash subjects end in `(#123)`, the PR for a branch is
-  queryable while it is open — behind a forge abstraction (see the forge
-  roadmap items in README); and the accepted cursor gap, where conversations
-  captured onto an already-dead branch only auto-map on the next target move
-  (`cledger re-anchor` covers it manually).
+- Re-anchoring shipped as default behavior in 0.8.0, and its suggestion
+  tier in 0.9.0 (see "Squash merges and history rewrites"): unmatched
+  branches get evidence-ranked candidates — the forge's own merge-commit
+  record for the branch's PR (GitHub driver over the user's `gh` session in
+  `src/forge/`, degrading to offline evidence without it), `(#N)` subject
+  and squash-message corroboration, per-file patch-id overlap — printed
+  with the conversation-carrying commits named and a ready-to-run `--onto`
+  command; confirm-only, and forge lookups never run in the auto read path.
+  Remaining: the accepted cursor gap, where conversations captured onto an
+  already-dead branch only auto-map on the next target move (`cledger
+  re-anchor` covers it manually).
 - Whether to preserve non-git-controlled harness artifacts that die with a
   worktree (agent memory directories, session state) as `document` events.
 - Whether an explicit `Conversation` manifest object earns its keep once
