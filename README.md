@@ -258,7 +258,9 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   cannot scan ciphertext anyway), for consumers to opt into, restoring only
   when source and target provider/CLI match. Open questions: cross-account
   validity (does a teammate's org replay another org's blobs? possibly
-  keyed per-account — untested, needs a second account), blob TTL, and
+  keyed per-account — a free-tier probe attempt was inconclusive since the
+  free tier cannot run Codex at all; needs a second account with Codex
+  access, i.e. a paid plan or a different-org API key), blob TTL, and
   size (~2–4KB per assistant turn in the notes ref).
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 - **Forge (PR/MR) conversation adapter** — ingest pull-request review
