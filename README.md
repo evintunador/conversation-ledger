@@ -240,6 +240,26 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   the real remaining work is encryption with an OS-keychain-held key (macOS
   Keychain / libsecret / DPAPI), which must decrypt *non-interactively* since
   capture runs silently on every turn.
+- **Preserve provider-encrypted reasoning as opaque state** — Codex's
+  `reasoning` response_items carry `encrypted_content` that only OpenAI's
+  servers can decrypt; the client just round-trips the blob, and replaying
+  it restores the model's hidden reasoning provider-side. Capture currently
+  drops these outright, which conflicts with the record-everything-just-in-
+  case posture: we discard them because *we* can't read them, yet the one
+  party who can (the provider) already saw the plaintext. Realization
+  (2026-07-21, turnbridge): dropping them permanently forecloses restoring
+  reasoning when a Codex-origin conversation is fabricated back into Codex
+  on another machine (or after a codex→claude→codex round trip). Empirically
+  verified same-account: a real blob replayed in a fabricated session is
+  accepted by the API across sessions and CLI versions (turnbridge
+  `scripts/probe-encrypted-reasoning.mjs`). Design shape: keep blobs out of
+  the visible lane — a raw-only/opaque event tier like the unrecognized-line
+  preservation (excluded from transcripts, titles, and secret scans, which
+  cannot scan ciphertext anyway), for consumers to opt into, restoring only
+  when source and target provider/CLI match. Open questions: cross-account
+  validity (does a teammate's org replay another org's blobs? possibly
+  keyed per-account — untested, needs a second account), blob TTL, and
+  size (~2–4KB per assistant turn in the notes ref).
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 - **Forge (PR/MR) conversation adapter** — ingest pull-request review
   discussions as ordinary conversation events anchored to the merge/squash
