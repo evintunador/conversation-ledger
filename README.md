@@ -256,12 +256,13 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   the visible lane — a raw-only/opaque event tier like the unrecognized-line
   preservation (excluded from transcripts, titles, and secret scans, which
   cannot scan ciphertext anyway), for consumers to opt into, restoring only
-  when source and target provider/CLI match. Open questions: cross-account
-  validity (does a teammate's org replay another org's blobs? possibly
-  keyed per-account — a free-tier probe attempt was inconclusive since the
-  free tier cannot run Codex at all; needs a second account with Codex
-  access, i.e. a paid plan or a different-org API key), blob TTL, and
-  size (~2–4KB per assistant turn in the notes ref).
+  when source and target provider/CLI match. Cross-account validity is
+  VERIFIED (2026-07-21): a blob generated under one ChatGPT account
+  replayed cleanly under a different paid ChatGPT account with identical
+  token accounting — the ciphertext is not keyed per-account, so
+  teammate-sharing replay works. Remaining open questions: blob TTL,
+  API-platform-org auth parity, and size (~2–4KB per assistant turn in
+  the notes ref).
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 - **Forge (PR/MR) conversation adapter** — ingest pull-request review
   discussions as ordinary conversation events anchored to the merge/squash
