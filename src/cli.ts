@@ -34,10 +34,13 @@ const USAGE = `conversation-ledger — durable records of coding-agent conversat
 
 Usage:
   cledger append [--quiet]                 append JSONL events/drafts from stdin
-  cledger log [--all|--rev R] [--kind K] [--source S] [--conversation C] [--json]
-  cledger show <conversation-id-prefix> [--json]
-  cledger conversations [--rev R]         list conversations on current branch (--all for every branch)
-  cledger export [--rev R]                lossless JSONL dump (default: everything)
+  cledger log [--all|--rev R] [--kind K] [--source S] [--conversation C] [--json] [--with-reasoning]
+  cledger show <conversation-id-prefix> [--json] [--with-reasoning]
+                                           opaque provider-encrypted \`reasoning\` events are hidden
+                                           by default on log/show; --with-reasoning reveals them
+  cledger conversations [--rev R] [--with-reasoning]
+                                           list conversations on current branch (--all for every branch)
+  cledger export [--rev R]                lossless JSONL dump (default: everything, incl. reasoning)
   cledger sync [--remote R] [--push|--fetch] [--no-scan] [--paranoid]
                                            fetch/merge/push of the ledger ref;
                                            push is gated by a secret scan unless --no-scan
@@ -154,6 +157,21 @@ function printHuman(events: EvidenceEvent[]): void {
   }
 }
 
+/**
+ * `reasoning` events are opaque ciphertext, never meant for a human-facing
+ * transcript — `log`/`show` hide them by default. `--with-reasoning` opts
+ * in, as does asking for the kind explicitly via `--kind reasoning` (hiding
+ * them there would just return nothing). `export`'s job is a lossless dump,
+ * so it never filters by kind and needs no equivalent flag.
+ */
+function includeReasoning(flags: Flags, opts: ReadOptions): boolean {
+  return flags["with-reasoning"] === true || opts.kind === "reasoning";
+}
+
+function hideOpaqueReasoning(events: EvidenceEvent[]): EvidenceEvent[] {
+  return events.filter((e) => e.kind !== "reasoning");
+}
+
 function printJsonl(events: EvidenceEvent[], includeRaw: boolean): void {
   for (const e of events) {
     const out = includeRaw ? e : { ...e, raw: undefined };
@@ -182,7 +200,9 @@ async function cmdAppend(flags: Flags): Promise<void> {
 
 async function cmdLog(flags: Flags): Promise<void> {
   const repo = await requireRepo();
-  const events = await readEvents(repo, readOptionsFrom(flags));
+  const opts = readOptionsFrom(flags);
+  let events = await readEvents(repo, opts);
+  if (!includeReasoning(flags, opts)) events = hideOpaqueReasoning(events);
   if (flags["json"]) printJsonl(events, false);
   else printHuman(events);
 }
@@ -194,7 +214,8 @@ async function cmdShow(positional: string[], flags: Flags): Promise<void> {
     process.exit(2);
   }
   const repo = await requireRepo();
-  const events = await readEvents(repo, { conversation: prefix });
+  let events = await readEvents(repo, { conversation: prefix });
+  if (!includeReasoning(flags, {})) events = hideOpaqueReasoning(events);
   if (events.length === 0) {
     process.stderr.write(`no events for conversation ${prefix}\n`);
     process.exit(1);
@@ -217,7 +238,9 @@ async function cmdShow(positional: string[], flags: Flags): Promise<void> {
 
 async function cmdConversations(flags: Flags): Promise<void> {
   const repo = await requireRepo();
-  const events = await readEvents(repo, readOptionsFrom(flags));
+  const opts = readOptionsFrom(flags);
+  let events = await readEvents(repo, opts);
+  if (!includeReasoning(flags, opts)) events = hideOpaqueReasoning(events);
   const byConv = new Map<string, { count: number; first: string; last: string; source: string }>();
   for (const e of events) {
     const id = e.conversation?.id ?? "(none)";

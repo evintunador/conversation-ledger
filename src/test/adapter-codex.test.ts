@@ -14,8 +14,9 @@ const SESSION_ID = "codex-sess-1";
 const FILENAME = "rollout-2026-01-01T00-00-00-123e4567-e89b-12d3-a456-426614174000.jsonl";
 
 /** Index 0 is session_meta (not a response_item, dropped); 1-4 are real
- * content; 5 is a reasoning item (must always be dropped, opaque by design);
- * 6 is a truncated trailing line that must be tolerated. */
+ * content; 5 is a reasoning item (preserved opaquely as a `reasoning` event,
+ * never as a conversation_turn); 6 is a truncated trailing line that must be
+ * tolerated. */
 function rolloutLines(): unknown[] {
   return [
     { type: "session_meta", payload: { session_id: SESSION_ID } },
@@ -69,7 +70,11 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
     await captureCodexTranscript(rolloutPath, repo.root);
 
     const events = await readEvents(repo);
-    assert.strictEqual(events.length, 4, "session_meta, reasoning, and malformed lines must be dropped");
+    assert.strictEqual(
+      events.length,
+      5,
+      "session_meta and the malformed trailing line must be dropped; reasoning is preserved opaquely",
+    );
 
     for (const e of events) {
       assert.strictEqual(e.raw?.format, "codex-rollout-jsonl/2");
@@ -84,7 +89,7 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
 
     // seq must equal the original line index (session_meta occupies index 0).
     const bySeq = new Map(events.map((e) => [e.conversation!.seq, e]));
-    assert.deepStrictEqual([...bySeq.keys()].sort((a, b) => a - b), [1, 2, 3, 4]);
+    assert.deepStrictEqual([...bySeq.keys()].sort((a, b) => a - b), [1, 2, 3, 4, 5]);
 
     const userMsg = bySeq.get(1)!;
     assert.strictEqual(userMsg.actor.type, "human");
@@ -117,17 +122,31 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
       blocks: [{ type: "tool_result", tool_use_id: "call_9", content: "5 passed" }],
     });
 
+    const reasoning = bySeq.get(5)!;
+    assert.strictEqual(reasoning.kind, "reasoning");
+    assert.strictEqual(reasoning.actor.type, "agent");
+    assert.deepStrictEqual(reasoning.content, { opaque: true });
+    assert.strictEqual(
+      (reasoning.raw!.data as { payload?: { encrypted_content?: string } }).payload?.encrypted_content,
+      "opaque-blob-must-never-be-stored",
+      "the ciphertext itself lives only in raw.data, never in content",
+    );
+    assert.ok(
+      !JSON.stringify(reasoning.content).includes("opaque-blob"),
+      "the blob must never leak into the visible content field",
+    );
+
     // --- Rerun on the unchanged rollout: cursor is past EOF, no new events. ---
     await captureCodexTranscript(rolloutPath, repo.root);
     const eventsAfterRerun = await readEvents(repo);
-    assert.strictEqual(eventsAfterRerun.length, 4, "rerun on unchanged rollout must not duplicate");
+    assert.strictEqual(eventsAfterRerun.length, 5, "rerun on unchanged rollout must not duplicate");
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(rolloutDir);
   }
 });
 
-test("captureCodexTranscript: reasoning items are never stored, even when reprocessed", async () => {
+test("captureCodexTranscript: reasoning items are preserved opaquely, never as a conversation_turn", async () => {
   const repo = await makeTempRepo("cledger-codex-reasoning-");
   const rolloutDir = await mkdtemp(join(tmpdir(), "cledger-codex-transcript-reasoning-"));
   try {
@@ -135,12 +154,69 @@ test("captureCodexTranscript: reasoning items are never stored, even when reproc
     const rolloutPath = await writeRollout(rolloutDir);
     await captureCodexTranscript(rolloutPath, repo.root);
     const events = await readEvents(repo);
+    const reasoningEvents = events.filter((e) => e.kind === "reasoning");
+    assert.strictEqual(reasoningEvents.length, 1);
     for (const e of events) {
-      assert.notStrictEqual((e.raw?.data as { payload?: { type?: string } })?.payload?.type, "reasoning");
+      if (e.kind === "reasoning") continue;
+      assert.notStrictEqual(
+        (e.raw?.data as { payload?: { type?: string } })?.payload?.type,
+        "reasoning",
+        "reasoning payloads must never surface as a conversation_turn or unrecognized event",
+      );
     }
+
+    // Reprocessing the same rollout must dedup, not duplicate the opaque event.
+    await captureCodexTranscript(rolloutPath, repo.root);
+    const afterRerun = (await readEvents(repo)).filter((e) => e.kind === "reasoning");
+    assert.strictEqual(afterRerun.length, 1);
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(rolloutDir);
+  }
+});
+
+test("captureCodexTranscript: a populated reasoning summary becomes a visible conversation_turn alongside the opaque event", async () => {
+  const repo = await makeTempRepo("cledger-codex-reasoning-summary-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-reasoning-summary-"));
+  try {
+    await makeCommit(repo, "init");
+    const path = join(dir, FILENAME);
+    const lines = [
+      { type: "session_meta", payload: { session_id: SESSION_ID } },
+      {
+        type: "response_item",
+        timestamp: "2026-01-01T00:00:01.000Z",
+        payload: {
+          type: "reasoning",
+          encrypted_content: "opaque-blob-must-never-be-stored",
+          summary: [
+            { type: "summary_text", text: "Considering the test suite." },
+            { type: "summary_text", text: "Deciding to run pytest." },
+          ],
+        },
+      },
+    ];
+    await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+
+    const result = await captureCodexTranscript(path, repo.root);
+    assert.strictEqual(result.appended, 2, "one visible turn plus one opaque reasoning event");
+
+    const events = await readEvents(repo);
+    const visible = events.find((e) => e.kind === "conversation_turn")!;
+    const opaque = events.find((e) => e.kind === "reasoning")!;
+    assert.ok(visible, "the summary must surface as an ordinary conversation_turn");
+    assert.ok(opaque);
+    assert.strictEqual(visible.conversation?.seq, opaque.conversation?.seq, "same source line, same seq");
+    assert.deepStrictEqual(visible.content, {
+      role: "reasoning_summary",
+      blocks: [{ type: "text", text: "Considering the test suite.\n\nDeciding to run pytest." }],
+    });
+    assert.deepStrictEqual(opaque.content, { opaque: true });
+    const serialized = JSON.stringify(visible);
+    assert.ok(!serialized.includes("opaque-blob"), "the ciphertext must never leak into the visible turn");
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
   }
 });
 
@@ -151,7 +227,7 @@ test("captureCodexTranscript: a later capture only ingests newly appended lines"
     await makeCommit(repo, "init");
     const rolloutPath = await writeRollout(rolloutDir);
     await captureCodexTranscript(rolloutPath, repo.root);
-    assert.strictEqual((await readEvents(repo)).length, 4);
+    assert.strictEqual((await readEvents(repo)).length, 5);
 
     await appendFile(
       rolloutPath,
@@ -164,7 +240,7 @@ test("captureCodexTranscript: a later capture only ingests newly appended lines"
     await captureCodexTranscript(rolloutPath, repo.root);
 
     const events = await readEvents(repo);
-    assert.strictEqual(events.length, 5, "only the newly appended line should be added");
+    assert.strictEqual(events.length, 6, "only the newly appended line should be added");
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(rolloutDir);
@@ -184,7 +260,8 @@ test("captureCodexTranscript: unrecognized line and payload types are counted fo
         timestamp: "2026-01-01T00:00:01.000Z",
         payload: { type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] },
       },
-      // Known-skipped: reasoning payloads and bookkeeping line types.
+      // Recognized-but-opaque: reasoning payloads become a reasoning event,
+      // not drift. Known-skipped: bookkeeping line types.
       { type: "response_item", timestamp: "2026-01-01T00:00:02.000Z", payload: { type: "reasoning" } },
       { type: "turn_context", payload: {} },
       // Drift: a payload type and a line type this adapter has never seen.
@@ -198,8 +275,8 @@ test("captureCodexTranscript: unrecognized line and payload types are counted fo
     await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
 
     const result = await captureCodexTranscript(path, repo.root);
-    // 1 interpreted message + 2 raw-only preservation events for the drift lines.
-    assert.strictEqual(result.appended, 3);
+    // 1 interpreted message + 1 opaque reasoning event + 2 raw-only preservation events for the drift lines.
+    assert.strictEqual(result.appended, 4);
     assert.deepStrictEqual(result.unrecognized, {
       "response_item/holo_call": 1,
       brand_new_line_kind: 1,

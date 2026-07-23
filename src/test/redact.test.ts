@@ -165,6 +165,57 @@ test("redactDraft: deep-nests through content and raw.data with correct paths", 
   assert.ok(originalBlocks[2]?.text.includes(secretA));
 });
 
+test("redactDraft: encrypted_content is exempt on a reasoning event, but sibling fields (e.g. summary) still redact normally", () => {
+  const secret = fakeSecret("github-token");
+  const input = draft({
+    kind: "reasoning",
+    content: { opaque: true },
+    raw: {
+      format: "codex-rollout-jsonl/2",
+      data: {
+        payload: {
+          type: "reasoning",
+          // A blob that would trip the github-token rule if it weren't exempt
+          // (word-boundary-separated, exactly like the sibling test below
+          // proves the same secret DOES get caught on a non-reasoning event).
+          encrypted_content: `blob-${secret}-blob`,
+          summary: [{ type: "summary_text", text: `leaked ${secret} in a summary block` }],
+        },
+      },
+    },
+  });
+
+  const { draft: out, records } = redactDraft(input, { rules: CAPTURE_RULES });
+  const payload = (out.raw?.data as { payload: { encrypted_content: string; summary: { text: string }[] } })
+    .payload;
+
+  assert.strictEqual(
+    payload.encrypted_content,
+    `blob-${secret}-blob`,
+    "the ciphertext must survive capture-tier redaction byte-for-byte",
+  );
+  assert.ok(payload.summary[0]?.text.includes("[REDACTED:github-token:"), "sibling fields still redact normally");
+  assert.ok(!payload.summary[0]?.text.includes(secret));
+  assert.strictEqual(
+    records.some((r) => r.path.endsWith("encrypted_content")),
+    false,
+    "no redaction record should be produced for the exempt field",
+  );
+});
+
+test("redactDraft: a field literally named encrypted_content is NOT exempt on a non-reasoning event", () => {
+  const secret = fakeSecret("github-token");
+  const input = draft({
+    kind: "conversation_turn",
+    raw: { format: "test/1", data: { encrypted_content: `blob-${secret}-blob` } },
+  });
+
+  const { draft: out } = redactDraft(input, { rules: CAPTURE_RULES });
+  const value = (out.raw?.data as { encrypted_content: string }).encrypted_content;
+  assert.ok(value.includes("[REDACTED:github-token:"), "the exemption is kind-gated, not field-name-gated");
+  assert.ok(!value.includes(secret));
+});
+
 test("redactDraft: extraValues scrub exact secrets, longest match wins on overlap", () => {
   const short = "shortsecret1";
   const long = short + "-with-suffix";

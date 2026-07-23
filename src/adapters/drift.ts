@@ -70,6 +70,42 @@ export function unrecognizedDraft(params: {
   };
 }
 
+/**
+ * Build the opaque preservation event for a reasoning-kind payload whose
+ * content the provider encrypted (Codex's `encrypted_content`, and any
+ * future adapter's equivalent). Unlike `unrecognizedDraft`, this is not a
+ * format-drift placeholder awaiting renormalization: the ciphertext is
+ * permanently opaque to us, and only the originating provider can ever
+ * restore it, by replaying the raw blob back through its own API. `content`
+ * carries only an opacity marker, never the blob itself — the blob lives
+ * solely in `raw.data` for lossless export by a consumer that opts in.
+ */
+export function reasoningDraft(params: {
+  line: unknown;
+  occurredAt: string;
+  source: string;
+  sessionId: string;
+  seq: number;
+  version: string;
+  rawFormat: string;
+  conversationId: string;
+}): EventDraft {
+  return {
+    kind: "reasoning",
+    occurred_at: params.occurredAt,
+    actor: { type: "agent" },
+    producer: {
+      tool: "cledger",
+      version: params.version,
+      source: params.source,
+      session_id: params.sessionId,
+    },
+    conversation: { id: params.conversationId, seq: params.seq },
+    content: { opaque: true },
+    raw: { format: params.rawFormat, data: params.line },
+  };
+}
+
 export function warnUnrecognized(source: string, unrecognized: Record<string, number>): void {
   const entries = Object.entries(unrecognized);
   if (entries.length === 0) return;

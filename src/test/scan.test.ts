@@ -137,6 +137,37 @@ test("scanEvents: paranoid tier skips candidates that fall inside an existing [R
   assert.strictEqual(findings.length, 0);
 });
 
+test("scanEvents: paranoid tier never flags a reasoning event's encrypted_content, but still flags its summary field", () => {
+  const token = "aB3xQ9mK2pL7vN4wR8tY1zC6dF0sH5jG"; // 32 chars, clears the entropy bar
+  assert.ok(shannonEntropy(token) >= 4.0);
+
+  const e = event({
+    kind: "reasoning",
+    content: { opaque: true },
+    raw: {
+      format: "codex-rollout-jsonl/2",
+      data: {
+        payload: {
+          type: "reasoning",
+          encrypted_content: `blob-${token}-blob-${token}-more`,
+          summary: [{ type: "summary_text", text: `random blob: ${token} trailing text` }],
+        },
+      },
+    },
+  });
+
+  const findings = scanEvents([e], "paranoid").filter((f) => f.rule === "high-entropy");
+  assert.strictEqual(
+    findings.some((f) => f.excerpt.includes("blob-")),
+    false,
+    "encrypted_content must never surface a finding",
+  );
+  assert.ok(
+    findings.some((f) => f.excerpt.includes("random blob")),
+    "summary must still be scanned like any other visible content",
+  );
+});
+
 test("loadAllowlist/addToAllowlist: persists fingerprints under .git/conversation-ledger/allowlist.json", async () => {
   const repo = await makeTempRepo();
   try {

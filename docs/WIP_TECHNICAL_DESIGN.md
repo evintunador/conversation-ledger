@@ -56,13 +56,31 @@ as supplied by their capture adapter. The source-native payload is retained
 under `raw` as an opaque, versioned attachment for lossless export.
 
 Reasoning policy: record model reasoning when the provider exposes it
-(Claude Code's thinking text is kept, minus opaque signatures); never chase
-it when the provider withholds it (Codex's encrypted `reasoning` payloads
-are skipped, not stored, and never reconstructed). The same rule applies
-inside otherwise-visible content: Codex `agent_message` items (inter-agent
+(Claude Code's thinking text is kept, minus opaque signatures). When the
+provider instead withholds it behind ciphertext (Codex's `reasoning`
+response_items carry `encrypted_content`), the ledger still never
+interprets or attempts to reconstruct it, but does preserve the ciphertext
+losslessly, opaquely: a `reasoning`-kind event (0.10.0+) whose `content` is
+only an opacity marker and whose `raw.data` is the full source line, so a
+consumer that can decrypt it (only the originating provider, by replaying
+the blob back through its own API) may do so later. `reasoning` events are
+hidden from `cledger log`/`show`/`conversations` by default
+(`--with-reasoning` reveals them) but included in `cledger export` like
+everything else, and ride the ledger's normal sync — no special carve-out.
+A `reasoning` item's `summary` field, when the provider populates it (real,
+already-decrypted plaintext, distinct from `encrypted_content`), is split
+out into an ordinary visible `conversation_turn` at the same `conversation.seq`
+rather than swept into the opaque event, so it is captured and redacted
+exactly like any other visible content. Capture-tier redaction and
+`cledger scan` both carry a narrow, field-specific exemption
+(`encrypted_content` only, gated on `kind === "reasoning"`) so pattern
+matching never mangles the ciphertext — every other field, including
+`summary`, is scanned normally. The same non-reconstruction rule applies to
+other otherwise-visible content: Codex `agent_message` items (inter-agent
 messages) convert with their visible text blocks kept and their
-`encrypted_content` blocks dropped from both `content` and `raw`, leaving a
-bare type marker so the omission is visible.
+`encrypted_content` blocks dropped from both `content` and `raw` (not yet
+preserved opaquely the way standalone `reasoning` items are — a deferred
+follow-up), leaving a bare type marker so the omission is visible.
 
 ## Storage
 
@@ -282,9 +300,9 @@ Three layers exist today:
    newer mapping without recapture.
 
 Drift detection and raw preservation: adapters are tolerant parsers, but
-each maintains an explicit known-skipped list (bookkeeping/UI line types,
-Codex's opaque `reasoning` payloads) alongside its convertible set; parsed
-lines matching neither are *unrecognized*. Each such line is both counted
+each maintains an explicit known-skipped list (bookkeeping/UI line types)
+alongside its convertible set; parsed lines matching neither are
+*unrecognized*. Each such line is both counted
 per type for a capture-time warning (`CaptureResult.unrecognized`) and
 preserved rather than dropped: the adapter emits an `unrecognized` event
 whose `content` is only a `{unrecognized_type}` label and whose `raw.data`
@@ -295,8 +313,14 @@ so a later adapter version can re-normalize (and supersede) it. Because
 and format-version bumps never churn ids. Crucially these events ride the
 normal `appendEvents` path, so the capture-tier redaction stack walks their
 `raw.data` — an unrecognized line is not a bypass around secret redaction.
-Encrypted/opaque payloads that policy forbids storing (Codex `reasoning`)
-stay on the known-skipped list and are never preserved.
+`reasoning` events ride the same path too, with one narrow exception: the
+`encrypted_content` field itself is exempt from pattern-matching (see the
+reasoning-policy paragraph above) so redaction can never corrupt the
+ciphertext this kind exists to preserve. Codex's `reasoning` response_items
+are a third case distinct from both convertible and unrecognized lines:
+recognized but deliberately opaque, captured as their own `reasoning`-kind
+event (see the reasoning-policy paragraph above) rather than falling into
+either bucket, and never counted toward the drift warning.
 
 Re-normalization (the supersession half): `cledger renormalize` (library
 `renormalize()`, in `renormalize.ts`) turns a preserved line the current
@@ -322,10 +346,11 @@ are skipped, and every produced id (turn and supersession) is deterministic,
 so anything that slips through dedups on append. The reconstructed turn's
 `raw.data` is the already-redacted stored copy and rides the normal
 `appendEvents` redaction path, which is idempotent on placeholdered text, so
-nothing is re-exposed and the recomputed id is stable. Encrypted/opaque
-`reasoning` payloads can never reach this path (they are never preserved) and
-`convertLine` refuses them regardless, so re-normalization never reconstructs
-provider-withheld content. What does not exist yet: running this automatically
+nothing is re-exposed and the recomputed id is stable. `reasoning` payloads
+never reach this path at all — they are captured directly as their own
+`reasoning`-kind event, never as `unrecognized`, and `convertLine` refuses
+them regardless — so re-normalization never reconstructs provider-withheld
+content into a visible `conversation_turn`. What does not exist yet: running this automatically
 on capture when an adapter/version bump is detected — it is a manual command
 for now (see the format-drift roadmap item).
 

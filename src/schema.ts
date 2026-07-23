@@ -14,6 +14,14 @@ export const SCHEMA_VERSION = "conversation-ledger/v1";
  * so a later adapter version can re-normalize (and supersede) it. Its
  * `content` carries only a `{unrecognized_type}` label — the payload lives in
  * `raw` — but identity still separates distinct lines via `conversation.seq`.
+ *
+ * `reasoning` is for content the ledger deliberately never interprets: a
+ * provider-encrypted reasoning/thinking blob (e.g. Codex's `reasoning`
+ * response_items) that only the originating provider can decrypt. Its
+ * `content` carries only an opacity marker; the ciphertext lives in `raw`,
+ * for a consumer to opt into replaying back through the same provider.
+ * Unlike `unrecognized`, this is not a placeholder awaiting a smarter
+ * cledger version — no future version will ever be able to read it either.
  */
 export const KNOWN_KINDS = [
   "conversation_turn",
@@ -24,6 +32,7 @@ export const KNOWN_KINDS = [
   "supersession",
   "re_anchor",
   "unrecognized",
+  "reasoning",
 ] as const;
 
 export interface Actor {

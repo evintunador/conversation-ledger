@@ -29,8 +29,12 @@ retrieval are all valid independent uses.
 - Deciding which historical statement is correct or intended.
 - Summarizing, ranking, embedding, or otherwise interpreting conversations.
 - Controlling an agent, enforcing a workflow, or orchestrating agents.
-- Capturing reasoning the provider hides (visible reasoning is recorded when
-  exposed), or claiming it can reproduce a native agent session.
+- Decrypting, interpreting, or reproducing reasoning the provider hides.
+  Visible reasoning is recorded when exposed; reasoning withheld behind
+  provider ciphertext (0.10.0+) is preserved losslessly as opaque raw state
+  for a capable downstream consumer to decrypt later, but the ledger itself
+  never attempts to read or reconstruct it, and stores nothing that would let
+  it reproduce a native agent session on its own.
 
 Those belong to clients such as Turnbridge and Intent Recall, not to this core
 storage layer.

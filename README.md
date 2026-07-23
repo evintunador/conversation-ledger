@@ -118,7 +118,7 @@ Supported today (built-in, hook-based, per-turn):
 | Source | Trigger | Transcript store | Notes |
 |---|---|---|---|
 | Claude Code CLI | `Stop`/`SessionEnd` hooks | `~/.claude/projects/*/*.jsonl` | Also covers the VS Code extension and JetBrains plugin (both share `~/.claude/settings.json` hooks and transcripts), and desktop-app local/SSH/WSL sessions. Cloud "Remote" sessions and the Cowork tab run server-side — not captured. |
-| Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. Inter-agent messages (`agent_message`) are captured with their visible text; their encrypted blocks are never stored, same policy as reasoning. |
+| Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. Provider-encrypted `reasoning` items are preserved opaquely as `reasoning`-kind events (hidden from `log`/`show` by default, see Roadmap); inter-agent messages (`agent_message`) are captured with their visible text but their embedded encrypted blocks are still dropped outright. |
 
 TODO adapters, roughly in order of how ledger-friendly their storage/hook
 story looks (all have local session stores; most grew Claude-Code-style hook
@@ -240,29 +240,48 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   the real remaining work is encryption with an OS-keychain-held key (macOS
   Keychain / libsecret / DPAPI), which must decrypt *non-interactively* since
   capture runs silently on every turn.
-- **Preserve provider-encrypted reasoning as opaque state** — Codex's
-  `reasoning` response_items carry `encrypted_content` that only OpenAI's
-  servers can decrypt; the client just round-trips the blob, and replaying
-  it restores the model's hidden reasoning provider-side. Capture currently
-  drops these outright, which conflicts with the record-everything-just-in-
-  case posture: we discard them because *we* can't read them, yet the one
-  party who can (the provider) already saw the plaintext. Realization
-  (2026-07-21, turnbridge): dropping them permanently forecloses restoring
-  reasoning when a Codex-origin conversation is fabricated back into Codex
-  on another machine (or after a codex→claude→codex round trip). Empirically
-  verified same-account: a real blob replayed in a fabricated session is
-  accepted by the API across sessions and CLI versions (turnbridge
-  `scripts/probe-encrypted-reasoning.mjs`). Design shape: keep blobs out of
-  the visible lane — a raw-only/opaque event tier like the unrecognized-line
-  preservation (excluded from transcripts, titles, and secret scans, which
-  cannot scan ciphertext anyway), for consumers to opt into, restoring only
-  when source and target provider/CLI match. Cross-account validity is
-  VERIFIED (2026-07-21): a blob generated under one ChatGPT account
-  replayed cleanly under a different paid ChatGPT account with identical
-  token accounting — the ciphertext is not keyed per-account, so
-  teammate-sharing replay works. Remaining open questions: blob TTL,
-  API-platform-org auth parity, and size (~2–4KB per assistant turn in
-  the notes ref).
+- **Preserve provider-encrypted reasoning as opaque state** *(shipped,
+  0.10.0)* — Codex's `reasoning` response_items carry `encrypted_content`
+  that only OpenAI's servers can decrypt; the client just round-trips the
+  blob, and replaying it restores the model's hidden reasoning
+  provider-side. Capture previously dropped these outright, which conflicted
+  with the record-everything-just-in-case posture: we discarded them because
+  *we* can't read them, yet the one party who can (the provider) already saw
+  the plaintext. Realization (2026-07-21, turnbridge): dropping them
+  permanently forecloses restoring reasoning when a Codex-origin
+  conversation is fabricated back into Codex on another machine (or after a
+  codex→claude→codex round trip). Empirically verified same-account and
+  cross-account (turnbridge `scripts/probe-encrypted-reasoning.mjs`): a real
+  blob replayed in a fabricated session is accepted across sessions, CLI
+  versions, and even a different paid ChatGPT account with identical token
+  accounting — the ciphertext is not keyed per-account. Shipped shape: a new
+  `reasoning` kind, provider-agnostic (not Codex-specific), raw-only —
+  `content` carries only an opacity marker, the blob lives solely in `raw`.
+  Rides the ledger's normal default-on sync like every other kind (no special
+  carve-out). `cledger export` includes it by default (lossless dump);
+  `cledger log`/`show`/`conversations` hide it by default (`--with-reasoning`
+  to reveal) so ciphertext doesn't clutter human-facing transcripts. A
+  reasoning item's `summary` field (real, provider-decrypted plaintext when
+  reasoning-summary mode is on — distinct from `encrypted_content`) is split
+  out into an ordinary visible `conversation_turn` at the same seq, so it is
+  never hidden as if it were opaque. Capture-tier redaction and `cledger scan`
+  both exempt only the `encrypted_content` field from pattern-matching (it's
+  high-entropy by construction and this feature's entire point is preserving
+  it byte-exact — a coincidental rule match would silently corrupt it); every
+  other field, including `summary`, is scanned exactly like any other stored
+  content. Forward-only: sessions captured before 0.10.0 already had their
+  reasoning dropped and it's not recovered from what's on disk. *Remaining
+  open questions, mostly turnbridge's to answer at replay time:* blob TTL and
+  API-platform-org auth parity. *Deliberately out of scope here:* inter-agent
+  `agent_message` payloads still drop their embedded `encrypted_content`
+  blocks outright (same as before) rather than preserving them via this new
+  `reasoning` kind — same provider-withheld material, but embedded mid-line
+  rather than a standalone response_item, so preserving it needs its own
+  shape; tracked as a follow-up, not bundled into this cut. Also out of scope:
+  no ledger event records which model/provider/CLI-version produced a given
+  turn (the `session_meta`/`turn_context` lines carrying that are still
+  dropped with no trace) — a pre-existing gap in `Producer`, not specific to
+  reasoning, left for a separate roadmap item.
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 - **Forge (PR/MR) conversation adapter** — ingest pull-request review
   discussions as ordinary conversation events anchored to the merge/squash

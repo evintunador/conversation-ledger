@@ -6,6 +6,7 @@ import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent } from "../schema.js";
 import {
   countUnrecognized,
+  reasoningDraft,
   unrecognizedDraft,
   warnUnrecognized,
   type CaptureResult,
@@ -43,8 +44,11 @@ const CONVERTIBLE_RESPONSE_TYPES = new Set([
  * the event_msg UI stream (whose conversation content duplicates
  * response_item lines). Anything else is unrecognized — likely new upstream
  * content — and counted for the drift warning; same for response_item
- * payload types outside CONVERTIBLE_RESPONSE_TYPES (except reasoning,
- * which is encrypted/opaque and skipped by policy).
+ * payload types outside CONVERTIBLE_RESPONSE_TYPES. `reasoning` payloads are
+ * a third case: recognized, but their `encrypted_content` is opaque to us
+ * by design (only the provider can decrypt it), so they're captured as a
+ * `reasoning`-kind event instead of a `conversation_turn` or `unrecognized`
+ * one — see `reasoningDraft` and the capture loop below.
  */
 const KNOWN_SKIPPED_LINE_TYPES = new Set([
   "session_meta",
@@ -54,8 +58,6 @@ const KNOWN_SKIPPED_LINE_TYPES = new Set([
   "world_state",
   "inter_agent_communication_metadata",
 ]);
-
-const KNOWN_SKIPPED_RESPONSE_TYPES = new Set(["reasoning"]);
 
 function packageVersion(): string {
   try {
@@ -136,8 +138,13 @@ function isEncryptedBlock(block: unknown): boolean {
 
 /**
  * Inter-agent messages mix visible input_text blocks with encrypted_content
- * blocks — the same provider-withheld material as reasoning payloads, which
- * policy says is skipped, not stored, never reconstructed. Visible blocks
+ * blocks — the same provider-withheld material as reasoning payloads, whose
+ * policy changed to opaque preservation (see `reasoningDraft`). These blocks
+ * are still dropped outright rather than preserved opaquely: unlike a
+ * standalone `reasoning` response_item, an embedded block here is only part
+ * of the line, so preserving it needs its own event shape (or a decision to
+ * fold it into `reasoning` alongside the parent message's seq) — left as a
+ * follow-up rather than done alongside reasoning today. Visible blocks
  * convert normally; encrypted blocks are dropped, leaving a bare
  * {type: "encrypted_content"} marker in `raw` so the omission is visible.
  * The transform is a pure function of the source line, so ids stay stable
@@ -153,6 +160,25 @@ function sanitizeAgentMessageRaw(line: CodexRolloutLine): CodexRolloutLine {
       content: content.map((b) => (isEncryptedBlock(b) ? { type: "encrypted_content" } : b)),
     },
   };
+}
+
+/**
+ * A `reasoning` response_item's `summary` field carries visible,
+ * provider-decrypted plaintext (typically `{type: "summary_text", text}`
+ * blocks per OpenAI's Responses API) when reasoning-summary mode is
+ * enabled — real content, not ciphertext, unlike `encrypted_content` on the
+ * same item. Returns null when there's nothing visible (summary absent or
+ * empty, the common case), so the caller knows to skip the visible-turn
+ * draft entirely and store only the opaque `reasoning` event.
+ */
+function reasoningSummaryText(summary: unknown): string | null {
+  if (!Array.isArray(summary) || summary.length === 0) return null;
+  const parts = summary
+    .map((block) =>
+      block && typeof block === "object" ? (block as Record<string, unknown>)["text"] : undefined,
+    )
+    .filter((t): t is string => typeof t === "string" && t.length > 0);
+  return parts.length > 0 ? parts.join("\n\n") : null;
 }
 
 /** Raw-only preservation event for an unrecognized codex line (see drift.ts). */
@@ -189,8 +215,8 @@ function convertLine(
   const payload = line.payload;
   if (!payload) return null;
   const payloadType = payload["type"];
-  // reasoning items are encrypted/opaque by design and must never be stored
-  if (payloadType === "reasoning") return null;
+  // reasoning items never reach here — the capture loop diverts them to
+  // reasoningDraft before calling convertLine.
   if (typeof payloadType !== "string" || !CONVERTIBLE_RESPONSE_TYPES.has(payloadType)) return null;
 
   const occurredAt = typeof line.timestamp === "string" ? line.timestamp : baseTime;
@@ -262,9 +288,10 @@ function convertLine(
  * carries no timestamp of its own) is the preserved event's `occurred_at` —
  * which is exactly the value the preservation path computed via
  * `sessionBaseTime`, i.e. what a live capture of the same rollout file would
- * compute too. `reasoning` payloads are never preserved in the first place and
- * `convertLine` refuses them regardless, so no provider-withheld encrypted
- * content is ever reconstructed here. Returns null when still uninterpretable.
+ * compute too. `reasoning` payloads are never preserved as `unrecognized` in
+ * the first place (they get their own `reasoning`-kind event instead), so
+ * this path never reconstructs provider-withheld content into a visible
+ * `conversation_turn`. Returns null when still uninterpretable.
  */
 export function renormalizeUnrecognized(
   event: EvidenceEvent,
@@ -347,7 +374,36 @@ export async function captureCodexTranscript(
     if (type === "response_item") {
       const payloadType = parsed.payload?.["type"];
       const pt = typeof payloadType === "string" ? payloadType : "(untyped)";
-      if (!CONVERTIBLE_RESPONSE_TYPES.has(pt) && !KNOWN_SKIPPED_RESPONSE_TYPES.has(pt)) {
+      if (pt === "reasoning") {
+        const summaryText = reasoningSummaryText(parsed.payload?.["summary"]);
+        if (summaryText) {
+          // Visible half: a normal conversation_turn, shown in log/show like
+          // any other turn. Same seq as the sibling opaque event below —
+          // distinct kinds keep their ids from colliding.
+          drafts.push({
+            kind: "conversation_turn",
+            occurred_at: occurredAt,
+            actor: { type: "agent" },
+            producer: { tool: "cledger", version, source: "codex", session_id: sessionId },
+            conversation: { id: `codex:${sessionId}`, seq: i },
+            content: { role: "reasoning_summary", blocks: [{ type: "text", text: summaryText }] },
+          });
+        }
+        drafts.push(
+          reasoningDraft({
+            line: parsed,
+            occurredAt,
+            source: "codex",
+            sessionId,
+            seq: i,
+            version,
+            rawFormat: RAW_FORMAT,
+            conversationId: `codex:${sessionId}`,
+          }),
+        );
+        continue;
+      }
+      if (!CONVERTIBLE_RESPONSE_TYPES.has(pt)) {
         const typeKey = `response_item/${pt}`;
         countUnrecognized(result.unrecognized, typeKey);
         drafts.push(preserve(typeKey, parsed, occurredAt, i, sessionId, version));

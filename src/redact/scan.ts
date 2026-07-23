@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { sha256Hex } from "../canonical.js";
 import type { RepoInfo } from "../git.js";
 import type { EvidenceEvent } from "../schema.js";
-import { walkStrings } from "./apply.js";
+import { isExemptFromRedaction, walkStrings } from "./apply.js";
 import { rulesForTier, shannonEntropy } from "./rules.js";
 
 export interface Finding {
@@ -69,7 +69,8 @@ export function scanEvents(events: EvidenceEvent[], tier: "standard" | "paranoid
   const findings: Finding[] = [];
 
   for (const event of events) {
-    const visit = (value: string, _path: string): string => {
+    const visit = (value: string, path: string): string => {
+      if (isExemptFromRedaction(event.kind, path)) return value;
       for (const rule of rules) {
         for (const m of value.matchAll(rule.pattern)) {
           const matchText = m[0];

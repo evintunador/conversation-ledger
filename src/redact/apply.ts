@@ -89,6 +89,26 @@ export function collectMatches(value: unknown, pattern: RegExp): string[] {
 }
 
 /**
+ * True for the one string leaf that must never be pattern-matched or
+ * rewritten: a `reasoning` event's `encrypted_content` ciphertext. It is
+ * high-entropy by construction (indistinguishable from what secret-scan
+ * rules look for) and, unlike every other stored value, this feature's
+ * entire point is preserving it byte-exact for provider replay — a
+ * coincidental rule match silently splicing in a `[REDACTED:...]`
+ * placeholder would permanently corrupt it with no way to detect that it
+ * happened. Everything else in a `reasoning` event's `raw.data` (e.g. a
+ * `summary` field, if the provider populates one) is real content and stays
+ * fully subject to normal scanning — this is a single-field exemption, not
+ * a kind-wide one. Matched by trailing path segment rather than the exact
+ * `raw/data/payload/encrypted_content` path so it holds regardless of
+ * nesting depth across adapters, since `reasoning` is a provider-agnostic
+ * kind.
+ */
+export function isExemptFromRedaction(kind: string | undefined, path: string): boolean {
+  return kind === "reasoning" && path.endsWith("/encrypted_content");
+}
+
+/**
  * Deep-walk `value`, invoking `visit(str, path)` for every string leaf
  * (object keys are never touched) and replacing that leaf with whatever
  * `visit` returns. Shared by redactDraft below (which rewrites matched
@@ -132,6 +152,7 @@ export function redactDraft(
     .filter((g) => g.values.length > 0);
 
   function redactString(value: string, path: string): string {
+    if (isExemptFromRedaction(draft.kind, path)) return value;
     let scrubbed = value;
     for (const g of groups) scrubbed = redactExtraValues(scrubbed, g.values, g.ruleId, path, records);
     const { text, matches } = redactText(scrubbed, opts.rules);
