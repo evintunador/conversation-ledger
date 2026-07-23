@@ -173,6 +173,20 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 
 ## Roadmap
 
+- **Audit the allowlist for generalizable false-positive patterns** — this
+  repo's own dogfood allowlist (2026-07-22) picked up two `keyword-assignment`
+  fingerprints from this project's own development conversation: test code
+  like `const secret = fakeSecret("github-token")`, where `"github-token"` is
+  a rule-id label, not a credential, but still trips "a variable named
+  secret/token gets assigned something." Allowlisting is correct for now, but
+  it's a per-fingerprint, per-repo escape hatch — every downstream consumer of
+  cledger whose codebase talks *about* secrets (redaction tooling, security
+  tests, docs) will hit the same class of false positive independently, with
+  no shared fix. Periodically review what's accumulated in the allowlist: a
+  recurring pattern (e.g. "the matched span is itself a rule id/label string,
+  not a real-looking token") is a signal the `keyword-assignment` rule itself
+  should get smarter — not something every project should have to
+  allowlist for itself.
 - **Path-based capture exclusion** — the path half of the redaction config
   ("never record reads of `secrets/**`"); requires correlating `tool_use`
   file paths with their `tool_result` events.
