@@ -15,7 +15,7 @@
  * events — an unrecognized line is not a hole in secret redaction.
  */
 
-import type { EventDraft } from "../schema.js";
+import type { EventDraft, ProducerAgentContext } from "../schema.js";
 
 export interface CaptureResult {
   appended: number;
@@ -53,6 +53,7 @@ export function unrecognizedDraft(params: {
   version: string;
   rawFormat: string;
   conversationId: string;
+  agent?: ProducerAgentContext;
 }): EventDraft {
   return {
     kind: "unrecognized",
@@ -63,6 +64,7 @@ export function unrecognizedDraft(params: {
       version: params.version,
       source: params.source,
       session_id: params.sessionId,
+      ...params.agent,
     },
     conversation: { id: params.conversationId, seq: params.seq },
     content: { unrecognized_type: params.typeKey },
@@ -79,6 +81,11 @@ export function unrecognizedDraft(params: {
  * restore it, by replaying the raw blob back through its own API. `content`
  * carries only an opacity marker, never the blob itself — the blob lives
  * solely in `raw.data` for lossless export by a consumer that opts in.
+ *
+ * `params.agent` matters more here than anywhere else: replaying an
+ * encrypted reasoning blob only works against the model that produced it, so
+ * an opaque event whose `producer.model`/`provider` are unknown is a blob a
+ * consumer cannot safely route.
  */
 export function reasoningDraft(params: {
   line: unknown;
@@ -89,6 +96,7 @@ export function reasoningDraft(params: {
   version: string;
   rawFormat: string;
   conversationId: string;
+  agent?: ProducerAgentContext;
 }): EventDraft {
   return {
     kind: "reasoning",
@@ -99,6 +107,7 @@ export function reasoningDraft(params: {
       version: params.version,
       source: params.source,
       session_id: params.sessionId,
+      ...params.agent,
     },
     conversation: { id: params.conversationId, seq: params.seq },
     content: { opaque: true },

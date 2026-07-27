@@ -3,7 +3,7 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
-import type { Actor, EventDraft, EvidenceEvent } from "../schema.js";
+import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import {
   countUnrecognized,
   reasoningDraft,
@@ -58,6 +58,106 @@ const KNOWN_SKIPPED_LINE_TYPES = new Set([
   "world_state",
   "inter_agent_communication_metadata",
 ]);
+
+/**
+ * Line types that state agent facts (model, provider, CLI version) about the
+ * response_items that follow them. They stay in KNOWN_SKIPPED_LINE_TYPES —
+ * they are still not captured as events of their own — but they are now read
+ * for `producer` metadata instead of being skipped outright.
+ */
+const CONTEXT_LINE_TYPES = new Set(["session_meta", "turn_context"]);
+
+/**
+ * Rolling agent context while scanning a rollout file. Unlike claude-code,
+ * codex does not stamp each response_item with the model that produced it:
+ * `session_meta` (once, at the top) states the CLI version and provider, and
+ * `turn_context` (once per turn, and re-emitted when the user switches model
+ * or effort mid-session) states the model. So the facts for a given line are
+ * whatever the most recent such line established — pure function of the file
+ * prefix, hence identical on every rescan.
+ */
+type CodexAgentState = ProducerAgentContext;
+
+/**
+ * Fold one line's agent facts into the rolling state. Fields are only ever
+ * overwritten by a later line that restates them, so a `turn_context` that
+ * omits `model` leaves the previous model standing (which is what codex
+ * means by omitting it).
+ */
+function applyContextLine(state: CodexAgentState, line: CodexRolloutLine): void {
+  const payload = line.payload;
+  // Callers reach this via a cheap substring pre-filter, which a conversation
+  // that merely talks *about* these line types also passes — so the type
+  // check here is load-bearing, not a formality.
+  if (!payload || typeof line.type !== "string" || !CONTEXT_LINE_TYPES.has(line.type)) return;
+  if (line.type === "session_meta") {
+    const cliVersion = payload["cli_version"];
+    if (typeof cliVersion === "string" && cliVersion) state.source_version = cliVersion;
+    const provider = payload["model_provider"];
+    if (typeof provider === "string" && provider) state.provider = provider;
+  }
+  // `model` is read from either line type: turn_context is where it normally
+  // lives, but session_meta has carried it in some codex versions.
+  const model = payload["model"];
+  if (typeof model === "string" && model) state.model = model;
+}
+
+/** Parse a line only if it could plausibly be a context line. */
+function parseIfContextLine(text: string): CodexRolloutLine | null {
+  if (!text.includes('"session_meta"') && !text.includes('"turn_context"')) return null;
+  try {
+    return JSON.parse(text) as CodexRolloutLine;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The agent context in force at `cursor`, i.e. the state the forward scan
+ * should start from.
+ *
+ * Two separate problems are solved here, both of which otherwise leave real
+ * events unlabelled:
+ *
+ * 1. *Resumed captures.* Incremental captures start mid-file, so a plain
+ *    forward scan would never see `session_meta` (line 0) and would miss every
+ *    `turn_context` from earlier turns — every event after the first batch
+ *    would lose its model. So the prefix is re-read. It costs only JSON
+ *    parsing of the few lines that could possibly be context lines: the whole
+ *    file is already read and split by the caller, and the substring guard
+ *    skips parsing for the overwhelming majority of them.
+ *
+ * 2. *Context lines that trail the items they describe.* Codex does not emit
+ *    `turn_context` before the turn's opening messages — in real rollouts it
+ *    lands a few lines in, after the first user message has already been
+ *    written. A strictly-forward rule would therefore leave the opening
+ *    message of every session with no model at all. Fields still unset after
+ *    the prefix scan are seeded from the *earliest* line that states them
+ *    anywhere ahead, which is not a guess: the first stated context is by
+ *    construction the first turn's, and the only items preceding it belong to
+ *    that same first turn. Later restatements never reach backwards — the
+ *    seed fills gaps only, and the forward scan overwrites it in file order.
+ */
+function initialAgentContext(lines: string[], cursor: number): CodexAgentState {
+  const state: CodexAgentState = {};
+  for (let i = 0; i < cursor && i < lines.length; i++) {
+    const line = parseIfContextLine(lines[i]!);
+    if (line) applyContextLine(state, line);
+  }
+  for (let i = cursor; i < lines.length; i++) {
+    if (state.source_version && state.provider && state.model) break;
+    const line = parseIfContextLine(lines[i]!);
+    if (!line) continue;
+    const stated: CodexAgentState = {};
+    applyContextLine(stated, line);
+    // First statement wins: `stated` is a fresh object per line, so an
+    // already-filled field is never clobbered by a later restatement.
+    if (!state.source_version && stated.source_version) state.source_version = stated.source_version;
+    if (!state.provider && stated.provider) state.provider = stated.provider;
+    if (!state.model && stated.model) state.model = stated.model;
+  }
+  return state;
+}
 
 function packageVersion(): string {
   try {
@@ -189,6 +289,7 @@ function preserve(
   seq: number,
   sessionId: string,
   version: string,
+  agent: CodexAgentState,
 ): EventDraft {
   return unrecognizedDraft({
     typeKey,
@@ -200,6 +301,7 @@ function preserve(
     version,
     rawFormat: RAW_FORMAT,
     conversationId: `codex:${sessionId}`,
+    agent: { ...agent },
   });
 }
 
@@ -210,6 +312,7 @@ function convertLine(
   baseTime: string,
   version: string,
   identity: GitUserIdentity,
+  agent: CodexAgentState,
 ): EventDraft | null {
   if (line.type !== "response_item") return null;
   const payload = line.payload;
@@ -265,7 +368,7 @@ function convertLine(
     kind: "conversation_turn",
     occurred_at: occurredAt,
     actor,
-    producer: { tool: "cledger", version, source: "codex", session_id: sessionId },
+    producer: { tool: "cledger", version, source: "codex", session_id: sessionId, ...agent },
     conversation: { id: `codex:${sessionId}`, seq },
     content,
     // /2: agent_message payloads convert (encrypted blocks omitted) — /1 dropped them.
@@ -288,7 +391,10 @@ function convertLine(
  * carries no timestamp of its own) is the preserved event's `occurred_at` —
  * which is exactly the value the preservation path computed via
  * `sessionBaseTime`, i.e. what a live capture of the same rollout file would
- * compute too. `reasoning` payloads are never preserved as `unrecognized` in
+ * compute too. The agent context is a third: it came from `session_meta` /
+ * `turn_context` lines that are not in `raw.data` at all, so it is read back
+ * off the preserved event's own `producer` — where the capture that preserved
+ * the line already recorded it. `reasoning` payloads are never preserved as `unrecognized` in
  * the first place (they get their own `reasoning`-kind event instead), so
  * this path never reconstructs provider-withheld content into a visible
  * `conversation_turn`. Returns null when still uninterpretable.
@@ -300,6 +406,10 @@ export function renormalizeUnrecognized(
   if (!event.raw || event.conversation === undefined) return null;
   const line = event.raw.data as CodexRolloutLine;
   const sessionId = event.producer.session_id ?? "";
+  const agent: CodexAgentState = {};
+  if (event.producer.source_version) agent.source_version = event.producer.source_version;
+  if (event.producer.model) agent.model = event.producer.model;
+  if (event.producer.provider) agent.provider = event.producer.provider;
   return convertLine(
     line,
     event.conversation.seq,
@@ -307,6 +417,7 @@ export function renormalizeUnrecognized(
     event.occurred_at,
     packageVersion(),
     identity,
+    agent,
   );
 }
 
@@ -359,6 +470,7 @@ export async function captureCodexTranscript(
   const baseTime = await sessionBaseTime(transcriptPath);
   const version = packageVersion();
   const identity = await gitUserIdentity(repo);
+  const agent = initialAgentContext(lines, cursor);
   const drafts: EventDraft[] = [];
   for (let i = cursor; i < lines.length; i++) {
     const text = lines[i]!;
@@ -370,6 +482,9 @@ export async function captureCodexTranscript(
       continue; // partial line — normal at the tail of a live transcript
     }
     const type = typeof parsed.type === "string" ? parsed.type : "(untyped)";
+    // Context lines precede the items they describe, so fold them in before
+    // this iteration can emit anything.
+    if (CONTEXT_LINE_TYPES.has(type)) applyContextLine(agent, parsed);
     const occurredAt = typeof parsed.timestamp === "string" ? parsed.timestamp : baseTime;
     if (type === "response_item") {
       const payloadType = parsed.payload?.["type"];
@@ -384,7 +499,13 @@ export async function captureCodexTranscript(
             kind: "conversation_turn",
             occurred_at: occurredAt,
             actor: { type: "agent" },
-            producer: { tool: "cledger", version, source: "codex", session_id: sessionId },
+            producer: {
+              tool: "cledger",
+              version,
+              source: "codex",
+              session_id: sessionId,
+              ...agent,
+            },
             conversation: { id: `codex:${sessionId}`, seq: i },
             content: { role: "reasoning_summary", blocks: [{ type: "text", text: summaryText }] },
           });
@@ -399,6 +520,7 @@ export async function captureCodexTranscript(
             version,
             rawFormat: RAW_FORMAT,
             conversationId: `codex:${sessionId}`,
+            agent: { ...agent },
           }),
         );
         continue;
@@ -406,15 +528,15 @@ export async function captureCodexTranscript(
       if (!CONVERTIBLE_RESPONSE_TYPES.has(pt)) {
         const typeKey = `response_item/${pt}`;
         countUnrecognized(result.unrecognized, typeKey);
-        drafts.push(preserve(typeKey, parsed, occurredAt, i, sessionId, version));
+        drafts.push(preserve(typeKey, parsed, occurredAt, i, sessionId, version, agent));
         continue;
       }
     } else if (!KNOWN_SKIPPED_LINE_TYPES.has(type)) {
       countUnrecognized(result.unrecognized, type);
-      drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version));
+      drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version, agent));
       continue;
     }
-    const draft = convertLine(parsed, i, sessionId, baseTime, version, identity);
+    const draft = convertLine(parsed, i, sessionId, baseTime, version, identity, agent);
     if (draft) drafts.push(draft);
   }
 

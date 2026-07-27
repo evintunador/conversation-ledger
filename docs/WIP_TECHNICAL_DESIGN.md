@@ -20,7 +20,9 @@ An `EvidenceEvent` is immutable and has:
   source-determined fields (`kind`, `occurred_at`, `actor.type/id`,
   `producer.source/session_id`, `conversation`, `media_type`, `content`,
   `links`). Volatile provenance (`recorded_at`, `context`, `raw`,
-  `producer.tool/version`) is excluded, so re-scanning the same source
+  `producer.tool/version`) is excluded, as is agent provenance
+  (`producer.model/provider/source_version`, for the reason given under
+  "Agent provenance"), so re-scanning the same source
   material always yields the same id: capture is idempotent by construction,
   and the id doubles as the content hash that makes mutation detectable.
 - `schema` version (`conversation-ledger/v1`);
@@ -29,7 +31,9 @@ An `EvidenceEvent` is immutable and has:
   verbatim so downstream tools can extend without a schema release;
 - `occurred_at` (from the source) and `recorded_at` (at append) timestamps;
 - `actor` (human/agent/system + identity) and `producer` (capture tool,
-  source system, native session id) provenance; adapters stamp human turns
+  source system, native session id, and the agent that served the turn —
+  `model`, `provider`, `source_version`; see "Agent provenance" below)
+  provenance; adapters stamp human turns
   with the identity a commit made right now would be authored under,
   resolved by git itself (`git -c user.useConfigOnly=true var
   GIT_AUTHOR_IDENT`) in git's own precedence: `GIT_AUTHOR_EMAIL` env, then
@@ -54,6 +58,71 @@ An `EvidenceEvent` is immutable and has:
 Conversation turns preserve visible roles, text, tool calls, and tool results
 as supplied by their capture adapter. The source-native payload is retained
 under `raw` as an opaque, versioned attachment for lossless export.
+
+### Agent provenance
+
+`producer.source` says which capture path recorded an event; it does not say
+what *produced* it. Three optional `producer` fields close that gap (0.12.0+):
+`model` (verbatim as the source names it, e.g. `gpt-5.6-sol`,
+`claude-opus-5`), `provider` (the inference provider, e.g. `openai`), and
+`source_version` (the coding CLI's own version — distinct from `version`,
+which is cledger's). `cledger log --model M` filters on the first, and
+`cledger conversations` lists the models each conversation used.
+
+Only what the source states is recorded. Nothing is inferred: `provider` is
+left unset for claude-code because the transcript never names one and the
+same CLI can be pointed at the first-party API, Bedrock, or Vertex; a model
+is never carried onto a turn the source did not label, so claude-code user
+turns have no `model` (the model that will answer a prompt is not knowable
+from the prompt's own line, and the session's model can change mid-run).
+Claude Code's `"<synthetic>"` model placeholder passes through verbatim
+rather than being normalized away — "no model produced this" is itself a
+fact worth keeping.
+
+The two adapters state these facts in structurally different places, and the
+codex shape drives the implementation. Claude Code stamps every transcript
+line with the CLI version and labels assistant lines with a model, so its
+adapter reads each line in isolation. Codex instead states them out of band:
+`session_meta` (once) carries `cli_version` and `model_provider`,
+`turn_context` carries `model` and is re-emitted whenever the user switches
+model or effort mid-session. Two consequences fall out. First, a
+cursor-resumed capture starts mid-file and would never re-read those lines,
+so the codex adapter re-scans the prefix before the cursor to rebuild the
+context in force (cheap: the file is already in memory, and a substring
+guard skips parsing all but a handful of lines). Second, `turn_context` is
+written *after* the turn's opening messages in real rollouts, so a
+strictly-forward rule would leave the first user message of every session
+unlabelled; fields still unset after the prefix scan are therefore seeded
+from the earliest line stating them anywhere ahead. That is not a guess —
+the first stated context is by construction the first turn's, and the only
+items preceding it belong to that same turn. Seeding fills gaps only, so a
+genuine mid-session model switch still applies forward and never
+retroactively.
+
+These fields are deliberately **excluded from the event identity subset**,
+even though they are source-determined and stable per line. They were added
+after events had already been captured without them, so folding them into
+the id would give the very same transcript line a different id before and
+after the upgrade, and a rescan would duplicate every pre-upgrade turn
+rather than dedup it. Identity answers "which piece of source material is
+this"; the model that served it is provenance about that material, not a
+second copy of it.
+
+Population is forward-only, and there is no backfill command. Editing
+`producer` on stored events would not change their ids (it is outside the
+identity subset), but it would change their serialized note lines — and
+under `cat_sort_uniq` the rewritten line and the original would both survive
+any merge with a peer that still holds the old one, leaving two copies of
+one event. Old claude-code events lose nothing permanent (the CLI version
+and model are still in their `raw.data`, since the whole line is preserved);
+old codex events do lose it, because the facts lived on `session_meta` /
+`turn_context` lines that were never stored. Re-capturing an old codex
+session does not fix that either — the events dedup by id, so the existing
+unlabelled copies stand.
+
+Scanning is unaffected: `cledger scan` and capture-tier redaction walk
+`content` and `raw.data` only, so model ids and version strings are not
+pattern-matched. They are provider-published identifiers, not user content.
 
 Reasoning policy: record model reasoning when the provider exposes it
 (Claude Code's thinking text is kept, minus opaque signatures). When the
@@ -378,5 +447,11 @@ for now (see the format-drift roadmap item).
   re-anchor` covers it manually).
 - Whether to preserve non-git-controlled harness artifacts that die with a
   worktree (agent memory directories, session state) as `document` events.
+- Per-turn agent provenance (`producer.model`/`provider`/`source_version`)
+  shipped in 0.12.0; see "Agent provenance". Remaining: the rest of what
+  codex's `session_meta`/`turn_context` lines carry — base instructions
+  (the full system prompt), sandbox/approval policy, reasoning effort — is
+  still uncaptured. Whether whole-session configuration belongs in the
+  ledger at all, and under which kind, is its own question.
 - Whether an explicit `Conversation` manifest object earns its keep once
   multiple producers exist.

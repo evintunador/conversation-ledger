@@ -50,9 +50,38 @@ export interface Producer {
   version?: string;
   /** Source system the content came from, e.g. "claude-code", "codex". */
   source?: string;
+  /**
+   * The source system's own version — the coding CLI's version, not
+   * cledger's (that is `version`), e.g. "2.1.220" for claude-code or
+   * "0.145.0" for codex. Not part of event identity.
+   */
+  source_version?: string;
+  /**
+   * Model that served this turn, verbatim as the source names it, e.g.
+   * "claude-opus-5" or "gpt-5.6-sol". Set only when the source states it
+   * for this turn — never guessed, never carried across turns the source
+   * did not label. Not part of event identity.
+   */
+  model?: string;
+  /**
+   * Inference provider serving `model`, verbatim as the source names it,
+   * e.g. "openai". Set only when the source states it — notably *not*
+   * inferred from `source` or from the model id, since the same CLI can be
+   * pointed at a first-party API, a cloud reseller, or a local endpoint.
+   * Not part of event identity.
+   */
+  provider?: string;
   /** Source system's native session identifier. */
   session_id?: string;
 }
+
+/**
+ * The source-stated agent facts an adapter attaches to `producer`. Adapters
+ * gather these from wherever the source records them — a per-line field, a
+ * preceding session/turn-context line — and spread them onto every event
+ * they emit for that part of the transcript.
+ */
+export type ProducerAgentContext = Pick<Producer, "source_version" | "model" | "provider">;
 
 export interface RepoContext {
   /** Best-known repository identity (origin URL or top-level dir name). */
@@ -126,6 +155,15 @@ export type EventDraft = Omit<EvidenceEvent, "id" | "schema" | "recorded_at"> &
  * (idempotent capture). Volatile provenance — recorded_at, context, raw,
  * producer.version/tool — is deliberately excluded: a re-ingestion under a
  * different HEAD or adapter version must dedup, not duplicate.
+ *
+ * `producer.model`/`provider`/`source_version` are excluded for the same
+ * reason even though they *are* source-determined and stable per line. They
+ * were added after events had already been captured without them, so folding
+ * them into identity would give the very same transcript line a different id
+ * before and after the upgrade — a rescan would duplicate every pre-upgrade
+ * turn rather than dedup it. Identity answers "which piece of source material
+ * is this"; the model that served it is provenance about that material, not
+ * a second copy of it.
  */
 export function eventId(event: EventDraft): string {
   const identity = {

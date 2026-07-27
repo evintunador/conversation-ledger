@@ -56,7 +56,8 @@ there's nothing to record and nothing to disable.
 ```sh
 cledger log                     # events on the current branch (via commit reachability)
 cledger log --all --json        # every event, as JSONL for jq & friends
-cledger conversations           # sessions touching this branch
+cledger log --model gpt-5.6-sol # only turns a given model served
+cledger conversations           # sessions touching this branch, with the models they used
 cledger show claude-code:3f9a   # replay one conversation in order
 cledger export > ledger.jsonl   # lossless dump, incl. source-native payloads
 cledger sync                    # explicit fetch/merge/push of the ledger ref
@@ -123,6 +124,11 @@ the default branch's view. cledger repairs this automatically:
 ## Adapters
 
 Supported today (built-in, hook-based, per-turn):
+
+Every captured event records the agent that served it — `producer.model`,
+`producer.provider`, `producer.source_version` — but only where the source
+states it; see the Roadmap entry below for what each adapter does and does
+not know.
 
 | Source | Trigger | Transcript store | Notes |
 |---|---|---|---|
@@ -263,6 +269,43 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   the real remaining work is encryption with an OS-keychain-held key (macOS
   Keychain / libsecret / DPAPI), which must decrypt *non-interactively* since
   capture runs silently on every turn.
+- **Record which model/provider/CLI version served each turn** *(shipped,
+  0.12.0)* — `producer` previously said only which capture path recorded an
+  event (`source`, `session_id`, cledger's own `tool`/`version`), never what
+  produced it: the model, the inference provider, or the coding CLI's
+  version. Codex's `session_meta`/`turn_context` lines carry exactly that and
+  were dropped with no trace; Claude Code's per-line `version` and
+  `message.model` survived only inside `raw.data`, unqueryable without
+  parsing a source-native shape. Three optional fields close it —
+  `producer.model`, `producer.provider`, `producer.source_version` — with
+  `cledger log --model M` to filter and the model(s) listed per row in
+  `cledger conversations`. *Only what the source states is recorded:*
+  `provider` stays unset for claude-code (never named in the transcript, and
+  the same CLI can point at the first-party API, Bedrock, or Vertex), a model
+  is never carried onto a turn the source did not label (so claude-code user
+  turns have none), and `"<synthetic>"` passes through verbatim rather than
+  being normalized away. Codex needed real work beyond reading a field: its
+  facts live on out-of-band lines, so a cursor-resumed capture re-scans the
+  file prefix to rebuild the context in force, and because `turn_context` is
+  written *after* the turn's opening messages in real rollouts, still-unset
+  fields are seeded from the earliest line stating them ahead — otherwise the
+  first user message of every session goes unlabelled. Seeding fills gaps
+  only; a genuine mid-session model switch still applies forward, never
+  retroactively. The fields are **excluded from event identity** (adding them
+  to the id would make a rescan duplicate every pre-upgrade turn instead of
+  deduping it), and scanning is unaffected since `scan`/capture-tier
+  redaction walk only `content` and `raw.data`. *Forward-only, and
+  deliberately no backfill:* rewriting `producer` on stored events would keep
+  their ids but change their note lines, and under `cat_sort_uniq` the
+  rewritten and original lines both survive a merge with any peer still
+  holding the old one — two copies of one event. Old claude-code events lose
+  nothing permanent (their whole source line is in `raw.data`); old codex
+  events do, and re-capturing them does not help, since they dedup by id.
+  *Out of scope:* the rest of what those codex lines carry — `base_instructions`
+  (the full system prompt), sandbox/approval policy, reasoning effort — is
+  still not captured. That is a separate question (whole-session
+  configuration, not per-turn agent identity) with its own size and
+  redaction implications; this cut answers only "what served this turn".
 - **Preserve provider-encrypted reasoning as opaque state** *(shipped,
   0.10.0)* — Codex's `reasoning` response_items carry `encrypted_content`
   that only OpenAI's servers can decrypt; the client just round-trips the
@@ -300,11 +343,13 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   blocks outright (same as before) rather than preserving them via this new
   `reasoning` kind — same provider-withheld material, but embedded mid-line
   rather than a standalone response_item, so preserving it needs its own
-  shape; tracked as a follow-up, not bundled into this cut. Also out of scope:
-  no ledger event records which model/provider/CLI-version produced a given
-  turn (the `session_meta`/`turn_context` lines carrying that are still
-  dropped with no trace) — a pre-existing gap in `Producer`, not specific to
-  reasoning, left for a separate roadmap item.
+  shape; tracked as a follow-up, not bundled into this cut. Also out of scope
+  at the time: no ledger event recorded which model/provider/CLI version
+  produced a given turn — a pre-existing gap in `Producer`, not specific to
+  reasoning, since closed in 0.12.0 (see the entry above). That gap mattered
+  most here: an encrypted blob is only replayable against the model that
+  produced it, so `reasoning` events captured before 0.12.0 carry ciphertext
+  with no record of where to send it.
 - **Sub-turn citation anchors** for downstream consumers like intent-recall.
 - **Forge (PR/MR) conversation adapter** — ingest pull-request review
   discussions as ordinary conversation events anchored to the merge/squash
