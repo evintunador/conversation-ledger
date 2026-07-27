@@ -42,6 +42,15 @@ interactively — open `codex`, run `/hooks`, and approve the `cledger hook
 codex` command once. Missed turns are never lost either way: `cledger capture
 <source> --transcript PATH` backfills any native transcript, idempotently.
 
+The hooks above are installed once, globally, and fire in every git
+repository you work in. To turn cledger off for one specific repo, add
+`{"enabled": false}` to that repo's `.cledger.json`: hook capture, manual
+`cledger append`, and backfill all become no-ops, before any ledger read or
+write happens. Existing history is untouched and still readable via
+`cledger log`/`show`/`export` — this only stops new events from being
+written. Outside any git repository, hooks are already a silent no-op, so
+there's nothing to record and nothing to disable.
+
 ## Use
 
 ```sh

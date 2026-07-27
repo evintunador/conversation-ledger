@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { git, revList } from "../git.js";
 import {
   appendEvents,
@@ -29,6 +31,24 @@ test("appendEvents + readEvents: events come back with filled context", async ()
     assert.strictEqual(e.context?.branch, "main");
     assert.ok(e.context?.head, "expected context.head to be filled");
     assert.match(e.context!.head!, /^[0-9a-f]{40}$/);
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("appendEvents: {enabled: false} in .cledger.json is a total no-op", async () => {
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "init");
+    await writeFile(join(repo.root, ".cledger.json"), JSON.stringify({ enabled: false }));
+
+    const result = await appendEvents(repo, [draft({ content: { text: "should not land" } })]);
+    assert.deepStrictEqual(result, { appended: [], deduped: 0, anchor: null });
+
+    const events = await readEvents(repo);
+    assert.strictEqual(events.length, 0);
+    const anchors = await listAnchors(repo);
+    assert.strictEqual(anchors.length, 0, "disabled repo must never write the notes ref");
   } finally {
     await cleanupRepo(repo);
   }

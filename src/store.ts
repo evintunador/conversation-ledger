@@ -154,8 +154,13 @@ export async function appendEvents(
   drafts: EventDraft[],
   opts: { context?: RepoContext; anchor?: string } = {},
 ): Promise<AppendResult> {
-  const context = opts.context ?? (await captureContext(repo));
   const config = await loadConfig(repo.root);
+  // Master per-repo switch: skip everything, including the transport wiring
+  // below, so a disabled repo's ledger ref is never even touched.
+  if (config.enabled === false) {
+    return { appended: [], deduped: 0, anchor: null };
+  }
+  const context = opts.context ?? (await captureContext(repo));
   // First capture in a repo wires up transport (pre-push hook + fetch
   // refspec); later calls are cheap re-checks. Never throws.
   await ensureTransport(repo, config);

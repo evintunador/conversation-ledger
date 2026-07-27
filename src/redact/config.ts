@@ -4,6 +4,14 @@ import { join } from "node:path";
 import { rulesForTier, type RedactionRule } from "./rules.js";
 
 export interface CledgerConfig {
+  /**
+   * Master per-repo switch (default true). false turns cledger off entirely
+   * for this repo: appendEvents becomes a no-op (no hook capture, no manual
+   * `cledger append`, no backfill), before any ledger read/write happens.
+   * Existing recorded history is untouched and still readable via `cledger
+   * log`/`show`/`export` — this only stops new events from being written.
+   */
+  enabled?: boolean;
   redact?: {
     capture?: boolean;
     env?: boolean;
@@ -81,11 +89,13 @@ export async function loadConfig(repoRoot: string): Promise<CledgerConfig> {
   ]);
   const base = userConfig ?? {};
   const override = repoConfig ?? {};
+  const enabled = override.enabled ?? base.enabled;
   const redact = override.redact ?? base.redact;
   const scan = override.scan ?? base.scan;
   const transport = override.transport ?? base.transport;
   const reanchor = override.reanchor ?? base.reanchor;
   return {
+    ...(enabled !== undefined ? { enabled } : {}),
     ...(redact !== undefined ? { redact } : {}),
     ...(scan !== undefined ? { scan } : {}),
     ...(transport !== undefined ? { transport } : {}),
