@@ -181,6 +181,33 @@ Events captured before the first commit exists (unborn `HEAD`) queue in
 anchor. Everything under `.git/conversation-ledger/` (pending queue, adapter
 cursors, lock) is local, rebuildable state — never the record of truth.
 
+That directory is resolved from the repository's **common** git dir
+(`RepoInfo.commonDir`), not the working tree's own (`RepoInfo.gitDir`). The
+distinction only appears with linked worktrees, where git gives each working
+tree a private directory at `<main>/.git/worktrees/<name>/` for genuinely
+per-worktree state (HEAD, index, reflogs) while refs, objects, config, and
+hooks stay shared. Nothing cledger keeps is per-worktree: an allowlist entry,
+a learned secret, or a capture cursor means the same thing from every working
+tree, and hooks *must* live in the common dir because that is the only place
+git looks for them. Before 0.13.0 all of it hung off the per-worktree dir, so
+a worktree silently behaved like a separate repo. Placement of the worktree
+is irrelevant — git draws no distinction between one nested under the repo
+and one at an arbitrary path. `.cledger.json` is the deliberate exception: it
+is a tracked working-tree file, so it is per-worktree unless committed, which
+is the right behavior for versioned repo config.
+
+Reads collapse events sharing an id (0.13.0). Append-time dedup only consults
+the note of the commit being written to, so it cannot see a copy filed under
+a different anchor: any capture that re-reads transcript lines it already
+ingested *after* `HEAD` moved files a second copy against the new `HEAD`, and
+once both anchors are reachable the turn came back twice. Per-worktree
+cursors made this routine, but a forced rescan does it too. Since the ledger
+is append-only those copies are permanent, so the fix is on the read side —
+earliest `recorded_at` wins, canonical serialization breaks ties, so every
+clone independently picks the same copy. Ids are equal only when every
+identity field is equal, so the discarded copy differs solely in provenance
+the id already excludes (`recorded_at`, `context`, `raw`).
+
 ### Squash merges and history rewrites: re-anchoring
 
 A squash merge (or any rewrite) discards the source branch's commits, so

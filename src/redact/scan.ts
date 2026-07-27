@@ -119,7 +119,7 @@ interface AllowlistFile {
 }
 
 function allowlistPath(repo: RepoInfo): string {
-  return join(repo.gitDir, "conversation-ledger", "allowlist.json");
+  return join(repo.commonDir, "conversation-ledger", "allowlist.json");
 }
 
 /** Local, rebuildable-if-lost state — same tier as pending.jsonl/cursors, never the record of truth. */
@@ -137,7 +137,7 @@ export async function loadAllowlist(repo: RepoInfo): Promise<Set<string>> {
 export async function addToAllowlist(repo: RepoInfo, fingerprints: string[]): Promise<void> {
   const existing = await loadAllowlist(repo);
   for (const fp of fingerprints) existing.add(fp);
-  await mkdir(join(repo.gitDir, "conversation-ledger"), { recursive: true });
+  await mkdir(join(repo.commonDir, "conversation-ledger"), { recursive: true });
   await writeFile(
     allowlistPath(repo),
     JSON.stringify({ fingerprints: [...existing].sort() }, null, 2) + "\n",
