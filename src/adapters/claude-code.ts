@@ -3,7 +3,7 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
-import type { Actor, EventDraft, EvidenceEvent } from "../schema.js";
+import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import {
   countUnrecognized,
   unrecognizedDraft,
@@ -143,6 +143,28 @@ async function sessionMtime(transcriptPath: string): Promise<string> {
   }
 }
 
+/**
+ * The agent facts this line states about itself. Claude Code stamps every
+ * transcript line with the CLI `version`, and labels assistant lines with the
+ * model that produced them; user lines carry no model, and none is invented
+ * for them — the model that will answer a prompt is not knowable from the
+ * prompt's own line, and the session's model can change mid-conversation.
+ * The provider is never stated (the same CLI can talk to the first-party API,
+ * Bedrock, or Vertex), so `provider` is left unset rather than assumed.
+ *
+ * Values pass through verbatim, including Claude Code's `"<synthetic>"`
+ * placeholder for harness-generated assistant messages: that is a true and
+ * useful statement about the turn ("no model produced this"), and rewriting
+ * it would be interpretation.
+ */
+function agentContext(line: ClaudeTranscriptLine): ProducerAgentContext {
+  const agent: ProducerAgentContext = {};
+  if (typeof line.version === "string" && line.version) agent.source_version = line.version;
+  const model = line.message?.model;
+  if (typeof model === "string" && model) agent.model = model;
+  return agent;
+}
+
 /** Raw-only preservation event for an unrecognized claude-code line (see drift.ts). */
 function preserve(
   type: string,
@@ -163,6 +185,7 @@ function preserve(
     version,
     rawFormat: RAW_FORMAT,
     conversationId: `claude-code:${sessionId}`,
+    agent: agentContext(line),
   });
 }
 
@@ -189,7 +212,13 @@ function convertLine(
     kind: "conversation_turn",
     occurred_at: line.timestamp,
     actor,
-    producer: { tool: "cledger", version, source: "claude-code", session_id: sessionId },
+    producer: {
+      tool: "cledger",
+      version,
+      source: "claude-code",
+      session_id: sessionId,
+      ...agentContext(line),
+    },
     conversation: { id: `claude-code:${sessionId}`, seq },
     content: { role: line.message.role, blocks: convertContentBlocks(line.message.content) },
     raw: { format: RAW_FORMAT, data: line },

@@ -34,12 +34,14 @@ const USAGE = `conversation-ledger — durable records of coding-agent conversat
 
 Usage:
   cledger append [--quiet]                 append JSONL events/drafts from stdin
-  cledger log [--all|--rev R] [--kind K] [--source S] [--conversation C] [--json] [--with-reasoning]
+  cledger log [--all|--rev R] [--kind K] [--source S] [--model M] [--conversation C] [--json]
+              [--with-reasoning]           --model matches producer.model exactly, e.g. gpt-5.6-sol
   cledger show <conversation-id-prefix> [--json] [--with-reasoning]
                                            opaque provider-encrypted \`reasoning\` events are hidden
                                            by default on log/show; --with-reasoning reveals them
   cledger conversations [--rev R] [--with-reasoning]
-                                           list conversations on current branch (--all for every branch)
+                                           list conversations on current branch (--all for every branch),
+                                           one line each: id, source, model(s), count, time span
   cledger export [--rev R]                lossless JSONL dump (default: everything, incl. reasoning)
   cledger sync [--remote R] [--push|--fetch] [--no-scan] [--paranoid]
                                            fetch/merge/push of the ledger ref;
@@ -128,6 +130,7 @@ function readOptionsFrom(flags: Flags): ReadOptions {
   if (!flags["all"]) opts.reachableFrom = typeof flags["rev"] === "string" ? flags["rev"] : "HEAD";
   if (typeof flags["kind"] === "string") opts.kind = flags["kind"];
   if (typeof flags["source"] === "string") opts.source = flags["source"];
+  if (typeof flags["model"] === "string") opts.model = flags["model"];
   if (typeof flags["conversation"] === "string") opts.conversation = flags["conversation"];
   return opts;
 }
@@ -241,7 +244,10 @@ async function cmdConversations(flags: Flags): Promise<void> {
   const opts = readOptionsFrom(flags);
   let events = await readEvents(repo, opts);
   if (!includeReasoning(flags, opts)) events = hideOpaqueReasoning(events);
-  const byConv = new Map<string, { count: number; first: string; last: string; source: string }>();
+  const byConv = new Map<
+    string,
+    { count: number; first: string; last: string; source: string; models: Set<string> }
+  >();
   for (const e of events) {
     const id = e.conversation?.id ?? "(none)";
     const entry = byConv.get(id) ?? {
@@ -249,14 +255,22 @@ async function cmdConversations(flags: Flags): Promise<void> {
       first: e.occurred_at,
       last: e.occurred_at,
       source: e.producer.source ?? e.producer.tool,
+      models: new Set<string>(),
     };
     entry.count++;
+    // A conversation can legitimately list several models — codex restates
+    // `turn_context` when the user switches mid-session, and a claude-code
+    // session mixes real model ids with `<synthetic>` harness messages.
+    if (e.producer.model) entry.models.add(e.producer.model);
     if (e.occurred_at < entry.first) entry.first = e.occurred_at;
     if (e.occurred_at > entry.last) entry.last = e.occurred_at;
     byConv.set(id, entry);
   }
   for (const [id, s] of [...byConv.entries()].sort((a, b) => a[1].last.localeCompare(b[1].last))) {
-    process.stdout.write(`${id}  ${s.source}  ${s.count} events  ${s.first} .. ${s.last}\n`);
+    const models = s.models.size > 0 ? [...s.models].sort().join(",") : "-";
+    process.stdout.write(
+      `${id}  ${s.source}  ${models}  ${s.count} events  ${s.first} .. ${s.last}\n`,
+    );
   }
 }
 

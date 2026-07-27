@@ -254,6 +254,13 @@ export interface ReadOptions {
   reachableFrom?: string;
   kind?: string;
   source?: string;
+  /**
+   * Exact match on `producer.model`. Events the source never labelled with a
+   * model (human turns in most transcripts, cledger's own bookkeeping events)
+   * have no model and are therefore excluded by this filter, rather than
+   * being folded in on a guess about which model they belong to.
+   */
+  model?: string;
   conversation?: string;
 }
 
@@ -286,6 +293,7 @@ export async function readEvents(repo: RepoInfo, opts: ReadOptions = {}): Promis
     (e) =>
       (!opts.kind || e.kind === opts.kind) &&
       (!opts.source || e.producer.source === opts.source) &&
+      (!opts.model || e.producer.model === opts.model) &&
       (!opts.conversation || e.conversation?.id === opts.conversation ||
         e.conversation?.id.startsWith(opts.conversation)),
   );
