@@ -41,7 +41,7 @@ interface KnownSecretsFile {
 }
 
 function knownSecretsPath(repo: RepoInfo): string {
-  return join(repo.gitDir, "conversation-ledger", "known-secrets.json");
+  return join(repo.commonDir, "conversation-ledger", "known-secrets.json");
 }
 
 /** Load remembered secret values. Missing/malformed store -> empty (never fails capture). */
@@ -71,7 +71,7 @@ export async function addKnownSecrets(repo: RepoInfo, values: string[]): Promise
     }
   }
   if (!added) return;
-  await mkdir(join(repo.gitDir, "conversation-ledger"), { recursive: true });
+  await mkdir(join(repo.commonDir, "conversation-ledger"), { recursive: true });
   const path = knownSecretsPath(repo);
   await writeFile(path, JSON.stringify({ values: [...existing].sort() }, null, 2) + "\n", {
     mode: STORE_MODE,

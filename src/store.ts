@@ -61,7 +61,7 @@ export { ensureMergeConfig, NOTES_NAME, NOTES_REF } from "./transport.js";
  */
 
 function stateDir(repo: RepoInfo): string {
-  return join(repo.gitDir, "conversation-ledger");
+  return join(repo.commonDir, "conversation-ledger");
 }
 
 function pendingPath(repo: RepoInfo): string {
@@ -297,7 +297,43 @@ export async function readEvents(repo: RepoInfo, opts: ReadOptions = {}): Promis
       (!opts.conversation || e.conversation?.id === opts.conversation ||
         e.conversation?.id.startsWith(opts.conversation)),
   );
-  return sortEvents(filtered);
+  return sortEvents(dedupById(filtered));
+}
+
+/**
+ * Collapse events that share an id but live under different anchor commits.
+ *
+ * Append-time dedup only ever consults the note of the commit being written
+ * to (see `appendEvents`), so it cannot see a copy filed under a different
+ * anchor. Any capture that re-reads transcript lines it already ingested
+ * *after* HEAD moved therefore files a second copy of the same events against
+ * the new HEAD — and once both anchors are reachable, reads returned the turn
+ * twice. Worktrees made this routine before capture cursors became shared
+ * (they were per-worktree, so entering or leaving one restarted the scan),
+ * but it is not worktree-specific: a forced rescan does it too, and the
+ * duplicates already written this way are permanent, since the ledger is
+ * append-only.
+ *
+ * Identical ids mean identical *identity* fields by construction, so the
+ * copies differ only in provenance the id excludes — `recorded_at`, the
+ * `context` captured at the time, `raw`. The earliest `recorded_at` wins as
+ * the original capture, with the canonical serialization as a tie-break so
+ * every clone independently picks the same one.
+ */
+function dedupById(events: EvidenceEvent[]): EvidenceEvent[] {
+  const byId = new Map<string, EvidenceEvent>();
+  for (const event of events) {
+    const seen = byId.get(event.id);
+    if (!seen) {
+      byId.set(event.id, event);
+      continue;
+    }
+    if (event.recorded_at < seen.recorded_at) byId.set(event.id, event);
+    else if (event.recorded_at === seen.recorded_at) {
+      if (canonicalJson(event) < canonicalJson(seen)) byId.set(event.id, event);
+    }
+  }
+  return [...byId.values()];
 }
 
 /**

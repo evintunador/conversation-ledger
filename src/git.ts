@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const execFileP = promisify(execFile);
@@ -46,7 +47,29 @@ export async function git(args: string[], opts: GitRunOptions): Promise<string> 
 
 export interface RepoInfo {
   root: string;
+  /**
+   * This working tree's *own* git directory. In the main checkout that is
+   * `<root>/.git`, but in a linked worktree — created by `git worktree add`,
+   * whether under the repo or at an arbitrary path elsewhere — git gives each
+   * worktree a private directory at `<main>/.git/worktrees/<name>/` for the
+   * state that is genuinely per-worktree (HEAD, index, reflogs).
+   *
+   * Almost nothing in cledger belongs here, and putting it here is a silent
+   * bug rather than a loud one: state written under a worktree is invisible
+   * from every other working tree, and git itself only ever runs hooks out of
+   * the *common* directory. Use `commonDir` unless you specifically want
+   * something scoped to one working tree. Nothing does today.
+   */
   gitDir: string;
+  /**
+   * The repository's shared git directory — identical for the main checkout
+   * and every linked worktree. Refs (including the ledger's notes ref),
+   * objects, config, and hooks all live here, which is why the ledger data
+   * itself was never worktree-scoped. All of cledger's local state hangs off
+   * this, so a worktree sees the same allowlist, known secrets, capture
+   * cursors, and installed hook as everyone else.
+   */
+  commonDir: string;
 }
 
 /** Resolve the repo containing dir, or null when outside any git repo. */
@@ -54,10 +77,39 @@ export async function findRepo(dir: string): Promise<RepoInfo | null> {
   try {
     const root = (await git(["rev-parse", "--show-toplevel"], { cwd: dir })).trim();
     const gitDir = (await git(["rev-parse", "--absolute-git-dir"], { cwd: dir })).trim();
-    return { root, gitDir };
+    return { root, gitDir, commonDir: await resolveCommonDir(dir, gitDir) };
   } catch {
     return null;
   }
+}
+
+/**
+ * The shared git directory for the working tree at `dir`.
+ *
+ * There is no `--absolute-git-common-dir`, and plain `--git-common-dir`
+ * answers relative to the process cwd in the main checkout (it prints a bare
+ * `.git`) while already being absolute from a linked worktree — so the result
+ * has to be resolved either way. `--path-format=absolute` does it directly on
+ * git >= 2.31; older git falls back to resolving by hand against the same
+ * `cwd` the command ran in. If both fail, `gitDir` is the honest answer: it is
+ * correct in the main checkout, which is where a git this old is most likely
+ * to be running anyway.
+ */
+async function resolveCommonDir(dir: string, gitDir: string): Promise<string> {
+  try {
+    return (
+      await git(["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: dir })
+    ).trim();
+  } catch {
+    // git < 2.31: no --path-format
+  }
+  try {
+    const raw = (await git(["rev-parse", "--git-common-dir"], { cwd: dir })).trim();
+    if (raw) return isAbsolute(raw) ? raw : resolve(dir, raw);
+  } catch {
+    // no --git-common-dir at all (git < 2.5, before worktrees existed)
+  }
+  return gitDir;
 }
 
 /** HEAD commit SHA, or null on an unborn branch (no commits yet). */

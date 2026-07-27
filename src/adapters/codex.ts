@@ -175,7 +175,7 @@ function sanitizeId(id: string): string {
 }
 
 function cursorPath(repo: RepoInfo, sessionId: string): string {
-  return join(repo.gitDir, "conversation-ledger", "cursors", `${sanitizeId(sessionId)}.json`);
+  return join(repo.commonDir, "conversation-ledger", "cursors", `${sanitizeId(sessionId)}.json`);
 }
 
 async function readCursor(repo: RepoInfo, sessionId: string): Promise<number> {
@@ -190,7 +190,7 @@ async function readCursor(repo: RepoInfo, sessionId: string): Promise<number> {
 
 async function writeCursor(repo: RepoInfo, sessionId: string, lines: number): Promise<void> {
   const path = cursorPath(repo, sessionId);
-  await mkdir(join(repo.gitDir, "conversation-ledger", "cursors"), { recursive: true });
+  await mkdir(join(repo.commonDir, "conversation-ledger", "cursors"), { recursive: true });
   await writeFile(path, JSON.stringify({ lines }) + "\n");
 }
 

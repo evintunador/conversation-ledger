@@ -269,6 +269,41 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   the real remaining work is encryption with an OS-keychain-held key (macOS
   Keychain / libsecret / DPAPI), which must decrypt *non-interactively* since
   capture runs silently on every turn.
+- **Share local state across worktrees** *(shipped, 0.13.0)* — cledger kept
+  its local state under `git rev-parse --absolute-git-dir`, which in a linked
+  worktree is that worktree's *private* directory
+  (`<main>/.git/worktrees/<name>/`), not the repo's shared one. Git is doing
+  exactly what it documents; the wrong assumption was that a repo has one git
+  dir. Everything cledger stores there is repo-wide, so a worktree behaved
+  like a separate repo, in four ways of descending severity: (a) the pre-push
+  hook was installed where **git never runs it** — git resolves hooks against
+  the common dir only — so a repo whose first capture happened in a worktree
+  got a hook that looked installed and silently never fired; (b) the
+  known-secrets store was invisible, failing **open**: values the user had
+  taught capture-time redaction to scrub were written to the ledger in the
+  clear, with nothing reporting it; (c) the allowlist was invisible, failing
+  closed, so already-dismissed scan findings blocked the ledger push again
+  (measured on this repo: 213 findings from a worktree vs 0 from the main
+  checkout); (d) capture cursors reset, re-scanning transcripts from the top.
+  Fixed by resolving a `commonDir` (`--path-format=absolute --git-common-dir`,
+  with a manual-resolve fallback for git < 2.31) and hanging all local state
+  and the hook path off it. Placement is irrelevant to the fix — git treats a
+  worktree nested under the repo and one at an arbitrary path identically, and
+  both are covered by tests. *Fallout that outlived the cause:* (d) also
+  **duplicated events**, because append-time dedup only consults the note of
+  the commit being written to, so a re-scan after HEAD moved filed a second
+  copy under a different anchor; once both anchors were reachable, reads
+  returned the turn twice (measured: 351 duplicated ids in this repo's own
+  ledger). The ledger is append-only, so those copies are permanent — reads
+  now collapse events by id, preferring the earliest `recorded_at` with the
+  canonical serialization as a deterministic tie-break. That path is not
+  worktree-specific; any forced rescan after HEAD moves can produce it.
+  *Deliberately unchanged:* `.cledger.json` stays a working-tree file, so it
+  is per-worktree unless committed — correct for versioned repo config, unlike
+  `.git`-side state. *Not migrated:* an allowlist or known-secrets store
+  written from a worktree before this fix stays orphaned in that worktree's
+  private dir; re-run `cledger allow` / `cledger redact --pattern` if you hit
+  it.
 - **Record which model/provider/CLI version served each turn** *(shipped,
   0.12.0)* — `producer` previously said only which capture path recorded an
   event (`source`, `session_id`, cledger's own `tool`/`version`), never what

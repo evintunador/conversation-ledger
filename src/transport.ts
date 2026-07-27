@@ -69,7 +69,7 @@ function hookBlock(): string {
 
 /** Warnings that should print once per repo, not on every capture. */
 async function warnOnce(repo: RepoInfo, key: string, message: string): Promise<void> {
-  const stateDir = join(repo.gitDir, "conversation-ledger");
+  const stateDir = join(repo.commonDir, "conversation-ledger");
   const path = join(stateDir, "transport-warnings.json");
   let warned: string[] = [];
   try {
@@ -134,9 +134,14 @@ async function ensurePrePushHook(
     return "skipped-hookspath";
   }
 
-  const hookPath = join(repo.gitDir, "hooks", "pre-push");
+  // The common dir, never this worktree's own git dir: git resolves hooks
+  // relative to `$GIT_COMMON_DIR`, so a pre-push script written under
+  // `.git/worktrees/<name>/hooks/` is simply never executed. Installing it
+  // there would leave a repo whose first capture happened inside a worktree
+  // with a hook that looks installed and silently never runs.
+  const hookPath = join(repo.commonDir, "hooks", "pre-push");
   if (!existsSync(hookPath)) {
-    await mkdir(join(repo.gitDir, "hooks"), { recursive: true });
+    await mkdir(join(repo.commonDir, "hooks"), { recursive: true });
     await writeFile(hookPath, `#!/bin/sh\n${hookBlock()}\n`);
     await chmod(hookPath, 0o755);
     return "installed";
