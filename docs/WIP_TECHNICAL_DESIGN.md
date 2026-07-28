@@ -509,3 +509,16 @@ for now (see the format-drift roadmap item).
   kept only as reference for whoever implements this properly.
 - Whether an explicit `Conversation` manifest object earns its keep once
   multiple producers exist.
+- Per-branch *storage* (a notes ref per branch) has been considered and set
+  aside, but the question it was reaching for is open. Branch membership is a
+  derived property of the commit DAG, not an intrinsic property of a commit:
+  one commit is on many branches at once, and merges, rebases, renames,
+  cherry-picks and deletions all change the answer without touching the
+  commit. Anchoring to commits and computing reachability at read time keeps
+  that derivation where git already maintains it; storing it per branch would
+  denormalize it and require synchronizing on every one of those operations.
+  Squash merge is the decisive case — it deletes the source branch outright,
+  so a per-branch ref would take its conversations with it, which is exactly
+  the situation re-anchoring exists to survive. The legitimate half of the
+  critique is about *distribution*, not storage: see the roadmap entry on
+  per-branch remote refs.
