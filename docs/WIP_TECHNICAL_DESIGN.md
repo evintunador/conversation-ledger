@@ -480,5 +480,32 @@ for now (see the format-drift roadmap item).
   (the full system prompt), sandbox/approval policy, reasoning effort — is
   still uncaptured. Whether whole-session configuration belongs in the
   ledger at all, and under which kind, is its own question.
+- **Scan findings are not inspectable enough to act on** (reported
+  2026-07-27 while dogfooding turnbridge). `formatFinding` prints ~20
+  characters of context each side with the match itself replaced by
+  `<redacted>`, and there is no supported way to see the flagged event in
+  full — so a finding on a 26 KB conversation turn gives the user no way to
+  judge whether it is a real secret or a false positive, which is exactly
+  the decision `cledger allow` vs `cledger redact` demands. Observed case:
+  a turn *discussing* GitHub Actions code (`getInput("github-token")`)
+  tripped `keyword-assignment`, and the excerpt was too narrow to tell that
+  from a real leak.
+  Constraint to respect: the zero-characters-of-the-secret rule in
+  `buildExcerpt` is deliberate — the report itself gets captured into a
+  later conversation, so printing any of the match would re-seed the
+  finding it describes. The fix therefore is not "widen the excerpt"
+  alone. Candidate shape:
+  - carry the match's JSON path in `Finding` (`walkStrings` already knows
+    it; it is simply discarded) and print it, so the user at least knows
+    *where* in the event the hit is;
+  - a `--context N` flag on `cledger scan` for more surrounding text, still
+    with the match masked;
+  - an explicit, clearly-labelled escape hatch — `cledger show-finding
+    <event-id> [--reveal]` — that writes the unmasked region to a file
+    outside the repo rather than to stdout, so it cannot be swept into an
+    agent transcript. Today the only route is `cledger export` piped
+    through a hand-written filter.
+  `scripts/inspect-finding.py` is a throwaway prototype of the last two,
+  kept only as reference for whoever implements this properly.
 - Whether an explicit `Conversation` manifest object earns its keep once
   multiple producers exist.

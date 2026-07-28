@@ -202,6 +202,24 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   not a real-looking token") is a signal the `keyword-assignment` rule itself
   should get smarter — not something every project should have to
   allowlist for itself.
+  - **The false positive is self-perpetuating through documentation**
+    (observed 2026-07-27, from `intent-recall`): a design conversation that
+    quoted *this very roadmap entry* — the paragraph above, containing the
+    example `const secret = fakeSecret("github-token")` — was itself flagged
+    with 6 `keyword-assignment` findings and held back from push. The
+    write-up of a false positive reproduces the false positive, in a
+    different repository, in a conversation transcript rather than in code.
+    Two things this exposes that the parent entry does not: (a) the allowlist
+    is per-repo, so a fingerprint retired here is re-encountered from scratch
+    by every downstream repo whose conversations read or discuss these docs —
+    and cledger's own documentation is now a reliable source of them; (b) the
+    flagged span was prose *about* a credential-shaped example and never a
+    credential, which is about as clean a signal as exists that the rule
+    wants a "is this a discussion or an assignment?" discriminator rather
+    than more allowlisting. Cheap partial fix worth weighing: treat a match
+    whose surrounding context is natural-language prose (a markdown
+    paragraph, a conversation turn) far more skeptically than one inside a
+    code block or a source file.
 - **Path-based capture exclusion** — the path half of the redaction config
   ("never record reads of `secrets/**`"); requires correlating `tool_use`
   file paths with their `tool_result` events.
