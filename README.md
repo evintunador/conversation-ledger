@@ -199,10 +199,20 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   it happened. Same shape as the pre-0.13.0 worktree bug: silent, fails open,
   visible only if you go looking. Fix is a deep merge within each section, or
   at minimum a warning when a repo config overrides a section the user config
-  had already set. Worth doing together with a general sweep for this class —
-  cledger's own local state feeding back into cledger's behavior is now a
-  recurring bug family (the capture/scan redaction loop, the worktree state
-  split, this).
+  had already set. Worth doing together with a general sweep for this class.
+
+  **Self-referential failures are now this project's characteristic bug
+  family**, and are worth a standing check rather than four independent
+  fixes. cledger records the work of building cledger, so its own state,
+  output, and documentation feed back into its behavior. Known members: the
+  capture/scan redaction loop (a finding report re-seeding the finding it
+  describes — closed in 0.6.1/0.7.0); the pre-0.13.0 worktree state split
+  (0.13.0); this config section-replace; and the allowlist entry below, whose
+  *write-up* of a false positive reproduces the false positive in every repo
+  whose conversations quote it. Three of the four fail silently, and two fail
+  open. A useful tripwire when adding anything that reads cledger's own
+  state or prints cledger's own findings: ask what happens when that output
+  is itself captured.
 - **Distribution is repo-wide while visibility is branch-scoped** — reachability
   filters *reads* (`cledger log`, `show`, `conversations`), but the notes ref
   is a single ref and a ref push sends all of it. Conversations from a branch
@@ -210,17 +220,39 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   collaborator's disk; `cledger export` compounds it by defaulting to no
   reachability filter at all, so an automated consumer reading the ledger
   directly gets everything unless it knows to ask otherwise. Two scopes wearing
-  one name. *Sketch, not yet validated:* keep storage exactly as it is —
-  commit-anchored, one local ref — and make **distribution** per-branch by
-  pushing the reachable subset to `refs/notes/conversation-ledger-branches/<branch>`,
-  with a wildcard fetch refspec union-merging them back into the single local
-  ref. Note a filtered push to the *shared* ref cannot work: push is a ref
-  update, not a merge, so pushing a subset would delete other branches' events
-  from the remote's current tree. Per-branch remote refs avoid the clobber and
-  give a collaborator who never fetches a branch no exposure to its
-  conversations. Flipping `export` to reachability-aware-by-default (with
-  `--all` to opt out) is worth doing regardless, but it is the read half only
-  and does not change what leaves the machine.
+  one name — and push is the odd one out, since storage is already per-commit
+  and reads are already per-branch.
+
+  *Sketch, not yet validated.* Storage stays exactly as it is (commit-anchored,
+  one local ref, one shared remote ref) and **push** learns the granularity
+  storage already has. When pushing branch `B`: fetch the remote notes tip,
+  compute `git rev-list B`, and build a new notes commit whose parent is the
+  remote tip and whose content is the remote's existing notes plus the local
+  notes for those anchors only — unioning JSONL lines per anchor, the same
+  `cat_sort_uniq` semantics used everywhere else. Push that. It fast-forwards,
+  so nothing is clobbered, and conversations on branches not reachable from
+  `B` never leave the machine. No mapping is stored anywhere: reachability is
+  recomputed at push time from the DAG, the same reason reads do not store it
+  either.
+
+  The obvious shortcut — push only *your* subset to the shared ref — does not
+  work, and the reason is worth recording. A push is a ref update, not a merge:
+  the remote ends up pointing at exactly the tree you sent, so any anchor
+  missing from it is gone from the remote's current view (still in the ref's
+  history, but absent from a fresh clone). Building on top of the remote's tip
+  rather than replacing it is what makes the subset safe.
+
+  Per-branch remote refs (`…-branches/<branch>` plus a wildcard fetch refspec)
+  were considered and are *not* needed for the above; they would only add
+  fetch-side selectivity, letting a collaborator decline a branch's
+  conversations entirely. Worth revisiting only if that is ever wanted, since
+  it costs N refs and refspec machinery.
+
+  Flipping the read default is a separate, smaller fix: reachability-aware by
+  default belongs in `readEvents`, not in `cledger export`, since library
+  consumers (intent-recall) never go through the CLI and would otherwise
+  inherit the unscoped view. It does not change what leaves the machine, and
+  should not be presented as the fix for this entry.
 - **Audit the allowlist for generalizable false-positive patterns** — this
   repo's own dogfood allowlist (2026-07-22) picked up two `keyword-assignment`
   fingerprints from this project's own development conversation: test code
