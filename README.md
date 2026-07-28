@@ -188,6 +188,39 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 
 ## Roadmap
 
+- **Config sections replace rather than merge, and it fails open** — `loadConfig`
+  merges `~/.config/cledger/config.json` and `<repo>/.cledger.json` per
+  *top-level section*, not per key (`const redact = override.redact ??
+  base.redact`). So a repo that commits a `.cledger.json` with *any* `redact`
+  key — a `patterns` list, say — silently replaces the user's entire `redact`
+  section, and a globally-enabled `redact.knownSecrets: true` reverts to its
+  default of `false`. Capture-time scrubbing of learned secret values then
+  stops in that repo, with nothing printed and nothing in the ledger to show
+  it happened. Same shape as the pre-0.13.0 worktree bug: silent, fails open,
+  visible only if you go looking. Fix is a deep merge within each section, or
+  at minimum a warning when a repo config overrides a section the user config
+  had already set. Worth doing together with a general sweep for this class —
+  cledger's own local state feeding back into cledger's behavior is now a
+  recurring bug family (the capture/scan redaction loop, the worktree state
+  split, this).
+- **Distribution is repo-wide while visibility is branch-scoped** — reachability
+  filters *reads* (`cledger log`, `show`, `conversations`), but the notes ref
+  is a single ref and a ref push sends all of it. Conversations from a branch
+  that was abandoned and never merged still reach `origin` and land on every
+  collaborator's disk; `cledger export` compounds it by defaulting to no
+  reachability filter at all, so an automated consumer reading the ledger
+  directly gets everything unless it knows to ask otherwise. Two scopes wearing
+  one name. *Sketch, not yet validated:* keep storage exactly as it is —
+  commit-anchored, one local ref — and make **distribution** per-branch by
+  pushing the reachable subset to `refs/notes/conversation-ledger-branches/<branch>`,
+  with a wildcard fetch refspec union-merging them back into the single local
+  ref. Note a filtered push to the *shared* ref cannot work: push is a ref
+  update, not a merge, so pushing a subset would delete other branches' events
+  from the remote's current tree. Per-branch remote refs avoid the clobber and
+  give a collaborator who never fetches a branch no exposure to its
+  conversations. Flipping `export` to reachability-aware-by-default (with
+  `--all` to opt out) is worth doing regardless, but it is the read half only
+  and does not change what leaves the machine.
 - **Audit the allowlist for generalizable false-positive patterns** — this
   repo's own dogfood allowlist (2026-07-22) picked up two `keyword-assignment`
   fingerprints from this project's own development conversation: test code
