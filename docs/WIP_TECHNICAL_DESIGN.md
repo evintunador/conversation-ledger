@@ -210,10 +210,22 @@ Two implementation details carry the correctness:
   it (line-level sort+unique, matching `cat_sort_uniq`), and pushes that.
 
 The pre-push scan gate inspects only the events in scope, so a finding on a
-branch that is not being pushed no longer blocks unrelated work. The hook
-itself reads no stdin, so it scopes by `HEAD` rather than by the refs git is
-actually pushing; pushing a branch you are not on under-sends, which the next
-sync from that branch corrects.
+branch that is not being pushed no longer blocks unrelated work.
+
+The scope comes from the refs git is actually pushing, read from the pre-push
+hook's stdin (`<local ref> <local sha> <remote ref> <remote sha>` per line);
+the local sha is used directly, since it is what git is pushing and needs no
+resolution. Ref deletions carry an all-zero local sha and are skipped, several
+refs union, and anything unusable — an old installed hook, a manual
+invocation — falls back to `HEAD` rather than widening to the whole ledger.
+`cledger transport-push` only reads stdin when it is not a TTY, so running it
+by hand cannot block waiting on input.
+
+Because the hook script itself had to change, `installHook` no longer treats
+"file contains the marker" as "nothing to do": it replaces a stale cledger
+block with the current one, touching only the marked region so surrounding
+user content is preserved. Without that, a behavior change inside the hook
+would only ever reach freshly-initialized repos.
 
 Events captured before the first commit exists (unborn `HEAD`) queue in
 `.git/conversation-ledger/pending.jsonl` and flush into the first real

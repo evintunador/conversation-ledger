@@ -18,8 +18,16 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { git, type RepoInfo } from "../git.js";
-import { appendEvents, listAnchors, readNoteEvents, sync, NOTES_REF } from "../store.js";
+import {
+  appendEvents,
+  listAnchors,
+  parsePrePushRefs,
+  readNoteEvents,
+  sync,
+  NOTES_REF,
+} from "../store.js";
 import { reAnchorDraft } from "../reanchor.js";
 import { cleanupDir, cleanupRepo, draft, makeBareRepo, makeCommit, makeTempRepo } from "./helpers.js";
 
@@ -228,5 +236,82 @@ test("the scan gate only inspects what this push would carry", async () => {
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(remote);
+  }
+});
+
+test("parsePrePushRefs: takes local shas, skips deletions and noise", () => {
+  const zero = "0".repeat(40);
+  const a = "a".repeat(40);
+  const b = "b".repeat(40);
+  const stdin = [
+    `refs/heads/feat ${a} refs/heads/feat ${zero}`,
+    `refs/heads/gone ${zero} refs/heads/gone ${b}`, // deletion: nothing to scope to
+    "",
+    "garbage",
+  ].join("\n");
+  assert.deepStrictEqual(parsePrePushRefs(stdin), [a]);
+});
+
+test("pre-push hook end to end: pushing a branch you are not on shares that branch", async () => {
+  // The behavior the HEAD-only scope got wrong: `git push origin feat` from
+  // main used to share nothing of feat.
+  const remote = await makeBareRepo();
+  const repo = await makeTempRepo("cledger-hook-scope-");
+  try {
+    await git(["remote", "add", "origin", remote], { cwd: repo.root });
+    const root = await makeCommit(repo, "root");
+    await appendEvents(repo, [draft({ content: { text: "installs the hook" } })]);
+
+    await git(["checkout", "-q", "-b", "feat", root], { cwd: repo.root });
+    await makeCommit(repo, "feat-1");
+    const onFeat = await record(repo, "belongs to feat");
+
+    await git(["checkout", "-q", "-b", "other", root], { cwd: repo.root });
+    await makeCommit(repo, "other-1");
+    const onOther = await record(repo, "belongs to other");
+
+    // Checked out on `other`, but pushing `feat`.
+    await git(["push", "origin", "feat"], { cwd: repo.root });
+
+    const shared = await remoteEventIds(repo, "origin");
+    assert.ok(shared.has(onFeat), "the pushed branch's conversations must be shared");
+    assert.ok(
+      !shared.has(onOther),
+      "the checked-out branch is not the pushed one and must not ride along",
+    );
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(remote);
+  }
+});
+
+test("an already-installed hook block is upgraded in place, preserving the rest of the file", async () => {
+  const repo = await makeTempRepo("cledger-hook-upgrade-");
+  try {
+    await makeCommit(repo, "init");
+    const hookPath = join(repo.commonDir, "hooks", "pre-push");
+    // A stale install: cledger's markers around the old </dev/null body,
+    // wrapped in a user's own hook content that must survive untouched.
+    const stale = [
+      "#!/bin/sh",
+      "echo 'user hook before'",
+      "# >>> conversation-ledger pre-push (added by cledger) >>>",
+      "cledger transport-push \"$1\" </dev/null || exit $?",
+      "# <<< conversation-ledger pre-push <<<",
+      "echo 'user hook after'",
+      "",
+    ].join("\n");
+    await mkdir(join(repo.commonDir, "hooks"), { recursive: true });
+    await writeFile(hookPath, stale);
+
+    await appendEvents(repo, [draft({ content: { text: "triggers transport setup" } })]);
+
+    const after = await readFile(hookPath, "utf8");
+    assert.ok(after.includes("echo 'user hook before'"), "content before the block must survive");
+    assert.ok(after.includes("echo 'user hook after'"), "content after the block must survive");
+    assert.ok(!after.includes("</dev/null"), "the stale block body must be replaced");
+    assert.ok(after.includes("_cledger_refs"), "the current block reads the pushed refs");
+  } finally {
+    await cleanupRepo(repo);
   }
 });
