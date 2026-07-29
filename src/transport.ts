@@ -60,10 +60,16 @@ function cledgerInvocation(): { node: string; cli: string } {
  * to `HEAD`, which meant `git push origin some-other-branch` shared nothing of
  * that branch.
  *
- * `tee` is deliberate: git's own push needs stdin too on some paths, and a
- * hook that consumes it without passing it on can break chained hooks
- * appended after this block. Reading to EOF and echoing keeps this block
- * composable with whatever follows it.
+ * Consuming that stdin has a cost worth being explicit about: a `pre-push`
+ * script's stdin can only be read once, so anything chained *after* this
+ * block finds it exhausted. In practice that is nearly always fine, because
+ * `installHook` appends this block to the end of an existing hook — an
+ * existing script runs, and reads stdin, before this block does. When it
+ * does read stdin first, this block's `$(cat)` comes back empty and the
+ * scope falls back to `HEAD`, which is the pre-0.15.0 behavior rather than a
+ * failure. Only hand-editing content in after this block loses the ref list,
+ * and restoring it would mean spilling stdin to a temp file and `exec`-ing it
+ * back onto fd 0 — more machinery in every user's hook than that case earns.
  */
 function hookBlock(): string {
   const { node, cli } = cledgerInvocation();
@@ -80,8 +86,8 @@ function hookBlock(): string {
     `  elif command -v cledger >/dev/null 2>&1; then`,
     `    printf '%s\\n' "$_cledger_refs" | cledger transport-push "$1" || exit $?`,
     `  fi`,
-    `  # Re-emit for any hook chained after this block.`,
-    `  printf '%s\\n' "$_cledger_refs" | cat >/dev/null`,
+    `  # Note: a pre-push script's stdin can only be read once, so anything`,
+    `  # chained after this block will not see the ref list.`,
     `fi`,
     `# <<< ${HOOK_MARKER} <<<`,
   ].join("\n");

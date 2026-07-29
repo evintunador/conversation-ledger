@@ -18,7 +18,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { join } from "node:path";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { git, type RepoInfo } from "../git.js";
 import {
   appendEvents,
@@ -313,5 +313,35 @@ test("an already-installed hook block is upgraded in place, preserving the rest 
     assert.ok(after.includes("_cledger_refs"), "the current block reads the pushed refs");
   } finally {
     await cleanupRepo(repo);
+  }
+});
+
+test("a user hook that reads stdin first degrades to HEAD scope, not to a failed push", async () => {
+  // installHook appends cledger's block after any existing hook, so an
+  // existing script can legitimately drain stdin before cledger sees it.
+  // The push must still happen, scoped to HEAD.
+  const remote = await makeBareRepo();
+  const repo = await makeTempRepo("cledger-hook-drain-");
+  try {
+    await git(["remote", "add", "origin", remote], { cwd: repo.root });
+    const root = await makeCommit(repo, "root");
+    const hookPath = join(repo.commonDir, "hooks", "pre-push");
+    await mkdir(join(repo.commonDir, "hooks"), { recursive: true });
+    await writeFile(hookPath, "#!/bin/sh\ncat >/dev/null\n"); // drains stdin
+    await chmod(hookPath, 0o755);
+
+    await git(["checkout", "-q", "-b", "feat", root], { cwd: repo.root });
+    await makeCommit(repo, "feat-1");
+    const onFeat = await record(repo, "on the branch that is checked out");
+
+    await git(["push", "origin", "feat"], { cwd: repo.root });
+
+    assert.ok(
+      (await remoteEventIds(repo, "origin")).has(onFeat),
+      "an empty ref list must fall back to HEAD, not abort or widen to everything",
+    );
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(remote);
   }
 });
