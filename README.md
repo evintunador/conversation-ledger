@@ -75,6 +75,11 @@ The ledger travels with normal git use, no extra commands:
   ref alongside, gated by the secret scan. A finding holds back **only the
   ledger** — your code push proceeds — unless you opt into
   `{"transport": {"strict": true}}`, which aborts the whole push.
+- **Push is branch-scoped** (0.14.0): only conversations reachable from the
+  branch you're on are shared, so an abandoned or unmerged branch's
+  conversations stay on your machine. Squash-merged work still rides along —
+  the scope follows `re_anchor` mappings the same way reads do.
+  `cledger sync --all` pushes the whole ledger; `--rev R` scopes elsewhere.
 - **Fetch**: the same first capture adds a fetch refspec on `origin`, so
   `git fetch`/`git pull` stages teammates' events; any read command
   (`cledger log`, `show`, ...) folds them in via the conflict-free
@@ -213,46 +218,86 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   open. A useful tripwire when adding anything that reads cledger's own
   state or prints cledger's own findings: ask what happens when that output
   is itself captured.
-- **Distribution is repo-wide while visibility is branch-scoped** — reachability
-  filters *reads* (`cledger log`, `show`, `conversations`), but the notes ref
-  is a single ref and a ref push sends all of it. Conversations from a branch
-  that was abandoned and never merged still reach `origin` and land on every
-  collaborator's disk; `cledger export` compounds it by defaulting to no
-  reachability filter at all, so an automated consumer reading the ledger
-  directly gets everything unless it knows to ask otherwise. Two scopes wearing
-  one name — and push is the odd one out, since storage is already per-commit
-  and reads are already per-branch.
+- **Don't print findings by default; print a pointer to them** — the cleanest
+  structural break in the self-referential loop above. Today `cledger scan`
+  and the sync gate print every finding inline, which is exactly the text that
+  gets captured into the next conversation and re-seeds the finding. Masking
+  the matched span (0.6.1) removed the secret characters but not the
+  *surrounding* credential-shaped context, which is what
+  `keyword-assignment` trips on — so the loop is narrowed, not closed.
+  Proposed: report only the count and how to inspect, with the audience split
+  made explicit in the text — a human is told which command reveals the
+  findings; an agent is told not to run it, because reading the findings into
+  its context is what reproduces them, and to surface the count to its human
+  instead. Naming the failure mode in the output is the point: an agent that
+  understands *why* will comply, where a bare "don't look" invites a
+  workaround. Pairs naturally with the inspection command in the design doc's
+  open questions, which already has to write unmasked output to a file rather
+  than stdout for the same reason. *Tension to resolve first:* CI reads those
+  printed findings, and `cledger scan`'s nonzero exit plus inline report is
+  the documented CI integration — so the default likely has to be
+  terminal-aware, or CI has to opt in explicitly (`--report`), rather than
+  simply going quiet for everyone.
+- **Branch-scoped push** *(shipped, 0.14.0)* — reachability filtered *reads*
+  (`cledger log`, `show`, `conversations`), but the notes ref is a single ref
+  and a ref push sends all of it, so conversations from a branch that was
+  abandoned and never merged still reached `origin` and landed on every
+  collaborator's disk. Two scopes wearing one name, with push the odd one out:
+  storage was already per-commit and reads already per-branch.
 
-  *Sketch, not yet validated.* Storage stays exactly as it is (commit-anchored,
-  one local ref, one shared remote ref) and **push** learns the granularity
-  storage already has. When pushing branch `B`: fetch the remote notes tip,
-  compute `git rev-list B`, and build a new notes commit whose parent is the
-  remote tip and whose content is the remote's existing notes plus the local
-  notes for those anchors only — unioning JSONL lines per anchor, the same
-  `cat_sort_uniq` semantics used everywhere else. Push that. It fast-forwards,
-  so nothing is clobbered, and conversations on branches not reachable from
-  `B` never leave the machine. No mapping is stored anywhere: reachability is
-  recomputed at push time from the DAG, the same reason reads do not store it
-  either.
+  Push now carries only the anchors a read at that rev resolves to. Storage is
+  unchanged (commit-anchored, one local ref, one shared remote ref) — only
+  push learns the granularity storage already had. `cledger sync` scopes to
+  the current branch by default, `--rev` scopes elsewhere, `--all` restores
+  the whole-ledger push. **No mapping is stored anywhere:** reachability is
+  recomputed at push time from the DAG, the same reason reads never stored it.
 
-  The obvious shortcut — push only *your* subset to the shared ref — does not
-  work, and the reason is worth recording. A push is a ref update, not a merge:
-  the remote ends up pointing at exactly the tree you sent, so any anchor
-  missing from it is gone from the remote's current view (still in the ref's
-  history, but absent from a fresh clone). Building on top of the remote's tip
-  rather than replacing it is what makes the subset safe.
+  *Squash merges are the case that decides the implementation.* The scope
+  reuses `resolveAnchors` — the same function reads use — rather than a plain
+  `git rev-list`. A squash discards the source branch's commits, so its
+  conversations sit on anchors unreachable from the target, and only the
+  `re_anchor` mapping events (anchored to the *surviving* commit) tie them
+  back. A rev-list-only scope would push those mapping events while leaving
+  behind the events they point at — dropping exactly what re-anchoring exists
+  to save. Covered by a test that fails against a rev-list-only scope.
 
+  *The destructive shortcut, recorded because it is the natural first
+  implementation.* A notes ref is a snapshot of the whole database, not an
+  append log: its tip tree maps every annotated commit to its note, so
+  whatever tree you push becomes the remote's entire notes database. Filtering
+  your local ref down to one branch and pushing that still fast-forwards — and
+  silently deletes every other branch's conversations from the remote's
+  current view (they survive in the ref's history but vanish from `git notes
+  show` and from any fresh clone). The scoped push therefore seeds a temp ref
+  from the remote's tip and unions its scope *into* that, so the push strictly
+  adds. Also covered by a test that fails against the filtered-tree version.
+
+  *Side benefit:* the pre-push scan gate now inspects only what the push would
+  carry, so a finding in a branch that is not being pushed no longer blocks
+  shipping unrelated work.
+
+  *Known limitation:* the pre-push hook reads no stdin (`</dev/null`), so it
+  does not know which refs git is pushing and scopes by the checked-out
+  branch. Pushing a branch you are not on under-sends; the next sync from that
+  branch ships it. Under-sending is the safe direction — nothing is lost, only
+  not yet shared.
+
+  *Not addressed here:* the read default. `cledger export` still defaults to
+  no reachability filter, and the fix belongs in `readEvents` rather than in
+  one CLI command, since library consumers (intent-recall) never go through
+  the CLI and would otherwise inherit the unscoped view. Separate entry below.
   Per-branch remote refs (`…-branches/<branch>` plus a wildcard fetch refspec)
-  were considered and are *not* needed for the above; they would only add
-  fetch-side selectivity, letting a collaborator decline a branch's
-  conversations entirely. Worth revisiting only if that is ever wanted, since
-  it costs N refs and refspec machinery.
-
-  Flipping the read default is a separate, smaller fix: reachability-aware by
-  default belongs in `readEvents`, not in `cledger export`, since library
-  consumers (intent-recall) never go through the CLI and would otherwise
-  inherit the unscoped view. It does not change what leaves the machine, and
-  should not be presented as the fix for this entry.
+  were considered and are *not* needed; they would only add fetch-side
+  selectivity, letting a collaborator decline a branch's conversations
+  entirely. Worth revisiting only if that is ever wanted.
+- **Reads default to unscoped** — `readEvents` applies reachability only when
+  the caller asks, and `cledger export` never asks, so an automated consumer
+  reading the ledger directly gets every branch's conversations unless it
+  knows to pass a rev. Now that push is scoped, this is the remaining half of
+  the same mismatch. The default belongs in `readEvents` (with an explicit
+  opt-out) rather than in `export`, precisely because the consumers that
+  matter — intent-recall and anything else using the library — never go
+  through the CLI at all.
 - **Audit the allowlist for generalizable false-positive patterns** — this
   repo's own dogfood allowlist (2026-07-22) picked up two `keyword-assignment`
   fingerprints from this project's own development conversation: test code
