@@ -176,6 +176,45 @@ Why this shape:
    ref, run by the default-on transport hooks or explicitly via `cledger
    sync` (the E scan gates the push either way — see "Transport").
 
+### Push scope
+
+Three layers each need a granularity, and until 0.14.0 one of them disagreed:
+storage is per-commit (one note per anchor), reads are per-branch (reachability
+from a rev), and push was per-*ref* — meaning per-repo, since a ref carries the
+whole database. Pushing any branch therefore shipped every branch's
+conversations, including branches abandoned and never merged.
+
+Push is now scoped to exactly the anchors a read at that rev resolves to, so
+what you can see from a branch is what pushing that branch shares. Nothing
+about storage changed. No branch→commit mapping is persisted: reachability is
+recomputed from the DAG at push time, for the same reason reads never stored
+it — branch membership is derived, and a stored copy would need maintaining
+through every merge, rebase, rename and delete.
+
+Two implementation details carry the correctness:
+
+- **The scope resolves `re_anchor` mappings**, by reusing the same
+  `resolveAnchors` reads use rather than a bare `git rev-list`. A squash merge
+  discards the source branch's commits, leaving its conversations on anchors
+  unreachable from the target; only the mapping events — anchored to the
+  surviving commit — tie them back. A rev-list-only scope would push the
+  mappings and strand the events they reference, losing precisely what
+  re-anchoring exists to recover.
+- **A scoped push adds to the remote rather than replacing it.** A notes ref
+  is a snapshot of the whole database, not an append log: whatever tree you
+  push becomes the remote's entire notes database. Filtering the local ref
+  down to one branch and pushing it still fast-forwards, and silently deletes
+  every other branch's notes from the remote's current view — present in the
+  ref's history, absent from `git notes show` and from any fresh clone. So the
+  push seeds a temp ref from the remote's tip, unions the scope's notes into
+  it (line-level sort+unique, matching `cat_sort_uniq`), and pushes that.
+
+The pre-push scan gate inspects only the events in scope, so a finding on a
+branch that is not being pushed no longer blocks unrelated work. The hook
+itself reads no stdin, so it scopes by `HEAD` rather than by the refs git is
+actually pushing; pushing a branch you are not on under-sends, which the next
+sync from that branch corrects.
+
 Events captured before the first commit exists (unborn `HEAD`) queue in
 `.git/conversation-ledger/pending.jsonl` and flush into the first real
 anchor. Everything under `.git/conversation-ledger/` (pending queue, adapter

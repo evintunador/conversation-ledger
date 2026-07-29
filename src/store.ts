@@ -562,6 +562,101 @@ export function sortEvents(events: EvidenceEvent[]): EvidenceEvent[] {
 export interface SyncResult {
   fetched: boolean;
   pushed: boolean;
+  /**
+   * Anchors whose conversations this push was scoped to, or null when the
+   * push was unscoped (`--all`). Length is the anchor count, not the event
+   * count.
+   */
+  scopedAnchors: number | null;
+}
+
+/**
+ * The anchors a push from `rev` should carry: exactly the set a read at that
+ * rev resolves to.
+ *
+ * Storage is per-commit and reads are per-branch, but a push is per-*ref* and
+ * a ref carries the whole notes database — so until 0.14.0 pushing any branch
+ * shipped every branch's conversations. Scoping the push to the same anchors
+ * `readEvents({reachableFrom: rev})` would return makes distribution agree
+ * with visibility: what you can see from a branch is what pushing that branch
+ * shares.
+ *
+ * Reusing `resolveAnchors` rather than a plain `git rev-list` is what makes
+ * this survive squash merges. A squash discards the source branch's commits,
+ * so its conversations sit on anchors unreachable from the target; the
+ * re_anchor mapping events that repair this are themselves anchored to the
+ * *surviving* commit, and `resolveAnchors` walks them transitively to pull
+ * the orphaned anchors back into view. A rev-list-only scope would silently
+ * drop precisely the conversations re-anchoring exists to save — and would
+ * push the mapping events describing them while leaving the events they
+ * point at behind.
+ */
+async function anchorsForRev(repo: RepoInfo, rev: string): Promise<string[]> {
+  const anchors = await listAnchors(repo);
+  const noteCache = new Map<string, EvidenceEvent[]>();
+  const readNote = async (anchor: string): Promise<EvidenceEvent[]> => {
+    let events = noteCache.get(anchor);
+    if (!events) {
+      events = await readNoteEvents(repo, anchor);
+      noteCache.set(anchor, events);
+    }
+    return events;
+  };
+  return resolveAnchors(repo, anchors, rev, readNote);
+}
+
+/**
+ * Push `anchors`' notes to the remote's ledger ref without disturbing
+ * anything already there.
+ *
+ * The subtlety that makes this non-obvious: a notes ref is a *snapshot of the
+ * whole database*, not an append log. Its tip commit's tree maps every
+ * annotated commit to its note, so whatever tree you push becomes the
+ * remote's entire notes database. Pushing a tree containing only this
+ * branch's notes would therefore delete every other branch's — they would
+ * survive in the ref's history but vanish from `git notes show` and from any
+ * fresh clone, which is silent data loss for collaborators.
+ *
+ * So the scoped push is built the other way round: seed a temp ref from the
+ * remote's current tip, union this scope's notes into it, and push that. The
+ * result descends from what the remote already had, so it fast-forwards and
+ * strictly adds. Conversations on branches outside the scope are simply never
+ * written into the temp ref, and never leave the machine.
+ */
+async function pushScopedNotes(
+  repo: RepoInfo,
+  remote: string,
+  anchors: string[],
+): Promise<void> {
+  const tmpName = "cledger-push-tmp";
+  const tmpRef = `refs/notes/${tmpName}`;
+  await git(["update-ref", "-d", tmpRef], { cwd: repo.root, allowFailure: true });
+  // Seed from the remote. Failure here means the remote has no ledger ref
+  // yet (first push), so the temp ref simply starts empty.
+  await git(["fetch", remote, `+${NOTES_REF}:${tmpRef}`], { cwd: repo.root, allowFailure: true });
+  try {
+    for (const anchor of anchors) {
+      const local = await readNoteLines(repo, anchor);
+      if (local.length === 0) continue;
+      const seeded = await readNoteLines(repo, anchor, tmpName);
+      // Line-level sort+unique: the same shape `cat_sort_uniq` gives the
+      // merge path, so a scoped push and a full merge converge.
+      const union = [...new Set([...seeded, ...local])].sort();
+      if (union.length === seeded.length) continue; // remote already had all of them
+      await git(["notes", "--ref", tmpName, "add", "-f", "-F", "-", anchor], {
+        cwd: repo.root,
+        input: union.join("\n") + "\n",
+      });
+    }
+    const tmpExists = (await git(["rev-parse", "--verify", "--quiet", tmpRef], {
+      cwd: repo.root,
+      allowFailure: true,
+    })).trim();
+    if (!tmpExists) return; // nothing in scope and the remote had nothing
+    await git(["push", remote, `${tmpRef}:${NOTES_REF}`], { cwd: repo.root });
+  } finally {
+    await git(["update-ref", "-d", tmpRef], { cwd: repo.root, allowFailure: true });
+  }
 }
 
 /**
@@ -604,13 +699,26 @@ export class ScanBlockedError extends Error {
  * finding, print a report and throw so sync() does not proceed to push —
  * the fetch/merge phase, if it already ran, is left in place.
  */
-async function runScanGate(repo: RepoInfo, remote: string, tier: "standard" | "paranoid"): Promise<void> {
+async function runScanGate(
+  repo: RepoInfo,
+  remote: string,
+  tier: "standard" | "paranoid",
+  anchors: string[] | null,
+): Promise<void> {
   const remoteIds = await remoteNoteIds(repo, remote);
 
   const localEvents: EvidenceEvent[] = [];
-  for (const anchor of await listAnchors(repo)) {
+  // Scan exactly what the push will carry. Before scoping this swept every
+  // anchor, so a finding on a branch that was never going to be pushed still
+  // blocked the push — which, given how often the flagged text is a
+  // conversation *about* credential-shaped code, was a routine false block.
+  for (const anchor of anchors ?? (await listAnchors(repo))) {
     localEvents.push(...(await readNoteEvents(repo, anchor)));
   }
+  // Pending events are unanchored, so they are not in this push at all; they
+  // are still scanned because they exist only before the first commit, when
+  // there is nothing else to push anyway, and gating them early is the
+  // conservative side to err on.
   localEvents.push(...(await readPending(repo)));
 
   const candidates = remoteIds ? localEvents.filter((e) => !remoteIds.has(e.id)) : localEvents;
@@ -642,9 +750,9 @@ export async function sync(
   repo: RepoInfo,
   remote = "origin",
   mode: "both" | "push" | "fetch" = "both",
-  opts: { skipScan?: boolean; paranoid?: boolean } = {},
+  opts: { skipScan?: boolean; paranoid?: boolean; scope?: string | null } = {},
 ): Promise<SyncResult> {
-  const result: SyncResult = { fetched: false, pushed: false };
+  const result: SyncResult = { fetched: false, pushed: false, scopedAnchors: null };
   await ensureMergeConfig(repo);
   if (mode !== "push") {
     await git(
@@ -655,23 +763,32 @@ export async function sync(
   }
   if (mode !== "fetch") {
     const config = await loadConfig(repo.root);
+    // Scoped by default, to the current branch. `scope: null` opts out and
+    // pushes the whole ledger — the pre-0.14.0 behavior.
+    const scope = opts.scope === undefined ? "HEAD" : opts.scope;
+    const anchors = scope === null ? null : await anchorsForRev(repo, scope);
     const scanDisabled = opts.skipScan === true || config.scan?.tier === "off";
     if (!scanDisabled) {
       const tier: "standard" | "paranoid" =
         opts.paranoid === true || config.scan?.tier === "paranoid" ? "paranoid" : "standard";
-      await runScanGate(repo, remote, tier);
+      await runScanGate(repo, remote, tier, anchors);
     }
     // The pushed child git inherits CLEDGER_INTERNAL, telling the pre-push
     // transport hook this push *is* the ledger push — no recursion.
     const prior = process.env["CLEDGER_INTERNAL"];
     process.env["CLEDGER_INTERNAL"] = "1";
     try {
-      await git(["push", remote, `${NOTES_REF}:${NOTES_REF}`], { cwd: repo.root });
+      if (anchors === null) {
+        await git(["push", remote, `${NOTES_REF}:${NOTES_REF}`], { cwd: repo.root });
+      } else {
+        await pushScopedNotes(repo, remote, anchors);
+      }
     } finally {
       if (prior === undefined) delete process.env["CLEDGER_INTERNAL"];
       else process.env["CLEDGER_INTERNAL"] = prior;
     }
     result.pushed = true;
+    result.scopedAnchors = anchors === null ? null : anchors.length;
   }
   return result;
 }
@@ -684,7 +801,16 @@ export interface TransportPushResult {
 
 /**
  * Pre-push hook entrypoint policy. Pushes the ledger ref alongside the
- * user's own push. A scan finding blocks only the ledger by default —
+ * user's own push, scoped to the conversations reachable from `HEAD`.
+ *
+ * The hook deliberately reads no stdin (`</dev/null`), so it does not know
+ * which refs git is pushing and scopes by the checked-out branch instead.
+ * Pushing a branch you are not on therefore under-sends: that branch's
+ * conversations stay local until you sync from it. That is the safe
+ * direction to be wrong in — nothing is lost, only not yet shared — and the
+ * next sync from that branch ships them.
+ *
+ * A scan finding blocks only the ledger by default —
  * secrets never leave the machine, but a false positive never blocks
  * shipping code; {"transport": {"strict": true}} escalates to aborting the
  * whole push (rethrows ScanBlockedError; the CLI exits nonzero). Any other

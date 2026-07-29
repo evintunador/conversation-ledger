@@ -43,12 +43,16 @@ Usage:
                                            list conversations on current branch (--all for every branch),
                                            one line each: id, source, model(s), count, time span
   cledger export [--rev R]                lossless JSONL dump (default: everything, incl. reasoning)
-  cledger sync [--remote R] [--push|--fetch] [--no-scan] [--paranoid]
+  cledger sync [--remote R] [--push|--fetch] [--no-scan] [--paranoid] [--all|--rev R]
                                            fetch/merge/push of the ledger ref;
-                                           push is gated by a secret scan unless --no-scan
+                                           push is gated by a secret scan unless --no-scan.
+                                           Push carries only conversations reachable from the
+                                           current branch; --all pushes the whole ledger,
+                                           --rev scopes to another branch/commit
   cledger transport-push [remote]         pre-push hook entrypoint (installed automatically):
-                                           pushes the ledger ref alongside git push; scan findings
-                                           hold back only the ledger unless transport.strict
+                                           pushes the ledger ref alongside git push, scoped to
+                                           the current branch; scan findings hold back only the
+                                           ledger unless transport.strict
   cledger scan [--all|--rev R] [--paranoid]   scan local events for potential secrets (CI-friendly:
                                            exits 1 if any finding, 0 otherwise); default scope is
                                            every local event, --rev restricts by reachability
@@ -286,13 +290,25 @@ async function cmdSync(flags: Flags): Promise<void> {
   const repo = await requireRepo();
   const remote = typeof flags["remote"] === "string" ? flags["remote"] : "origin";
   const mode = flags["push"] ? "push" : flags["fetch"] ? "fetch" : "both";
+  // Push is scoped to the current branch by default; --all restores the
+  // pre-0.14.0 whole-ledger push, --rev scopes to something else.
+  const scope: string | null = flags["all"] === true
+    ? null
+    : typeof flags["rev"] === "string"
+      ? flags["rev"]
+      : "HEAD";
   const result = await sync(repo, remote, mode, {
     skipScan: flags["no-scan"] === true,
     paranoid: flags["paranoid"] === true,
+    scope,
   });
+  const pushed = !result.pushed
+    ? "not pushed"
+    : result.scopedAnchors === null
+      ? "pushed (whole ledger)"
+      : `pushed (${result.scopedAnchors} commit(s) in scope)`;
   process.stderr.write(
-    `sync ${remote}: ${result.fetched ? "fetched+merged" : "nothing fetched"}, ` +
-      `${result.pushed ? "pushed" : "not pushed"}\n`,
+    `sync ${remote}: ${result.fetched ? "fetched+merged" : "nothing fetched"}, ${pushed}\n`,
   );
 }
 
