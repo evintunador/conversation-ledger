@@ -221,6 +221,16 @@ invocation — falls back to `HEAD` rather than widening to the whole ledger.
 `cledger transport-push` only reads stdin when it is not a TTY, so running it
 by hand cannot block waiting on input.
 
+Consuming that stdin has a cost: a pre-push script's stdin can be read only
+once, so anything chained *after* cledger's block finds it exhausted. This is
+nearly always harmless, because the block is appended to the end of an
+existing hook — an existing script runs, and drains stdin, first. When it
+does, cledger's read comes back empty and the scope falls back to `HEAD`,
+which is the pre-0.15.0 behavior rather than a failure. Restoring stdin for
+content hand-edited in after the block would mean spilling it to a temp file
+and `exec`-ing it back onto fd 0, which is more machinery in every user's
+hook than that case earns.
+
 Because the hook script itself had to change, `installHook` no longer treats
 "file contains the marker" as "nothing to do": it replaces a stale cledger
 block with the current one, touching only the marked region so surrounding
