@@ -591,7 +591,7 @@ export interface SyncResult {
  * push the mapping events describing them while leaving the events they
  * point at behind.
  */
-async function anchorsForRev(repo: RepoInfo, rev: string): Promise<string[]> {
+async function anchorsForRevs(repo: RepoInfo, revs: string[]): Promise<string[]> {
   const anchors = await listAnchors(repo);
   const noteCache = new Map<string, EvidenceEvent[]>();
   const readNote = async (anchor: string): Promise<EvidenceEvent[]> => {
@@ -602,7 +602,14 @@ async function anchorsForRev(repo: RepoInfo, rev: string): Promise<string[]> {
     }
     return events;
   };
-  return resolveAnchors(repo, anchors, rev, readNote);
+  // Union across revs: `git push origin a b` should share both branches, and
+  // resolving each separately keeps each one's re_anchor mappings applied in
+  // its own reachability context rather than in a merged one.
+  const union = new Set<string>();
+  for (const rev of revs) {
+    for (const anchor of await resolveAnchors(repo, anchors, rev, readNote)) union.add(anchor);
+  }
+  return [...union];
 }
 
 /**
@@ -750,7 +757,7 @@ export async function sync(
   repo: RepoInfo,
   remote = "origin",
   mode: "both" | "push" | "fetch" = "both",
-  opts: { skipScan?: boolean; paranoid?: boolean; scope?: string | null } = {},
+  opts: { skipScan?: boolean; paranoid?: boolean; scope?: string | string[] | null } = {},
 ): Promise<SyncResult> {
   const result: SyncResult = { fetched: false, pushed: false, scopedAnchors: null };
   await ensureMergeConfig(repo);
@@ -764,9 +771,12 @@ export async function sync(
   if (mode !== "fetch") {
     const config = await loadConfig(repo.root);
     // Scoped by default, to the current branch. `scope: null` opts out and
-    // pushes the whole ledger — the pre-0.14.0 behavior.
-    const scope = opts.scope === undefined ? "HEAD" : opts.scope;
-    const anchors = scope === null ? null : await anchorsForRev(repo, scope);
+    // pushes the whole ledger — the pre-0.14.0 behavior. An empty array means
+    // "nothing in scope", which is distinct from "unscoped" and must not
+    // silently widen to everything.
+    const scope = opts.scope === undefined ? ["HEAD"] : opts.scope;
+    const revs = scope === null ? null : Array.isArray(scope) ? scope : [scope];
+    const anchors = revs === null ? null : await anchorsForRevs(repo, revs);
     const scanDisabled = opts.skipScan === true || config.scan?.tier === "off";
     if (!scanDisabled) {
       const tier: "standard" | "paranoid" =
@@ -800,15 +810,36 @@ export interface TransportPushResult {
 }
 
 /**
- * Pre-push hook entrypoint policy. Pushes the ledger ref alongside the
- * user's own push, scoped to the conversations reachable from `HEAD`.
+ * Local shas from git's pre-push stdin, which supplies one
+ * `<local ref> <local sha> <remote ref> <remote sha>` line per ref.
  *
- * The hook deliberately reads no stdin (`</dev/null`), so it does not know
- * which refs git is pushing and scopes by the checked-out branch instead.
- * Pushing a branch you are not on therefore under-sends: that branch's
- * conversations stay local until you sync from it. That is the safe
- * direction to be wrong in — nothing is lost, only not yet shared — and the
- * next sync from that branch ships them.
+ * The local sha is used rather than the local ref name because it is what
+ * git is actually pushing and needs no further resolution. A deletion sends
+ * an all-zero local sha and is skipped: there is no branch tip to scope to,
+ * and deleting a remote branch is not an occasion to share anything.
+ */
+export function parsePrePushRefs(stdin: string): string[] {
+  const revs: string[] = [];
+  for (const line of stdin.split("\n")) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 2) continue;
+    const localSha = parts[1]!;
+    if (!/^[0-9a-f]{40,64}$/.test(localSha)) continue;
+    if (/^0+$/.test(localSha)) continue; // ref deletion
+    revs.push(localSha);
+  }
+  return revs;
+}
+
+/**
+ * Pre-push hook entrypoint policy. Pushes the ledger ref alongside the
+ * user's own push, scoped to the refs git is actually pushing.
+ *
+ * `revs` comes from git's pre-push stdin (see `parsePrePushRefs`), so
+ * `git push origin some-branch` shares that branch's conversations even when
+ * it is not the one checked out. It falls back to `HEAD` only when stdin
+ * carried nothing usable — an old installed hook that still redirects
+ * `</dev/null`, or a manual invocation.
  *
  * A scan finding blocks only the ledger by default —
  * secrets never leave the machine, but a false positive never blocks
@@ -817,7 +848,11 @@ export interface TransportPushResult {
  * failure (network, missing remote ref perms) warns and lets the push
  * proceed — the hook must never make `git push` flaky.
  */
-export async function transportPush(repo: RepoInfo, remote: string): Promise<TransportPushResult> {
+export async function transportPush(
+  repo: RepoInfo,
+  remote: string,
+  revs?: string[],
+): Promise<TransportPushResult> {
   const config = await loadConfig(repo.root);
   if (config.transport?.hook === false) return { pushed: false, held: false };
   const hasNotes = (await git(["rev-parse", "--verify", "--quiet", NOTES_REF], {
@@ -827,7 +862,9 @@ export async function transportPush(repo: RepoInfo, remote: string): Promise<Tra
   if (!hasNotes) return { pushed: false, held: false };
 
   try {
-    await sync(repo, remote, "push");
+    // No usable refs (deletes only, or an old hook that ate stdin): fall back
+    // to the checked-out branch rather than to the whole ledger.
+    await sync(repo, remote, "push", { scope: revs && revs.length > 0 ? revs : ["HEAD"] });
     return { pushed: true, held: false };
   } catch (err) {
     if (err instanceof ScanBlockedError) {

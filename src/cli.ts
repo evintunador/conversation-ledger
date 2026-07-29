@@ -11,6 +11,7 @@ import {
   ScanBlockedError,
   sortEvents,
   sync,
+  parsePrePushRefs,
   transportPush,
   type ReadOptions,
 } from "./store.js";
@@ -50,8 +51,9 @@ Usage:
                                            current branch; --all pushes the whole ledger,
                                            --rev scopes to another branch/commit
   cledger transport-push [remote]         pre-push hook entrypoint (installed automatically):
-                                           pushes the ledger ref alongside git push, scoped to
-                                           the current branch; scan findings hold back only the
+                                           pushes the ledger ref alongside git push, scoped to the
+                                           refs being pushed (read from git's pre-push stdin;
+                                           falls back to HEAD); scan findings hold back only the
                                            ledger unless transport.strict
   cledger scan [--all|--rev R] [--paranoid]   scan local events for potential secrets (CI-friendly:
                                            exits 1 if any finding, 0 otherwise); default scope is
@@ -316,8 +318,19 @@ async function cmdTransportPush(positional: string[]): Promise<void> {
   const repo = await findRepo(process.cwd());
   if (!repo) return; // a hook must never fail the user's push
   const remote = positional[0] || "origin";
+  // git's pre-push hook pipes the refs being pushed. Only read when stdin is
+  // actually a pipe: a manual `cledger transport-push` from a terminal would
+  // otherwise block forever waiting on a human who has nothing to type.
+  let revs: string[] = [];
+  if (process.stdin.isTTY !== true) {
+    try {
+      revs = parsePrePushRefs(await readStdin());
+    } catch {
+      revs = []; // unreadable stdin must never fail the user's push
+    }
+  }
   try {
-    await transportPush(repo, remote);
+    await transportPush(repo, remote, revs);
   } catch (err) {
     if (err instanceof ScanBlockedError) {
       // transport.strict: nonzero exit makes git abort the entire push.

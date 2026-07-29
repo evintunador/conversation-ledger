@@ -76,7 +76,7 @@ The ledger travels with normal git use, no extra commands:
   ledger** — your code push proceeds — unless you opt into
   `{"transport": {"strict": true}}`, which aborts the whole push.
 - **Push is branch-scoped** (0.14.0): only conversations reachable from the
-  branch you're on are shared, so an abandoned or unmerged branch's
+  refs you're pushing are shared, so an abandoned or unmerged branch's
   conversations stay on your machine. Squash-merged work still rides along —
   the scope follows `re_anchor` mappings the same way reads do.
   `cledger sync --all` pushes the whole ledger; `--rev R` scopes elsewhere.
@@ -276,11 +276,15 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   carry, so a finding in a branch that is not being pushed no longer blocks
   shipping unrelated work.
 
-  *Known limitation:* the pre-push hook reads no stdin (`</dev/null`), so it
-  does not know which refs git is pushing and scopes by the checked-out
-  branch. Pushing a branch you are not on under-sends; the next sync from that
-  branch ships it. Under-sending is the safe direction — nothing is lost, only
-  not yet shared.
+  *Scope follows the refs actually being pushed* (0.15.0). The hook is fed
+  git's pre-push stdin — one line per ref — so `git push origin feat` from
+  another branch shares feat's conversations. 0.14.0 shipped with `</dev/null`
+  and scoped by `HEAD`, which shared nothing in that case. Ref deletions are
+  skipped (no tip to scope to), multiple refs union, and anything unusable
+  falls back to `HEAD` rather than to the whole ledger. Because this changes
+  the installed hook, `installHook` now replaces a stale cledger block in
+  place instead of leaving any file containing the marker untouched — only the
+  marked region is rewritten, so surrounding user content survives.
 
   *Not addressed here:* the read default. `cledger export` still defaults to
   no reachability filter, and the fix belongs in `readEvents` rather than in

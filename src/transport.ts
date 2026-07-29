@@ -49,22 +49,62 @@ function cledgerInvocation(): { node: string; cli: string } {
   };
 }
 
+/**
+ * The block cledger owns inside `pre-push`, delimited by HOOK_MARKER so it can
+ * be recognized, upgraded, and removed without touching the rest of the file.
+ *
+ * The hook is fed git's pre-push stdin — one `<local ref> <local sha> <remote
+ * ref> <remote sha>` line per ref being pushed — so the ledger push can be
+ * scoped to the refs actually being pushed rather than to whatever happens to
+ * be checked out. Before 0.15.0 this was `</dev/null` and the scope fell back
+ * to `HEAD`, which meant `git push origin some-other-branch` shared nothing of
+ * that branch.
+ *
+ * `tee` is deliberate: git's own push needs stdin too on some paths, and a
+ * hook that consumes it without passing it on can break chained hooks
+ * appended after this block. Reading to EOF and echoing keeps this block
+ * composable with whatever follows it.
+ */
 function hookBlock(): string {
   const { node, cli } = cledgerInvocation();
   return [
     `# >>> ${HOOK_MARKER} (added by cledger) >>>`,
     `# Shares this repo's conversation records (${NOTES_REF}) when you push.`,
+    `# Scoped to the refs being pushed, read from git's pre-push stdin.`,
     `# Delete this block to disable, or set {"transport": {"hook": false}} in`,
     `# .cledger.json / ~/.config/cledger/config.json.`,
     `if [ -z "$CLEDGER_INTERNAL" ]; then`,
+    `  _cledger_refs=$(cat)`,
     `  if [ -x "${node}" ] && [ -e "${cli}" ]; then`,
-    `    "${node}" "${cli}" transport-push "$1" </dev/null || exit $?`,
+    `    printf '%s\\n' "$_cledger_refs" | "${node}" "${cli}" transport-push "$1" || exit $?`,
     `  elif command -v cledger >/dev/null 2>&1; then`,
-    `    cledger transport-push "$1" </dev/null || exit $?`,
+    `    printf '%s\\n' "$_cledger_refs" | cledger transport-push "$1" || exit $?`,
     `  fi`,
+    `  # Re-emit for any hook chained after this block.`,
+    `  printf '%s\\n' "$_cledger_refs" | cat >/dev/null`,
     `fi`,
     `# <<< ${HOOK_MARKER} <<<`,
   ].join("\n");
+}
+
+/**
+ * Replace an already-installed cledger block with the current one.
+ *
+ * Without this an existing install keeps whatever block it was created with
+ * forever — `installHook` used to return "present" on any file containing the
+ * marker — so a behavior change in the hook itself (the stdin plumbing above)
+ * would only ever reach fresh repos. Only the marked region is touched;
+ * anything the user wrote around it is preserved byte for byte.
+ */
+function replaceHookBlock(existing: string, block: string): string | null {
+  const start = existing.indexOf(`# >>> ${HOOK_MARKER}`);
+  const endMarker = `# <<< ${HOOK_MARKER} <<<`;
+  const endIdx = existing.indexOf(endMarker, start);
+  if (start === -1 || endIdx === -1) return null;
+  const end = endIdx + endMarker.length;
+  const current = existing.slice(start, end);
+  if (current === block) return null; // already current
+  return existing.slice(0, start) + block + existing.slice(end);
 }
 
 /** Warnings that should print once per repo, not on every capture. */
@@ -84,7 +124,14 @@ async function warnOnce(repo: RepoInfo, key: string, message: string): Promise<v
 }
 
 export interface TransportSetup {
-  hook: "installed" | "present" | "appended" | "skipped-config" | "skipped-hookspath" | "skipped-foreign";
+  hook:
+    | "installed"
+    | "present"
+    | "upgraded"
+    | "appended"
+    | "skipped-config"
+    | "skipped-hookspath"
+    | "skipped-foreign";
   refspec: "added" | "present" | "skipped-config" | "no-remote";
 }
 
@@ -148,7 +195,13 @@ async function ensurePrePushHook(
   }
 
   const existing = await readFile(hookPath, "utf8");
-  if (existing.includes(HOOK_MARKER)) return "present";
+  if (existing.includes(HOOK_MARKER)) {
+    const upgraded = replaceHookBlock(existing, hookBlock());
+    if (upgraded === null) return "present";
+    await writeFile(hookPath, upgraded);
+    await chmod(hookPath, 0o755);
+    return "upgraded";
+  }
 
   const shebang = existing.split("\n", 1)[0] ?? "";
   if (!/^#!.*\b(sh|bash|zsh|dash|ksh)\b/.test(shebang)) {
