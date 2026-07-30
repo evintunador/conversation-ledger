@@ -570,6 +570,18 @@ for now (see the format-drift roadmap item).
   kept only as reference for whoever implements this properly.
 - Whether an explicit `Conversation` manifest object earns its keep once
   multiple producers exist.
+- Reads deliberately do *not* walk the notes ref's history; only the tip tree
+  is authoritative. Unioning across history was proposed and set aside because
+  it defeats redaction: when the pre-redaction content was already pushed the
+  squash is skipped, so the old blob remains in the ref's ancestry, and a
+  history-walking read would surface it — worse, `dedupById` prefers the
+  earliest `recorded_at`, so it would actively prefer the *un*redacted copy.
+  That exposure already exists in the object store today; walking history
+  would promote it from "recoverable by deliberate digging" to "printed by
+  every read". It would also break `git notes show` interop (standard tooling
+  reads the tip tree) and make reads O(notes history). The related, real
+  weakness is tracked as a roadmap item: even the squash path leaves the value
+  in the ref's reflog.
 - Per-branch *storage* (a notes ref per branch) has been considered and set
   aside, but the question it was reaching for is open. Branch membership is a
   derived property of the commit DAG, not an intrinsic property of a commit:

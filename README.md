@@ -337,6 +337,29 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 - **Path-based capture exclusion** — the path half of the redaction config
   ("never record reads of `secrets/**`"); requires correlating `tool_use`
   file paths with their `tool_result` events.
+- **`cledger redact`'s local purge leaves the value in the reflog** — the
+  squash is real but incomplete, and the command overstates what it achieved.
+  When the pre-redaction content was never pushed, `redactEvent` rebuilds the
+  notes ref as a parentless commit so the old chain becomes unreachable, and
+  reports `history squashed: yes`. Measured 2026-07-27: the pre-redaction blob
+  is still recoverable straight afterwards via
+  `git show $(git reflog show refs/notes/conversation-ledger | awk '{print $1}')`,
+  because `update-ref` leaves reflog entries pointing at the discarded
+  commits. It stays recoverable for the reflog expiry window (90 days by
+  default) and only actually disappears after
+  `git reflog expire --expire=now` plus a pruning `git gc`. So today's
+  redaction is "no reader will surface it" rather than "it is gone", even in
+  the case the tool claims full success for.
+  *Fix, needs a decision before implementing:* expiring the ledger ref's
+  reflog is narrow and safe, but reclaiming the objects needs a prune, and
+  prune is repo-wide — it would also drop unreachable objects the user may
+  have wanted (dropped stashes, abandoned commits). Options are a scoped
+  `reflog expire` plus `git prune` accepted as repo-wide, or leaving the
+  objects and telling the truth in the output instead. What must not stay as
+  it is: reporting `history squashed: yes` when the value is still one
+  `git show` away.
+  *Unchanged either way:* once the ref has been pushed the squash is skipped
+  entirely and rotating the credential is the only real remedy — see below.
 - **Post-push purge** — true content removal after the ledger ref has been
   shared (force-push + collaborator re-fetch coordination); the local
   pre-push squash shipped with `cledger redact`. Three hard parts scoped so
