@@ -5,8 +5,11 @@ import { shannonEntropy } from "../redact/rules.js";
 import {
   addToAllowlist,
   filterFindings,
+  findingGuidance,
   formatFinding,
+  inAgentSession,
   loadAllowlist,
+  renderFinding,
   scanEvents,
 } from "../redact/scan.js";
 import { appendEvents, NOTES_NAME, readEvents, sync } from "../store.js";
@@ -20,7 +23,7 @@ import {
   makeTempRepo,
 } from "./helpers.js";
 
-test("scanEvents: standard tier finds a keyword-anchored secret in both content and raw.data; excerpt never contains the full secret", () => {
+test("scanEvents: standard tier finds a keyword-anchored secret in both content and raw.data; the report carries coordinates, never content", () => {
   const secret = "supersecret123456";
   const e = event({
     content: { text: `config: password=${secret} end` },
@@ -33,14 +36,13 @@ test("scanEvents: standard tier finds a keyword-anchored secret in both content 
     assert.strictEqual(f.rule, "keyword-assignment");
     assert.strictEqual(f.eventId, e.id);
     assert.match(f.fingerprint, /^[0-9a-f]{12}$/);
-    assert.ok(!f.excerpt.includes(secret), "excerpt must never contain the full secret");
-    assert.ok(
-      formatFinding(f).includes("<redacted>"),
-      "excerpt should mask the match with the marker, not omit it entirely",
-    );
-    // The masked report must leak *zero* characters of the secret — not even
-    // the leading/trailing ones an elided-middle form would print. Every
-    // 6-char window of the secret must be absent from the rendered finding.
+    // Findings carry coordinates, not text: the report can point at the match
+    // without reproducing anything that could trip a rule when re-captured.
+    assert.ok(f.path.length > 0, "finding must record where the match is");
+    assert.ok(f.end > f.start, "finding must record the match span");
+    // The report must leak *zero* characters of the secret — not even the
+    // leading/trailing ones an elided-middle form would print. Every 6-char
+    // window of the secret must be absent from the rendered finding.
     const rendered = formatFinding(f);
     for (let i = 0; i + 6 <= secret.length; i++) {
       assert.ok(
@@ -110,7 +112,7 @@ test("scanEvents: paranoid tier finds a high-entropy token that standard tier do
 
   const paranoidFindings = scanEvents([e], "paranoid").filter((f) => f.rule === "high-entropy");
   assert.strictEqual(paranoidFindings.length, 1);
-  assert.ok(!paranoidFindings[0]?.excerpt.includes(token));
+  assert.ok(!formatFinding(paranoidFindings[0]!).includes(token));
 });
 
 test("scanEvents: paranoid tier skips pure-hex candidates (git SHAs, digests) even at high entropy", () => {
@@ -158,12 +160,12 @@ test("scanEvents: paranoid tier never flags a reasoning event's encrypted_conten
 
   const findings = scanEvents([e], "paranoid").filter((f) => f.rule === "high-entropy");
   assert.strictEqual(
-    findings.some((f) => f.excerpt.includes("blob-")),
+    findings.some((f) => f.path.includes("encrypted_content")),
     false,
     "encrypted_content must never surface a finding",
   );
   assert.ok(
-    findings.some((f) => f.excerpt.includes("random blob")),
+    findings.some((f) => f.path.includes("summary")),
     "summary must still be scanned like any other visible content",
   );
 });
@@ -286,4 +288,79 @@ test("sync gate: events the remote already has are not rescanned on a later sync
     await cleanupRepo(repo);
     await cleanupDir(remote);
   }
+});
+
+/**
+ * The reporting/inspection split. Reports are contentless so they cannot
+ * re-seed themselves when captured; everything readable lives behind
+ * `renderFinding`, whose output is expected to reach a file, not a terminal.
+ */
+
+test("formatFinding leaks no content — not the match, not its surroundings", () => {
+  // The surrounding words are the real hazard: `password=` is what the
+  // keyword rule anchors on, so echoing context re-trips the same rule.
+  const secret = "supersecret123456";
+  const e = event({ content: { text: `deploy notes: password=${secret} rotate quarterly` } });
+  const [f] = scanEvents([e], "standard");
+  assert.ok(f);
+
+  const rendered = formatFinding(f!);
+  assert.ok(!rendered.includes(secret), "must not contain the secret");
+  assert.ok(!rendered.includes("password="), "must not contain the anchoring keyword");
+  assert.ok(!rendered.includes("rotate quarterly"), "must not contain trailing context");
+  // what it *should* contain: coordinates a human can act on
+  assert.ok(rendered.includes(f!.fingerprint), "fingerprint is needed for `cledger allow`");
+  assert.ok(rendered.includes(f!.path), "path tells the human where to look");
+});
+
+test("renderFinding gives wide context, masking the match unless revealed", () => {
+  const secret = "supersecret123456";
+  const before = "A".repeat(300);
+  const after = "B".repeat(300);
+  const e = event({ content: { text: `${before} password=${secret} ${after}` } });
+  const [f] = scanEvents([e], "standard");
+  assert.ok(f);
+
+  const masked = renderFinding(e, f!, { context: 200, reveal: false });
+  assert.ok(!masked.includes(secret), "masked render must not contain the secret");
+  assert.ok(masked.includes("<redacted>"), "masked render marks where the match was");
+  // the point of the command: enough surroundings to actually judge it
+  assert.ok(masked.includes("A".repeat(150)), "must include wide leading context");
+  assert.ok(masked.includes("B".repeat(150)), "must include wide trailing context");
+  assert.ok(masked.includes(f!.path), "must say where in the event this is");
+
+  const revealed = renderFinding(e, f!, { context: 200, reveal: true });
+  assert.ok(revealed.includes(secret), "--reveal must show the matched text");
+});
+
+test("renderFinding context width is honoured on both sides", () => {
+  const e = event({ content: { text: `${"x".repeat(500)} password=hunter2000000 ${"y".repeat(500)}` } });
+  const [f] = scanEvents([e], "standard");
+  const narrow = renderFinding(e, f!, { context: 10, reveal: false });
+  const wide = renderFinding(e, f!, { context: 400, reveal: false });
+  assert.ok(wide.length > narrow.length, "wider context must render more text");
+  assert.ok(narrow.includes("chars before"), "truncation must be disclosed, not silent");
+});
+
+test("renderFinding survives an event rewritten since the scan", () => {
+  const e = event({ content: { text: "password=supersecret123456" } });
+  const [f] = scanEvents([e], "standard");
+  const moved = { ...f!, path: "content/gone" };
+  const out = renderFinding(e, moved, { context: 100, reveal: false });
+  assert.match(out, /no longer present/);
+});
+
+test("inAgentSession detects the harness markers it guards against", () => {
+  assert.equal(inAgentSession({}), null);
+  assert.equal(inAgentSession({ PATH: "/usr/bin" }), null);
+  assert.equal(inAgentSession({ CLAUDECODE: "1" }), "CLAUDECODE");
+  assert.equal(inAgentSession({ CODEX_SANDBOX: "1" }), "CODEX_SANDBOX");
+});
+
+test("findingGuidance addresses humans and agents separately", () => {
+  const g = findingGuidance(["ev1-abc123"]);
+  assert.match(g, /HUMAN/);
+  assert.match(g, /AGENT/);
+  assert.match(g, /cledger inspect ev1-abc123/, "must name the actual event to inspect");
+  assert.match(g, /Do not run/, "must tell an agent to stop, not just warn");
 });

@@ -43,7 +43,13 @@ import { collectMatches, redactDraft, type ExtraValueGroup, type RedactionRecord
 import { captureRules, collectEnvValues, loadConfig } from "./redact/config.js";
 import { addKnownSecrets, loadKnownSecrets } from "./redact/known-secrets.js";
 import { RULESET_VERSION, type RedactionRule } from "./redact/rules.js";
-import { filterFindings, formatFinding, loadAllowlist, scanEvents } from "./redact/scan.js";
+import {
+  filterFindings,
+  findingGuidance,
+  formatFinding,
+  loadAllowlist,
+  scanEvents,
+} from "./redact/scan.js";
 
 export { ensureMergeConfig, NOTES_NAME, NOTES_REF } from "./transport.js";
 
@@ -734,10 +740,13 @@ async function runScanGate(
   const findings = filterFindings(scanEvents(candidates, tier), await loadAllowlist(repo));
   if (findings.length === 0) return;
 
+  const eventIds = [...new Set(findings.map((f) => f.eventId))];
   process.stderr.write(
-    `cledger sync: blocked — ${findings.length} potential secret(s) in event(s) not yet on ${remote}\n\n`,
+    `cledger sync: blocked — ${findings.length} potential secret(s) across ` +
+      `${eventIds.length} event(s) not yet on ${remote}\n\n`,
   );
   for (const f of findings) process.stderr.write(`  ${formatFinding(f)}\n`);
+  process.stderr.write(`\n${findingGuidance(eventIds)}\n`);
   process.stderr.write(
     "\nRemediate, then re-run sync:\n" +
       "  cledger redact <event-id>     rewrite the event and remove the secret\n" +

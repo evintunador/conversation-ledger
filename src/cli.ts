@@ -26,8 +26,11 @@ import { loadConfig } from "./redact/config.js";
 import {
   addToAllowlist,
   filterFindings,
+  findingGuidance,
   formatFinding,
+  inAgentSession,
   loadAllowlist,
+  renderFinding,
   scanEvents,
 } from "./redact/scan.js";
 
@@ -58,6 +61,12 @@ Usage:
   cledger scan [--all|--rev R] [--paranoid]   scan local events for potential secrets (CI-friendly:
                                            exits 1 if any finding, 0 otherwise); default scope is
                                            every local event, --rev restricts by reachability
+  cledger inspect <event-id-prefix> [--context N] [--reveal] [--stdout] [--force]
+                                           show a finding with real surrounding context (default 400
+                                           chars each side). Writes to a file outside the repo and
+                                           refuses to run inside a coding-agent session — reports
+                                           never print content, because reprinting it re-seeds the
+                                           finding. HUMANS ONLY, in a plain terminal.
   cledger allow <fingerprint...>          mark scan finding fingerprint(s) as known false positives
   cledger redact <event-id-prefix> (--pattern REGEX | --all) [--reason TEXT]
                                            rewrite an existing event to remove a secret, keeping its
@@ -357,8 +366,97 @@ async function cmdScan(flags: Flags): Promise<void> {
     return;
   }
   for (const f of findings) process.stdout.write(formatFinding(f) + "\n");
-  process.stderr.write(`cledger scan: ${findings.length} finding(s)\n`);
+  const eventIds = [...new Set(findings.map((f) => f.eventId))];
+  process.stderr.write(`\n${findingGuidance(eventIds)}\n`);
+  process.stderr.write(
+    `\ncledger scan: ${findings.length} finding(s) across ${eventIds.length} event(s)\n`,
+  );
   process.exit(1);
+}
+
+/**
+ * Show a finding with enough surrounding text to actually judge it — the
+ * counterpart to `formatFinding`'s deliberately contentless report.
+ *
+ * Two guards, both load-bearing rather than decorative. It refuses to run
+ * inside a coding-agent session, because an agent investigating a blocked sync
+ * would otherwise read the flagged text into the transcript and mint a fresh
+ * event carrying it. And it writes to a file outside the repo by default
+ * rather than to stdout, so the content does not pass through a terminal that
+ * something else may be recording.
+ */
+async function cmdInspect(positional: string[], flags: Flags): Promise<void> {
+  if (positional.length === 0) {
+    process.stderr.write(
+      "usage: cledger inspect <event-id-prefix> [--context N] [--reveal] [--stdout] [--force]\n",
+    );
+    process.exit(2);
+  }
+  const agentVar = inAgentSession();
+  if (agentVar && !flags["force"]) {
+    process.stderr.write(
+      `cledger inspect: refusing to run inside a coding-agent session (saw $${agentVar}).\n\n` +
+        "  Reading flagged content here would capture it into this conversation and\n" +
+        "  re-seed the finding you are inspecting. Run this in a plain terminal.\n\n" +
+        "  --force overrides, and is almost always the wrong call.\n",
+    );
+    process.exit(2);
+  }
+
+  const repo = await requireRepo();
+  const tier: "standard" | "paranoid" = flags["paranoid"] ? "paranoid" : "standard";
+  const prefix = positional[0]!;
+  const context = typeof flags["context"] === "string" ? Number(flags["context"]) : 400;
+  if (!Number.isFinite(context) || context < 0) {
+    process.stderr.write("cledger inspect: --context must be a non-negative number\n");
+    process.exit(2);
+  }
+  const reveal = Boolean(flags["reveal"]);
+
+  const events = await readEvents(repo);
+  const matched = events.filter((e) => e.id.startsWith(prefix));
+  if (matched.length === 0) {
+    process.stderr.write(`cledger inspect: no event matching id prefix ${prefix}\n`);
+    process.exit(1);
+  }
+
+  // Deliberately not allowlist-filtered: inspecting is exactly how you decide
+  // whether something *should* be allowlisted, and re-checking an old decision
+  // is legitimate.
+  const findings = scanEvents(matched, tier);
+  if (findings.length === 0) {
+    process.stderr.write(
+      `cledger inspect: no findings in ${matched.length} matching event(s) at the ${tier} tier\n`,
+    );
+    return;
+  }
+
+  const byId = new Map(matched.map((e) => [e.id, e]));
+  const body = [
+    `cledger inspect — ${findings.length} finding(s) in ${matched.length} event(s)`,
+    `context: ${context} chars each side | matched text: ${reveal ? "REVEALED" : "masked"}`,
+    "",
+    "This file contains raw conversation content and possibly a real secret.",
+    "Delete it when you are done, and do not paste it into an agent session.",
+    "",
+    ...findings.map((f) => renderFinding(byId.get(f.eventId)!, f, { context, reveal })),
+  ].join("\n");
+
+  if (flags["stdout"]) {
+    process.stdout.write(body);
+    return;
+  }
+  const { mkdtemp, writeFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-inspect-"));
+  const out = join(dir, `${prefix.slice(0, 16)}.txt`);
+  await writeFile(out, body, { mode: 0o600 });
+  process.stderr.write(
+    `${findings.length} finding(s) written to:\n  ${out}\n\n` +
+      "Open it in an editor, then delete it. Re-run with --reveal to include the\n" +
+      "matched text itself, or --context N to widen the surrounding text.\n",
+  );
 }
 
 async function cmdAllow(positional: string[]): Promise<void> {
@@ -532,6 +630,8 @@ async function main(): Promise<void> {
       return cmdTransportPush(positional);
     case "scan":
       return cmdScan(flags);
+    case "inspect":
+      return cmdInspect(positional, flags);
     case "allow":
       return cmdAllow(positional);
     case "redact":

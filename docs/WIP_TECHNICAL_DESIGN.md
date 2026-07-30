@@ -395,9 +395,29 @@ Defense in depth, ordered by where they run and what they may do:
   secret while purge is still a local operation. Entropy heuristics live
   behind an opt-in paranoid tier; `--no-scan`/config disables the gate
   entirely. Scan-tier rules may be noisy precisely because they only warn
-  a human — they never rewrite anything. Finding reports mask the matched
-  span entirely (surrounding context + fingerprint, zero secret characters),
-  so a captured report cannot re-seed the finding it describes.
+  a human — they never rewrite anything.
+
+  **Reports carry coordinates, never content** (0.16.0). Findings print
+  event id, rule, JSON path + offset, and fingerprint; no excerpt. Masking
+  only the matched span was not enough: the *context* around a match is what
+  tripped the rule in the first place — a `keyword-assignment` excerpt
+  necessarily reprints the keyword that anchored it — so a report captured
+  into a later conversation re-seeded a finding on the report itself, and
+  each scan compounded the last. Observed while dogfooding turnbridge: one
+  discussion of GitHub Actions code multiplied into repeat findings that
+  `cledger allow` could not durably clear, because every new report minted a
+  new event to flag. An event id and a JSON path match no secret rule, so
+  they stay safe to reprint indefinitely.
+
+  Readable output moved to `cledger inspect <event-id>`, which renders wide
+  surrounding context (default 400 chars each side, `--context N`), masks the
+  match unless `--reveal`, writes to a mode-0600 file outside the repo rather
+  than stdout, and **refuses to run inside a coding-agent session** (detected
+  via the harnesses' own env markers; `--force` overrides). That last guard is
+  the load-bearing one: an agent asked to investigate a blocked sync will
+  otherwise do the helpful, wrong thing and read the secret straight into the
+  record being protected. Reports therefore address humans and agents
+  separately, and tell the agent to stop rather than merely warning it.
 - **F. Known-secret learning (opt-in, default off).** Runs at capture like
   A/C/D, but is *sourced* from the E flow: a `cledger redact --pattern`
   remembers the exact values it scrubbed in a local, git-invisible store
@@ -541,33 +561,6 @@ for now (see the format-drift roadmap item).
   (the full system prompt), sandbox/approval policy, reasoning effort — is
   still uncaptured. Whether whole-session configuration belongs in the
   ledger at all, and under which kind, is its own question.
-- **Scan findings are not inspectable enough to act on** (reported
-  2026-07-27 while dogfooding turnbridge). `formatFinding` prints ~20
-  characters of context each side with the match itself replaced by
-  `<redacted>`, and there is no supported way to see the flagged event in
-  full — so a finding on a 26 KB conversation turn gives the user no way to
-  judge whether it is a real secret or a false positive, which is exactly
-  the decision `cledger allow` vs `cledger redact` demands. Observed case:
-  a turn *discussing* GitHub Actions code (`getInput("github-token")`)
-  tripped `keyword-assignment`, and the excerpt was too narrow to tell that
-  from a real leak.
-  Constraint to respect: the zero-characters-of-the-secret rule in
-  `buildExcerpt` is deliberate — the report itself gets captured into a
-  later conversation, so printing any of the match would re-seed the
-  finding it describes. The fix therefore is not "widen the excerpt"
-  alone. Candidate shape:
-  - carry the match's JSON path in `Finding` (`walkStrings` already knows
-    it; it is simply discarded) and print it, so the user at least knows
-    *where* in the event the hit is;
-  - a `--context N` flag on `cledger scan` for more surrounding text, still
-    with the match masked;
-  - an explicit, clearly-labelled escape hatch — `cledger show-finding
-    <event-id> [--reveal]` — that writes the unmasked region to a file
-    outside the repo rather than to stdout, so it cannot be swept into an
-    agent transcript. Today the only route is `cledger export` piped
-    through a hand-written filter.
-  `scripts/inspect-finding.py` is a throwaway prototype of the last two,
-  kept only as reference for whoever implements this properly.
 - Whether an explicit `Conversation` manifest object earns its keep once
   multiple producers exist.
 - Reads deliberately do *not* walk the notes ref's history; only the tip tree
