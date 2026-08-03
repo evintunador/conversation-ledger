@@ -135,10 +135,11 @@ export async function installCodex(): Promise<string> {
  *    export plus a git-notes append would stall the interface, and detaching
  *    also keeps capture alive when a one-shot `opencode run` exits straight
  *    after going idle.
- *  - `session_id` is read from several plausible keys and may end up
- *    undefined. The hook treats it as optional and falls back to the most
- *    recently updated session for the directory, so capture still works if
- *    opencode renames the field.
+ *  - The session id is read from `properties.sessionID`, confirmed against a
+ *    live `session.idle` from opencode 1.18.5. It is still passed as optional:
+ *    the hook falls back to the most recently updated session for the
+ *    directory if a future opencode renames the field, which keeps capture
+ *    working rather than silently stopping.
  */
 export async function installOpencode(): Promise<string> {
   const configHome = process.env["XDG_CONFIG_HOME"] || join(homedir(), ".config");
@@ -153,10 +154,7 @@ export const server = async ({ directory, worktree }) => {
   return {
     event: async ({ event }) => {
       if (!event || event.type !== "session.idle") return;
-      const props = event.properties || {};
-      const sessionID =
-        props.sessionID || props.sessionId || (props.session && props.session.id) ||
-        (props.info && props.info.id) || undefined;
+      const sessionID = (event.properties && event.properties.sessionID) || undefined;
       const cwd = worktree || directory || process.cwd();
       let child;
       try {

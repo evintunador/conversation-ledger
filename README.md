@@ -226,16 +226,16 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   those ids to be reliably orderable; worth confirming before committing to
   it. Related: opencode's `session delete` removes a conversation from
   opencode entirely while the ledger keeps it, which is a feature, not a bug.
-- **The opencode plugin's `session.idle` payload is read defensively** — the
-  installed plugin pulls the session id out of several plausible keys
-  (`sessionID`, `sessionId`, `session.id`, `info.id`) because opencode's
-  plugin `Event` union is not published in the installed SDK typings and a
-  live capture of the event could not be completed during development. When
-  none match, the hook falls back to capturing the most recently updated
-  session for the directory, which is correct in every realistic case but
-  would pick the wrong session if two opencode sessions in one project went
-  idle at the same instant. Pin this to the real field once the event shape is
-  confirmed against a running opencode, and drop the fallback to a warning.
+- **The opencode hook's session-id fallback is untested** — the plugin reads
+  `event.properties.sessionID`, confirmed against a live `session.idle` from
+  opencode 1.18.5, so the normal path is pinned to the real field. The hook
+  still treats the id as optional and falls back to capturing the most
+  recently updated session for the directory, so a future opencode that
+  renames the field degrades instead of silently stopping. That fallback has
+  never run in anger, and it would pick the wrong session if two sessions in
+  one project went idle in the same instant. Worth a test that exercises it
+  directly, and a warning when it triggers, so a silent rename does not look
+  like normal operation.
 - **`opencode export` truncates a piped stdout at 64KB** — an upstream Bun
   flush bug: the process exits without draining stdout, so any session over
   ~64KB comes back cut off, and the truncated JSON can still parse. cledger
