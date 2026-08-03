@@ -197,6 +197,17 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 
 ## Roadmap
 
+- **`cledger export | head` dies with an unhandled EPIPE** — `printJsonl`
+  writes to `process.stdout` with no `error` handler, so when the reader goes
+  away mid-write Node throws and prints a stack trace instead of exiting
+  quietly. Affects `log --json`, `show --json` and `export`, all three of
+  which go through it. Not exotic: piping any ledger larger than the 64KB pipe
+  buffer into `head`, or into a command that fails at startup, reproduces it —
+  `cledger export | head -1` against a 23MB ledger throws every time. Small
+  ledgers hide it, because the whole payload fits the buffer before the reader
+  exits. Fix is an `EPIPE` handler that exits 0, the convention every
+  `head`-friendly CLI follows. Kept out of the opencode adapter branch on
+  purpose; wants its own change.
 - **Subagent sessions are dropped by every adapter** — each adapter skips the
   conversations its coding CLI spawns for subagents: claude-code ignores
   `isSidechain` lines, opencode skips sessions with a `parentID`, and codex's
