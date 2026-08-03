@@ -60,16 +60,41 @@ export interface CledgerConfig {
 /** Names that routinely hold long non-secret values; excluded from env scrubbing. */
 const NON_SECRET_ENV_NAME = /^(?:PATH|HOME|PWD|OLDPWD|SHELL|TERM.*|USER|LOGNAME|LANG|LC_.*|EDITOR|VISUAL|PAGER|TMPDIR|DISPLAY|SSH_AUTH_SOCK|XDG_.*)$/;
 
+/**
+ * A config file that exists but cannot be read is reported, never swallowed.
+ *
+ * Absent config is the normal case and stays silent. But a *present* file
+ * that fails to parse used to be indistinguishable from one that isn't
+ * there — so a single trailing comma in `.cledger.json` silently reverted
+ * every setting to its default, including the opt-in redaction layers whose
+ * entire purpose is being switched on. Failing open is the right behavior
+ * (capture must never break a session over config), but failing open
+ * *silently* means the user believes protections are active when they are
+ * not. Warn and continue.
+ */
 async function readJsonConfig(path: string): Promise<CledgerConfig | null> {
+  let raw: string;
   try {
-    const raw = await readFile(path, "utf8");
+    raw = await readFile(path, "utf8");
+  } catch {
+    return null; // absent (or unreadable) — the ordinary case, stay quiet
+  }
+  try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       return parsed as CledgerConfig;
     }
+    process.stderr.write(
+      `cledger: ignoring ${path} — expected a JSON object, got ` +
+        `${Array.isArray(parsed) ? "an array" : typeof parsed}. All settings in it are ` +
+        `inactive; defaults are in effect.\n`,
+    );
     return null;
-  } catch {
-    // Missing or malformed config: capture hooks must never fail a session.
+  } catch (err) {
+    process.stderr.write(
+      `cledger: ignoring ${path} — invalid JSON (${err instanceof Error ? err.message : String(err)}). ` +
+        `All settings in it are inactive; defaults are in effect.\n`,
+    );
     return null;
   }
 }

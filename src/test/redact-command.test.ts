@@ -1,14 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { git } from "../git.js";
+import { serializeEvent } from "../schema.js";
 import {
   appendEvents,
   listAnchors,
+  NOTES_NAME,
   NOTES_REF,
   readEvents,
   readNoteEvents,
   readPending,
   redactEvent,
+  RedactAfterShareError,
   sync,
 } from "../store.js";
 import {
@@ -145,7 +148,7 @@ test("redactEvent: pending-queue redaction works before the first commit exists,
   }
 });
 
-test("redactEvent: when origin already has the notes ref, squash is skipped and a warning is printed", async () => {
+test("redactEvent: refuses outright once the event is on origin, leaving the ledger untouched", async () => {
   const remote = await makeBareRepo();
   const repo = await makeTempRepo();
   try {
@@ -162,28 +165,132 @@ test("redactEvent: when origin already has the notes ref, squash is skipped and 
     const pushResult = await sync(repo, "origin", "push", { skipScan: true });
     assert.strictEqual(pushResult.pushed, true);
 
-    const originalWrite = process.stderr.write.bind(process.stderr);
-    const stderrChunks: string[] = [];
-    process.stderr.write = ((chunk: unknown) => {
-      stderrChunks.push(String(chunk));
-      return true;
-    }) as typeof process.stderr.write;
+    const notesBefore = (await git(["rev-parse", NOTES_REF], { cwd: repo.root })).trim();
 
-    let result;
-    try {
-      result = await redactEvent(repo, original.id.slice(4, 12), { pattern: secret });
-    } finally {
-      process.stderr.write = originalWrite;
-    }
-
-    assert.strictEqual(result.squashed, false);
-    assert.ok(
-      stderrChunks.some((c) => c.includes("skipping the local squash")),
-      "expected a warning that already-shared history was not squashed",
+    // Rewriting shared content does not remove it, and pushing the rewrite
+    // would union the original back onto the remote — so this must refuse
+    // rather than warn-and-proceed.
+    await assert.rejects(
+      () => redactEvent(repo, original.id.slice(4, 12), { pattern: secret }),
+      (err: unknown) => {
+        assert.ok(err instanceof RedactAfterShareError);
+        assert.strictEqual(err.reason, "already-pushed");
+        assert.strictEqual(err.eventId, original.id);
+        return true;
+      },
     );
+
+    // Refusal must be total: no rewritten line, no companion event, no
+    // squash. A half-applied redaction is the state this whole change exists
+    // to prevent.
+    const notesAfter = (await git(["rev-parse", NOTES_REF], { cwd: repo.root })).trim();
+    assert.strictEqual(notesAfter, notesBefore, "the ledger ref must not have moved");
+    const events = await readEvents(repo, { reachableFrom: "HEAD" });
+    assert.strictEqual(events.length, 1, "no companion redaction event may have been appended");
+    assert.ok(JSON.stringify(events[0]).includes(secret), "the event must be left exactly as it was");
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(remote);
+  }
+});
+
+test("redactEvent: still works for an event captured after an earlier push", async () => {
+  const remote = await makeBareRepo();
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "init");
+    await git(["remote", "add", "origin", remote], { cwd: repo.root });
+
+    // An unrelated event goes out first, so origin has the ledger ref.
+    await appendEvents(repo, [draft({ content: { text: "already shared, nothing secret" } })]);
+    await sync(repo, "origin", "push", { skipScan: true });
+
+    // The secret is captured afterwards and never pushed. Redaction must
+    // remain available: gating per-repo instead of per-event would kill the
+    // primary workflow the moment anyone pushed once.
+    const secret = "hunter2xK9aa";
+    const appendResult = await appendEvents(repo, [
+      draft({ occurred_at: "2026-02-02T00:00:00.000Z", content: { text: `db_password: ${secret}` } }),
+    ]);
+    const original = appendResult.appended[0]!;
+
+    const result = await redactEvent(repo, original.id.slice(4, 12), { pattern: secret });
+    assert.strictEqual(result.event.id, original.id);
+    assert.ok(!JSON.stringify(result.event.content).includes(secret));
+    assert.strictEqual(result.squashed, true, "an unshared event's history is still severed");
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(remote);
+  }
+});
+
+test("redactEvent: refuses when origin cannot be reached, rather than assuming nothing was shared", async () => {
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "init");
+    // A remote that exists in config but resolves to nothing: `ls-remote`
+    // fails, which must not be read as "the remote has no ledger ref".
+    await git(["remote", "add", "origin", "/nonexistent/cledger-unreachable-remote.git"], {
+      cwd: repo.root,
+    });
+    const secret = "hunter2xK9aa";
+    const appendResult = await appendEvents(repo, [draft({ content: { text: `db_password: ${secret}` } })]);
+    const original = appendResult.appended[0]!;
+
+    await assert.rejects(
+      () => redactEvent(repo, original.id.slice(4, 12), { pattern: secret }),
+      (err: unknown) => {
+        assert.ok(err instanceof RedactAfterShareError);
+        assert.strictEqual(err.reason, "remote-unreachable");
+        return true;
+      },
+    );
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("readEvents: a redacted copy always beats its pre-redaction original, whatever the bytes say", async () => {
+  const repo = await makeTempRepo();
+  try {
+    const anchor = await makeCommit(repo, "init");
+    // A leading uppercase letter is the adversarial case: 'A' (0x41) sorts
+    // below the '[' (0x5B) that opens a [REDACTED:...] placeholder, so the
+    // old canonical-JSON byte-compare tie-break picked the *plaintext*. Every
+    // secret starting with a digit or capital hit this.
+    const secret = "AATOPSECRET1234";
+    const appendResult = await appendEvents(repo, [draft({ content: { text: `key ${secret} end` } })]);
+    const original = appendResult.appended[0]!;
+    const originalLine = serializeEvent(original);
+
+    await redactEvent(repo, original.id.slice(4, 12), { pattern: secret });
+
+    // Reconstruct what cat_sort_uniq produces when a peer that still holds
+    // the pre-redaction line merges in: two lines, one id, different content.
+    const stored = await readNoteEvents(repo, anchor);
+    const lines = [...stored.map(serializeEvent), originalLine].sort();
+    await git(["notes", "--ref", NOTES_NAME, "add", "-f", "-F", "-", anchor], {
+      cwd: repo.root,
+      input: lines.join("\n") + "\n",
+    });
+
+    const bothCopies = (await readNoteEvents(repo, anchor)).filter((e) => e.id === original.id);
+    assert.strictEqual(bothCopies.length, 2, "precondition: both copies must be in the note");
+    assert.strictEqual(
+      bothCopies[0]!.recorded_at,
+      bothCopies[1]!.recorded_at,
+      "precondition: the rewrite inherits the original's recorded_at, so that key ties",
+    );
+
+    const events = await readEvents(repo, { reachableFrom: "HEAD" });
+    const surviving = events.filter((e) => e.id === original.id);
+    assert.strictEqual(surviving.length, 1, "the two copies must collapse to one");
+    assert.ok(
+      !JSON.stringify(surviving[0]).includes(secret),
+      "the redacted copy must win — reads must never surface the pre-redaction plaintext",
+    );
+  } finally {
+    await cleanupRepo(repo);
   }
 });
 

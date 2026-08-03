@@ -266,8 +266,27 @@ cursors made this routine, but a forced rescan does it too. Since the ledger
 is append-only those copies are permanent, so the fix is on the read side —
 earliest `recorded_at` wins, canonical serialization breaks ties, so every
 clone independently picks the same copy. Ids are equal only when every
-identity field is equal, so the discarded copy differs solely in provenance
-the id already excludes (`recorded_at`, `context`, `raw`).
+identity field is equal, so an ordinary duplicate differs solely in
+provenance the id already excludes (`recorded_at`, `context`, `raw`).
+
+One collision is not an ordinary duplicate and is resolved *before* either of
+those keys: a redacted event and its pre-redaction original. Those share an
+id deliberately (`redactEvent` pins it, so a later rescan of the untouched
+source material dedups against the rewrite instead of resurrecting the
+secret), which makes them the only way one id can carry two different
+`content` values. They also share `recorded_at`, because the rewrite spreads
+the original — so both ordering keys tied and the decision fell to the
+canonical-JSON byte compare, which resolves on the first differing character:
+the secret's own first byte against the `[` (0x5B) that opens a
+`[REDACTED:…]` placeholder. Every secret beginning with a digit or an
+uppercase letter sorts below `[` and won, so reads surfaced the plaintext,
+printed alongside the `redaction` event asserting its removal. Redaction
+depth is therefore consulted first — among copies sharing an id, the one
+carrying more `redactions` records is the more scrubbed and wins outright.
+This is unambiguous rather than heuristic: capture-time redaction runs
+*before* ids are computed, so differently-scrubbed captures get different ids
+and never collide here, leaving `redactEvent` as the sole producer of
+same-id/different-content pairs, and it always appends at least one record.
 
 ### Squash merges and history rewrites: re-anchoring
 
@@ -454,11 +473,38 @@ stamping; cursors prevent it in normal operation.
 
 A human redaction of an *existing* event (the E flow) instead rewrites the
 note line and appends a companion `redaction` event with `links.redacts`,
-then squashes the local notes ref so the prior blob is unreachable —
-honest history without secret retention (when `knownSecrets` is on, a
-`--pattern` redaction also feeds the F store; see above). Post-push purge
-(force-push + collaborator coordination) is deliberately separate, deferred
-tooling.
+then severs the local notes ref's commit chain so the prior blob is
+unreachable from the ref (when `knownSecrets` is on, a `--pattern` redaction
+also feeds the F store; see above).
+
+**Redaction is a pre-push operation, and the command enforces it.** It
+refuses, before mutating anything, when the target event is already on
+`origin` — or when `origin` cannot be reached to rule that out, since a
+security decision resting on a failed network call must fail closed. The
+reasoning is structural rather than a matter of effort: a notes ref carries
+its own commit chain, so every prior note body travels to every clone and is
+recoverable with a plain `git log -p refs/notes/conversation-ledger`; and
+`cat_sort_uniq` unions *lines*, so a rewritten line never displaces the
+original anywhere that still holds it. Worst of all, `pushScopedNotes` seeds
+from the remote's tip and unions the local scope into it, so redact-then-push
+actively *re-uploads* the pre-redaction line alongside the rewrite, leaving
+both on the remote permanently. The command previously warned about this and
+proceeded regardless, reporting partial success while making the situation
+strictly worse. Gating is per *event* (the remote's ledger ref is queried for
+the ids it actually holds), so routine pushing does not disable redaction for
+anything captured afterwards. Post-push purge — notes-ref history rewrite,
+force-push, coordinated collaborator re-fetch — is deliberately separate,
+deferred, destructive tooling; until it exists, rotating the credential is
+the honest remedy for anything that has left the machine.
+
+Severing the chain is not an object purge, and the output no longer implies
+otherwise. `update-ref` leaves reflog entries pointing at the discarded
+commits, so the pre-redaction blob survives in the local object store until
+`git reflog expire` plus a pruning `gc`. That residue is local-only — git
+transfers neither reflogs nor unreachable objects — so it never reaches a
+remote and sits squarely inside the "trust boundary is transport" model. The
+command reports what it did, what remains, and the command that clears it,
+rather than running a repo-wide destructive `gc` on the user's behalf.
 
 ## Versioning against harness format changes
 
@@ -565,16 +611,16 @@ for now (see the format-drift roadmap item).
   multiple producers exist.
 - Reads deliberately do *not* walk the notes ref's history; only the tip tree
   is authoritative. Unioning across history was proposed and set aside because
-  it defeats redaction: when the pre-redaction content was already pushed the
-  squash is skipped, so the old blob remains in the ref's ancestry, and a
-  history-walking read would surface it — worse, `dedupById` prefers the
-  earliest `recorded_at`, so it would actively prefer the *un*redacted copy.
-  That exposure already exists in the object store today; walking history
-  would promote it from "recoverable by deliberate digging" to "printed by
-  every read". It would also break `git notes show` interop (standard tooling
-  reads the tip tree) and make reads O(notes history). The related, real
-  weakness is tracked as a roadmap item: even the squash path leaves the value
-  in the ref's reflog.
+  it defeats redaction: the notes ref's ancestry retains every superseded note
+  body, so a history-walking read would surface exactly the pre-redaction
+  content. It would also break `git notes show` interop (standard tooling
+  reads the tip tree) and make reads O(notes history). Two related weaknesses
+  that were open here have since been closed: `dedupById` no longer prefers
+  the un-redacted copy (redaction depth now outranks both `recorded_at` and
+  the byte tie-break), and `cledger redact` now refuses already-pushed events
+  outright instead of skipping the squash and proceeding. What remains by
+  design is the local reflog/object residue after a pre-push redaction, which
+  never leaves the machine.
 - Per-branch *storage* (a notes ref per branch) has been considered and set
   aside, but the question it was reaching for is open. Branch membership is a
   derived property of the commit DAG, not an intrinsic property of a commit:

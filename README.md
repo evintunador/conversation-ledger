@@ -176,14 +176,18 @@ Visible tool output can contain secrets: API keys in error messages, credentials
 - Threat addressed: the capture/scan feedback loop — a value the broad sync scan catches but the conservative capture tier misses gets re-ingested raw every time you revisit it while fixing it. Once redacted, capture learns it and it can never be re-captured raw again.
 - Cost of enabling: confirmed secret plaintext lives in a new (local, unshared) file; like env masking, capture becomes machine-dependent for those values. Concretely, re-capturing a source line whose value is now remembered yields *scrubbed* content and therefore a different event id, so it no longer dedups against the pre-existing event — you get a second, also-scrubbed copy rather than a resurrected secret. Id churn, not leakage.
 
-**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push with a report and remediation instructions; the report shows ~20 chars of surrounding context with the matched value **fully masked** (`<redacted>`, zero secret characters) so the report itself can't re-seed the next scan. In the pre-push hook, a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
+**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push with a report and remediation instructions; the report prints **coordinates only** — event id, rule, JSON path + offset, fingerprint — and never a character of the flagged text or its surroundings, because the context around a match is itself what tripped the rule, so a printed excerpt re-seeds a finding on the report. Readable output lives behind `cledger inspect <event-id>`, which writes to a `0600` file outside the repo and refuses to run inside a coding-agent session. In the pre-push hook, a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
 - Threat addressed: secrets from older capture rules or new tool formats slipping through.
 - Cost of disabling: `{"scan": {"tier": "off"}}` — secrets in tool output push silently.
 - Remediation paths: `cledger redact <event-id>` (real secrets), `cledger allow <fingerprint>` (false positives), `cledger sync --no-scan` (bypass once). `--paranoid` tier adds entropy-based detection (noisier but broader).
 
 ### Commands
 
-`cledger redact <event-id> (--pattern REGEX | --all) [--reason TEXT]`: Rewrites stored event to placeholder + audit metadata, appends a `redaction` event, and squashes local notes history so prior content is unrecoverable (pre-push only; post-push purge tooling is planned, not yet built).
+`cledger redact <event-id> (--pattern REGEX | --all) [--reason TEXT]`: Rewrites a stored event to a placeholder + audit metadata, appends a `redaction` event, and severs the local notes-ref commit chain so the prior note is unreachable from the ref.
+
+**Pre-push only, and enforced.** The command refuses once the target event is on `origin`, because rewriting shared content does not remove it: a notes ref carries its own commit chain, so every prior note body is in any clone's history (`git log -p refs/notes/conversation-ledger`), and `cat_sort_uniq` unions *lines*, so the original returns on the next merge — a scoped push would in fact re-upload it alongside the rewrite. It also refuses when `origin` cannot be reached, rather than assuming nothing was shared. Gating is per *event*, so pushing regularly does not disable redaction for anything captured afterwards. For a secret that has already left the machine, rotate the credential; purging shared ledger history is separate destructive tooling that does not exist yet.
+
+Severing the chain is not an object purge: the old blobs stay in the local reflog and object store until git's own expiry + `gc`. That residue is local-only (git transfers neither reflogs nor unreachable objects), and the command says so rather than claiming the value is gone. To drop them immediately: `git reflog expire --expire=now --all && git gc --prune=now` (repo-wide).
 
 `cledger scan [--paranoid]`: Standalone check with exit 1 on findings — CI-friendly.
 
@@ -337,36 +341,48 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 - **Path-based capture exclusion** — the path half of the redaction config
   ("never record reads of `secrets/**`"); requires correlating `tool_use`
   file paths with their `tool_result` events.
-- **`cledger redact`'s local purge leaves the value in the reflog** — the
-  squash is real but incomplete, and the command overstates what it achieved.
-  When the pre-redaction content was never pushed, `redactEvent` rebuilds the
-  notes ref as a parentless commit so the old chain becomes unreachable, and
-  reports `history squashed: yes`. Measured 2026-07-27: the pre-redaction blob
-  is still recoverable straight afterwards via
-  `git show $(git reflog show refs/notes/conversation-ledger | awk '{print $1}')`,
-  because `update-ref` leaves reflog entries pointing at the discarded
-  commits. It stays recoverable for the reflog expiry window (90 days by
-  default) and only actually disappears after
-  `git reflog expire --expire=now` plus a pruning `git gc`. So today's
-  redaction is "no reader will surface it" rather than "it is gone", even in
-  the case the tool claims full success for.
-  *Fix, needs a decision before implementing:* expiring the ledger ref's
-  reflog is narrow and safe, but reclaiming the objects needs a prune, and
-  prune is repo-wide — it would also drop unreachable objects the user may
-  have wanted (dropped stashes, abandoned commits). Options are a scoped
-  `reflog expire` plus `git prune` accepted as repo-wide, or leaving the
-  objects and telling the truth in the output instead. What must not stay as
-  it is: reporting `history squashed: yes` when the value is still one
-  `git show` away.
-  *Unchanged either way:* once the ref has been pushed the squash is skipped
-  entirely and rotating the credential is the only real remedy — see below.
+- **Redaction is pre-push only, and now enforced** *(shipped)* — `cledger
+  redact` used to detect the already-pushed case, warn, and proceed anyway,
+  reporting partial success. That was worse than useless: `pushScopedNotes`
+  seeds from the remote's tip and unions the local scope into it, so
+  redact-then-push *re-uploaded* the original alongside the rewrite, leaving
+  both copies on the remote permanently — and since a notes ref carries its
+  own commit chain, every clone could already recover the pre-redaction body
+  with a plain `git log -p refs/notes/conversation-ledger`. The command now
+  refuses outright, before touching anything, when the target event is on
+  `origin` — or when `origin` cannot be reached to rule it out (a security
+  decision made on a failed network call must fail closed; previously an
+  offline `ls-remote` was indistinguishable from a virgin remote). Gating is
+  per *event*, not per repo, so an earlier push does not disable redaction
+  for everything captured afterwards.
+  Output no longer claims `history squashed: yes`. Severing the notes chain
+  is real but is not an object purge — the old blobs remain in the local
+  reflog and object store until git's expiry + `gc` — so the command now
+  states exactly that, plus the fact that the residue is local-only (git
+  transfers neither reflogs nor unreachable objects) and the one-liner that
+  clears it. Running a repo-wide destructive `gc` on the user's behalf stays
+  out of scope.
+- **Reads must never prefer a pre-redaction copy** *(shipped)* — `dedupById`
+  collapses same-id copies by earliest `recorded_at`, then by a canonical-JSON
+  byte compare. A redacted event and its original share an id *by design*
+  (the rewrite pins it, so a rescan dedups instead of resurrecting the
+  secret) and, because the rewrite spreads the original, share `recorded_at`
+  too — so both keys tied and the byte compare decided, resolving on the
+  secret's first character against the `[` (0x5B) opening `[REDACTED:…]`.
+  Every secret starting with a digit or an uppercase letter sorted below it
+  and won, so reads printed the plaintext next to the `redaction` event
+  asserting its removal. Redaction depth is now consulted first: the copy
+  carrying more redaction records wins outright. Unambiguous, because
+  capture-time redaction runs before ids are computed, leaving `redactEvent`
+  as the only source of same-id different-content pairs.
 - **Post-push purge** — true content removal after the ledger ref has been
-  shared (force-push + collaborator re-fetch coordination); the local
-  pre-push squash shipped with `cledger redact`. Three hard parts scoped so
-  far: (a) the `cat_sort_uniq` union merge means any collaborator still
-  holding the old blob silently re-introduces it on their next sync, so purge
-  must pair the force-push with a loud reset-don't-merge instruction and
-  detection of resurrected blobs on later fetches; (b) hosts retain
+  shared (notes-ref history rewrite + force-push + collaborator re-fetch
+  coordination). This is now the *only* path for already-shared content,
+  since `cledger redact` refuses it rather than pretending. Three hard parts
+  scoped so far: (a) the `cat_sort_uniq` union merge means any collaborator
+  still holding the old blob silently re-introduces it on their next sync, so
+  purge must pair the force-push with a loud reset-don't-merge instruction
+  and detection of resurrected blobs on later fetches; (b) hosts retain
   unreachable objects for a window and may serve them via API after a
   force-push, so purge reduces exposure but rotating the leaked credential is
   the only real remedy — output must say so plainly; (c) the companion
@@ -420,7 +436,10 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   confirmed secret plaintext into one predictably-named local file. This does
   not change the transport threat model (the same values already sit in
   plaintext transcripts), but the *aggregation* is a distinct accidental-read /
-  disk-snoop / backup-scoop risk. Owner-only `0600` perms shipped in 0.7.1;
+  disk-snoop / backup-scoop risk — and it means `cledger redact --pattern`
+  currently *increases* the number of plaintext copies of a secret on local
+  disk, which is a surprising thing for a redaction command to do. Owner-only
+  `0600` perms shipped in 0.7.1;
   the real remaining work is encryption with an OS-keychain-held key (macOS
   Keychain / libsecret / DPAPI), which must decrypt *non-interactively* since
   capture runs silently on every turn.
