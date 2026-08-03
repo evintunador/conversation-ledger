@@ -5,8 +5,10 @@ import { findRepo, type RepoInfo } from "./git.js";
 import {
   appendEvents,
   manualReAnchor,
+  NOTES_REF,
   readEvents,
   redactEvent,
+  RedactAfterShareError,
   runReAnchor,
   ScanBlockedError,
   sortEvents,
@@ -75,8 +77,10 @@ Usage:
                                            finding. HUMANS ONLY, in a plain terminal.
   cledger allow <fingerprint...>          mark scan finding fingerprint(s) as known false positives
   cledger redact <event-id-prefix> (--pattern REGEX | --all) [--reason TEXT]
-                                           rewrite an existing event to remove a secret, keeping its
-                                           id stable, and squash local notes history if unpushed
+                                           rewrite a not-yet-pushed event to remove a secret, keeping
+                                           its id stable, and sever the local notes history chain.
+                                           PRE-PUSH ONLY: refuses once the event is on origin, where
+                                           rewriting cannot remove it (rotate the credential instead)
   cledger re-anchor [--apply] [--target R] [--no-forge]
                                            detect branches squash-merged/rewritten onto the remote
                                            default branch and map their conversations to the
@@ -492,13 +496,41 @@ async function cmdRedact(positional: string[], flags: Flags): Promise<void> {
   if (typeof flags["pattern"] === "string") redactOpts.pattern = flags["pattern"];
   if (flags["all"] === true) redactOpts.all = true;
   if (typeof flags["reason"] === "string") redactOpts.reason = flags["reason"];
-  const result = await redactEvent(repo, idPrefix, redactOpts);
+  let result;
+  try {
+    result = await redactEvent(repo, idPrefix, redactOpts);
+  } catch (err) {
+    // Already-shared (or unverifiable) content: the message is a full
+    // explanation, so print it as-is rather than through main()'s generic
+    // one-line handler.
+    if (err instanceof RedactAfterShareError) {
+      process.stderr.write(err.message + "\n");
+      process.exit(1);
+    }
+    throw err;
+  }
   const fingerprints = result.event.redactions?.map((r) => r.fingerprint).join(", ") || "(none)";
   process.stderr.write(
     `cledger redact: rewrote ${result.event.id.slice(0, 16)} — fingerprints: ${fingerprints}\n` +
-      `companion event: ${result.redactionEvent.id.slice(0, 16)}\n` +
-      `history squashed: ${result.squashed ? "yes" : "no"}\n`,
+      `companion event: ${result.redactionEvent.id.slice(0, 16)}\n`,
   );
+  // Say what actually happened. This used to print "history squashed: yes",
+  // which read as "the value is gone" — it is not, and asserting an outcome
+  // the tool does not achieve is worse than saying nothing.
+  if (result.squashed) {
+    process.stderr.write(
+      `notes history: chain severed — the pre-redaction note is no longer reachable from\n` +
+        `  ${NOTES_REF} and was never pushed. The old objects remain in this repo's\n` +
+        `  reflog and object store until git expires them (typically 30-90 days); they are\n` +
+        `  local-only, as git transfers neither reflogs nor unreachable objects. To drop them\n` +
+        `  now: git reflog expire --expire=now --all && git gc --prune=now  (repo-wide).\n`,
+    );
+  } else {
+    process.stderr.write(
+      `notes history: untouched — this event was still in the pending queue, so it never\n` +
+        `  reached the notes ref.\n`,
+    );
+  }
   if (result.knownSecretsRemembered > 0) {
     process.stderr.write(
       `remembered ${result.knownSecretsRemembered} secret value(s) for capture-time redaction ` +

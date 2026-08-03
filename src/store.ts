@@ -320,18 +320,49 @@ export async function readEvents(repo: RepoInfo, opts: ReadOptions = {}): Promis
  * duplicates already written this way are permanent, since the ledger is
  * append-only.
  *
- * Identical ids mean identical *identity* fields by construction, so the
- * copies differ only in provenance the id excludes — `recorded_at`, the
- * `context` captured at the time, `raw`. The earliest `recorded_at` wins as
- * the original capture, with the canonical serialization as a tie-break so
- * every clone independently picks the same one.
+ * Identical ids mean identical *identity* fields by construction, so ordinary
+ * duplicate copies differ only in provenance the id excludes —
+ * `recorded_at`, the `context` captured at the time, `raw`. The earliest
+ * `recorded_at` wins as the original capture, with the canonical
+ * serialization as a tie-break so every clone independently picks the same
+ * one.
+ *
+ * One class of collision is NOT an ordinary duplicate and must never be
+ * settled by those rules: a redacted copy and its pre-redaction original.
+ * `redactEvent` deliberately pins the rewritten event to the original's id
+ * (see the CRITICAL comment there), so the two are the only way a shared id
+ * can carry *different* content — and because the rewrite spreads the
+ * original, it inherits the original's `recorded_at` too. Both ordering keys
+ * therefore tie, and the decision used to fall through to a raw byte compare
+ * of the canonical JSON, which resolves on the first differing character:
+ * the secret's own first byte against `[` (0x5B) from the `[REDACTED:...]`
+ * placeholder. Every secret beginning with a digit or an uppercase letter
+ * sorts below `[` and won — reads printed the plaintext, next to the
+ * `redaction` event asserting it had been removed.
+ *
+ * So redaction depth is consulted first: among copies sharing an id, the one
+ * carrying the most redaction records is the most scrubbed, and wins
+ * outright. This is unambiguous because capture-time redaction runs *before*
+ * ids are computed (differently-scrubbed captures get different ids and never
+ * collide here), leaving `redactEvent` as the sole producer of same-id
+ * different-content pairs — and it always appends at least one record.
  */
+function redactionDepth(event: EvidenceEvent): number {
+  return event.redactions?.length ?? 0;
+}
+
 function dedupById(events: EvidenceEvent[]): EvidenceEvent[] {
   const byId = new Map<string, EvidenceEvent>();
   for (const event of events) {
     const seen = byId.get(event.id);
     if (!seen) {
       byId.set(event.id, event);
+      continue;
+    }
+    const depth = redactionDepth(event);
+    const seenDepth = redactionDepth(seen);
+    if (depth !== seenDepth) {
+      if (depth > seenDepth) byId.set(event.id, event);
       continue;
     }
     if (event.recorded_at < seen.recorded_at) byId.set(event.id, event);
@@ -707,6 +738,52 @@ export class ScanBlockedError extends Error {
 }
 
 /**
+ * Thrown when `cledger redact` is asked to rewrite an event whose
+ * pre-redaction content has already been shared, or when that cannot be
+ * ruled out. Carries no secrets — only the event id and why it refused.
+ */
+export class RedactAfterShareError extends Error {
+  constructor(
+    public readonly eventId: string,
+    public readonly reason: "already-pushed" | "remote-unreachable",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * What `remote` can tell us about the ledger ref, distinguishing the two
+ * cases a plain `allowFailure` call collapses into one empty string.
+ *
+ * The distinction is load-bearing for the redaction gate: "origin has no
+ * ledger ref" means nothing was ever shared and redaction is safe, whereas
+ * "origin could not be reached" means we simply do not know — and a security
+ * decision made on a failed network call must fail closed, not open. Before
+ * this split, an offline `ls-remote` looked exactly like a virgin remote, so
+ * a dropped connection silently re-enabled the very path this gate closes.
+ */
+type RemoteLedgerState =
+  | { kind: "no-remote" }
+  | { kind: "no-ledger-ref" }
+  | { kind: "has-ledger-ref" }
+  | { kind: "unreachable"; detail: string };
+
+async function remoteLedgerState(repo: RepoInfo, remote: string): Promise<RemoteLedgerState> {
+  const url = (await git(["remote", "get-url", remote], {
+    cwd: repo.root,
+    allowFailure: true,
+  })).trim();
+  if (!url) return { kind: "no-remote" };
+  try {
+    const out = (await git(["ls-remote", remote, NOTES_REF], { cwd: repo.root })).trim();
+    return out ? { kind: "has-ledger-ref" } : { kind: "no-ledger-ref" };
+  } catch (err) {
+    return { kind: "unreachable", detail: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
  * Layer E: before push, scan only the events the remote does not yet have
  * (already-pushed events are not rescanned every time). On any surviving
  * finding, print a report and throw so sync() does not proceed to push —
@@ -945,7 +1022,13 @@ export interface RedactResult {
   event: EvidenceEvent;
   /** The companion `redaction` event recording why `event`'s content no longer matches its id. */
   redactionEvent: EvidenceEvent;
-  /** True when the pre-redaction notes history was squashed away locally (see below). */
+  /**
+   * True when the notes ref's commit chain was severed, making the
+   * pre-redaction note blob unreachable from the ref. Not a purge: the old
+   * objects remain in the local reflog/object store until git's own
+   * expiry+gc. False only for a pending-queue redaction, where the notes ref
+   * was never involved.
+   */
   squashed: boolean;
   /**
    * Count of newly-remembered secret values written to the opt-in
@@ -956,12 +1039,75 @@ export interface RedactResult {
 }
 
 /**
+ * Refuse to redact an event whose pre-redaction content has already been
+ * shared — or whose sharing status cannot be established.
+ *
+ * Redaction is a pre-push operation, and only a pre-push operation. Once a
+ * note line is on a remote, rewriting it locally does not remove it and
+ * cannot: a notes ref carries its own commit chain (so every prior note body
+ * is in any clone's history, recoverable with a plain `git log -p`), and
+ * `cat_sort_uniq` unions *lines* (so the original comes back on the next
+ * merge). Worse, `pushScopedNotes` seeds from the remote's tip and unions the
+ * local scope into it, so redact-then-push actively re-uploads the original
+ * alongside the rewrite, leaving both copies on the remote permanently. The
+ * command previously warned about this and proceeded anyway, reporting
+ * partial success while making the situation strictly worse.
+ *
+ * Removing already-shared content is a fundamentally different job — history
+ * rewriting on the notes ref, a force-push, and coordinated re-fetch by every
+ * collaborator — and belongs to separate, deliberately destructive tooling
+ * that does not exist yet. Until it does, the honest answer for a leaked
+ * credential that has left the machine is to rotate it.
+ *
+ * "Not yet shared" is per *event*, not per repo: pushing regularly must not
+ * disable redaction for everything captured afterwards, which is the ordinary
+ * workflow. So a remote that has the ledger ref is queried for the ids it
+ * actually holds, and only a hit on this event's id refuses.
+ */
+async function assertNotYetShared(repo: RepoInfo, eventId: string): Promise<void> {
+  const state = await remoteLedgerState(repo, "origin");
+  if (state.kind === "no-remote" || state.kind === "no-ledger-ref") return;
+
+  if (state.kind === "unreachable") {
+    throw new RedactAfterShareError(
+      eventId,
+      "remote-unreachable",
+      `cledger redact: refusing to redact ${eventId.slice(0, 16)} — cannot reach origin to ` +
+        `confirm this event was never pushed, and redacting already-shared content does not ` +
+        `remove it (it re-uploads it on the next push). Reconnect and re-run.\n` +
+        `  (${state.detail})`,
+    );
+  }
+
+  const remoteIds = await remoteNoteIds(repo, "origin");
+  if (!remoteIds?.has(eventId)) return;
+
+  throw new RedactAfterShareError(
+    eventId,
+    "already-pushed",
+    `cledger redact: refusing to redact ${eventId.slice(0, 16)} — it is already on origin, so ` +
+      `the pre-redaction content is shared history.\n\n` +
+      `  Rewriting it locally would not remove it anywhere: the notes ref's own commit chain\n` +
+      `  keeps every prior version (recoverable in any clone with \`git log -p ${NOTES_REF}\`),\n` +
+      `  and the next push would union the original back onto the remote alongside the rewrite.\n\n` +
+      `  If this is a live credential, rotate it — that is the only remedy that works once a\n` +
+      `  secret has left the machine. Purging already-shared ledger history needs destructive\n` +
+      `  git tooling (notes-ref rewrite + force-push + collaborator re-fetch) that does not\n` +
+      `  exist yet.\n\n` +
+      `  Redaction is available for anything not yet pushed.`,
+  );
+}
+
+/**
  * Human redaction of an *existing* event (layer E's remediation path, as
  * opposed to capture-time redaction in redact/apply.ts). Locates the event
  * by id prefix, rewrites its content in place, appends a companion
- * `redaction` event, and — when the pre-redaction content was never
- * pushed — squashes the local notes ref history so the old blob becomes
- * unreachable.
+ * `redaction` event, and squashes the local notes ref history so the old
+ * blob becomes unreachable from the ref.
+ *
+ * Refuses outright if the event has already been pushed — see
+ * `assertNotYetShared` for why rewriting shared content is not merely
+ * ineffective but actively counterproductive.
  */
 export async function redactEvent(
   repo: RepoInfo,
@@ -980,6 +1126,11 @@ export async function redactEvent(
   // no reusable value to remember there.
   const config = await loadConfig(repo.root);
   const rememberSecrets = hasPattern && config.redact?.knownSecrets === true;
+
+  // Gate before mutating anything: redaction is a *pre-push* operation only.
+  // Locating first is read-only and gives the id the gate needs; the rewrite
+  // below re-locates under the lock.
+  await assertNotYetShared(repo, (await locateEvent(repo, idPrefix)).event.id);
 
   const { located, rewritten, newRecords, secretValues } = await withLock(repo, async () => {
     const located = await locateEvent(repo, idPrefix);
@@ -1112,32 +1263,32 @@ export async function redactEvent(
     throw new Error("cledger redact: failed to append companion redaction event");
   }
 
-  // Local purge: only meaningful when the event was already anchored (a
-  // pending-queue rewrite never touched the notes ref) and only safe when
-  // nobody else has a copy of the pre-redaction history yet.
+  // Sever the notes ref's own commit chain so the pre-redaction note blob is
+  // no longer reachable from the ref. Only meaningful when the event was
+  // anchored — a pending-queue rewrite never touched the notes ref at all.
+  //
+  // `assertNotYetShared` has already established that this event is not on
+  // the remote, so this is unconditionally safe here: the tip tree carries
+  // the complete event set (notes are cumulative), and a later push rebuilds
+  // from the remote's own tip anyway, so dropping the local chain loses no
+  // events and cannot conflict.
+  //
+  // What this does NOT do is erase the old objects. They stay in this repo's
+  // reflog and object store until `git reflog expire` + `git gc` drop them.
+  // That residue is local-only — git transfers neither reflogs nor
+  // unreachable objects — so it never reaches a remote, and running a
+  // repo-wide destructive gc on the user's behalf is not this command's call.
+  // The CLI reports this plainly rather than claiming a purge.
   let squashed = false;
   if (located.anchor !== null) {
-    const remoteHasRef = (await git(["ls-remote", "origin", NOTES_REF], {
-      cwd: repo.root,
-      allowFailure: true,
-    })).trim();
-    if (!remoteHasRef) {
-      const tree = (await git(["rev-parse", `${NOTES_REF}^{tree}`], { cwd: repo.root })).trim();
-      const squashedCommit = (
-        await git(["commit-tree", tree, "-m", "cledger: notes history squashed after redaction"], {
-          cwd: repo.root,
-        })
-      ).trim();
-      await git(["update-ref", NOTES_REF, squashedCommit], { cwd: repo.root });
-      squashed = true;
-    } else {
-      process.stderr.write(
-        "cledger redact: refs/notes/conversation-ledger already has a copy on origin, so the " +
-          "pre-redaction content is already shared history — skipping the local squash. Purging " +
-          "already-pushed history is separate, not-yet-built tooling (force-push + collaborator " +
-          "re-fetch coordination).\n",
-      );
-    }
+    const tree = (await git(["rev-parse", `${NOTES_REF}^{tree}`], { cwd: repo.root })).trim();
+    const squashedCommit = (
+      await git(["commit-tree", tree, "-m", "cledger: notes history squashed after redaction"], {
+        cwd: repo.root,
+      })
+    ).trim();
+    await git(["update-ref", NOTES_REF, squashedCommit], { cwd: repo.root });
+    squashed = true;
   }
 
   return { event: rewritten, redactionEvent, squashed, knownSecretsRemembered };
