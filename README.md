@@ -439,10 +439,48 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   disk-snoop / backup-scoop risk — and it means `cledger redact --pattern`
   currently *increases* the number of plaintext copies of a secret on local
   disk, which is a surprising thing for a redaction command to do. Owner-only
-  `0600` perms shipped in 0.7.1;
-  the real remaining work is encryption with an OS-keychain-held key (macOS
-  Keychain / libsecret / DPAPI), which must decrypt *non-interactively* since
+  `0600` perms shipped in 0.7.1.
+  **Preferred fix: store hashes, not plaintext** (see the entry below) — it
+  removes the secret rather than protecting it, and needs no key at all.
+  The previously-planned alternative was encryption with an OS-keychain-held
+  key (macOS Keychain / libsecret / DPAPI), which must decrypt
+  *non-interactively* since
   capture runs silently on every turn.
+- **Store hashes of known secrets, not the secrets** — replace
+  `known-secrets.json`'s plaintext `values` with salted digests plus each
+  value's byte length. Capture-time scrubbing then confirms a candidate span
+  by hashing it, so the store stops being a readable aggregation of every
+  secret you have ever confirmed. Strictly better than encrypting it: an
+  encrypted store is reversible by design (capture must decrypt silently, so
+  the key has to be reachable by anything running as you), whereas a hashed
+  store does not contain the secret at all — not for an attacker, and not for
+  cledger. It also deletes the whole key-management problem, which is the
+  reason the encryption entry above has never been done.
+  *The design question is candidate generation* — you cannot search for a
+  value you cannot reconstruct, so something must propose the spans to hash.
+  Two options, and they compose:
+  (a) **Rule-generated candidates.** Run the broad scan-tier rules purely as
+  candidate *generators* and confirm each match against the stored digests.
+  Cheap — O(matches × stored) — and, importantly, the noise that disqualified
+  those rules from capture-time *rewriting* is harmless here, because the
+  hash comparison is exact: a false-positive candidate simply fails to match
+  and nothing is rewritten. Its limit is recall, and the limit bites exactly
+  where this feature earns its keep: a value the store holds *because no rule
+  recognized it* still generates no candidate, so it is never checked.
+  (b) **Length-indexed rolling scan.** Index the digests by length and sweep
+  each string with a rolling hash (Rabin–Karp), running sha256 only on a
+  window whose rolling hash hits. Linear in text size per distinct stored
+  length, no dependency on any rule matching, and it subsumes (a) entirely.
+  More code; the honest cost.
+  *Accepted limitation either way:* a digest is brute-forceable for
+  low-entropy values, so human-chosen passwords remain dictionary-attackable
+  while random API tokens do not. That trade is deliberate — this tool
+  operates on code repositories, where the realistic secret is a generated
+  token, and a leaked credential's real remedy is rotation regardless. Salt
+  per-store so the file is not rainbow-table-able, and note that storing
+  lengths leaks a little and makes the file a guess-checking oracle, the same
+  property any password-hash file has.
+  *Migration:* hash existing plaintext entries in place on first write.
 - **Share local state across worktrees** *(shipped, 0.13.0)* — cledger kept
   its local state under `git rev-parse --absolute-git-dir`, which in a linked
   worktree is that worktree's *private* directory
