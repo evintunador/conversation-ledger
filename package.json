@@ -30,6 +30,7 @@
     "conversation-history",
     "claude-code",
     "codex",
+    "opencode",
     "provenance"
   ],
   "files": [

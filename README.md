@@ -26,12 +26,13 @@ visibly said, by whom, against which commit — nothing more.
 ```sh
 git clone https://github.com/evintunador/conversation-ledger
 cd conversation-ledger && npm install && npm link   # npm publish coming later
-cledger install all    # hook capture into Claude Code + Codex CLI
+cledger install all    # hook capture into Claude Code + Codex CLI + opencode
 ```
 
-`cledger install` adds `Stop`/`SessionEnd` hooks to `~/.claude/settings.json`
-and a `Stop` hook (plus `features.hooks = true`) to `~/.codex/config.toml`,
-backing both up first. From then on, every completed turn in any git
+`cledger install` adds `Stop`/`SessionEnd` hooks to `~/.claude/settings.json`,
+a `Stop` hook (plus `features.hooks = true`) to `~/.codex/config.toml`, and a
+`session.idle` plugin at `~/.config/opencode/plugin/cledger.js`, backing each
+up first. From then on, every completed turn in any git
 repository is captured automatically, in the same universal format. Capture is
 idempotent — events are content-derived, so re-scanning a transcript never
 duplicates.
@@ -40,7 +41,9 @@ Two one-time activation notes: Claude Code reads hooks at session start, so
 capture begins with your next session; Codex requires you to trust new hooks
 interactively — open `codex`, run `/hooks`, and approve the `cledger hook
 codex` command once. Missed turns are never lost either way: `cledger capture
-<source> --transcript PATH` backfills any native transcript, idempotently.
+<source> --transcript PATH` backfills any native transcript, idempotently
+(for opencode, which has no transcript file, use `cledger capture opencode
+--all` or `--session <id>`).
 
 The hooks above are installed once, globally, and fire in every git
 repository you work in. To turn cledger off for one specific repo, add
@@ -128,7 +131,8 @@ the default branch's view. cledger repairs this automatically:
 
 ## Adapters
 
-Supported today (built-in, hook-based, per-turn):
+Supported today (built-in, per-turn, triggered by the CLI's own hook or
+plugin mechanism):
 
 Every captured event records the agent that served it — `producer.model`,
 `producer.provider`, `producer.source_version` — but only where the source
@@ -139,6 +143,7 @@ not know.
 |---|---|---|---|
 | Claude Code CLI | `Stop`/`SessionEnd` hooks | `~/.claude/projects/*/*.jsonl` | Also covers the VS Code extension and JetBrains plugin (both share `~/.claude/settings.json` hooks and transcripts), and desktop-app local/SSH/WSL sessions. Cloud "Remote" sessions and the Cowork tab run server-side — not captured. |
 | Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. Provider-encrypted `reasoning` items are preserved opaquely as `reasoning`-kind events (hidden from `log`/`show` by default, see Roadmap); inter-agent messages (`agent_message`) are captured with their visible text but their embedded encrypted blocks are still dropped outright. |
+| opencode | `session.idle` plugin event | SQLite at `~/.local/share/opencode/opencode.db` | The only adapter without an append-only transcript file. Rather than read opencode's database — whose schema is mid-migration, and which also stores API tokens — capture shells out to `opencode export --pure <id>` and converts its JSON. One event per *part*, not per message: opencode's store is mutable, and a part is the finest unit that stops changing, so a message that gains parts after an early idle appends rather than duplicating. Unlike Codex, `reasoning` parts are plaintext, so they become ordinary visible `thinking` blocks. Unsettled (`running`) tool calls are skipped and hold the cursor back until they finish. Subagent sessions are skipped (see Roadmap). Requires `opencode` on `PATH`; `cledger capture opencode --all` backfills every session opencode scopes to the current project, and `--transcript` reads a saved export. |
 
 TODO adapters, roughly in order of how ledger-friendly their storage/hook
 story looks (all have local session stores; most grew Claude-Code-style hook
@@ -149,7 +154,6 @@ systems):
 - **GitHub Copilot CLI** — `~/.copilot/session-state/`; documented hooks dirs.
 - **Factory droid** — `~/.factory/` sessions; `hooks.json`.
 - **Qwen Code** — `~/.qwen/projects/*/chats/`; hooks system.
-- **opencode** — SQLite under `~/.local/share/opencode/`; plugin-API events rather than shell hooks.
 - **Cursor (`cursor-agent` CLI)** — `~/.cursor/chats`; hooks exist, but IDE-side chats live in editor-internal storage.
 - **aider** — plain `.aider.chat.history.md`; no hook mechanism found, would need file watching.
 - **Goose / Amp** — SQLite store / cloud-synced threads; hook stories unclear or absent.
@@ -197,6 +201,63 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 
 ## Roadmap
 
+- **`cledger export | head` dies with an unhandled EPIPE** — `printJsonl`
+  writes to `process.stdout` with no `error` handler, so when the reader goes
+  away mid-write Node throws and prints a stack trace instead of exiting
+  quietly. Affects `log --json`, `show --json` and `export`, all three of
+  which go through it. Not exotic: piping any ledger larger than the 64KB pipe
+  buffer into `head`, or into a command that fails at startup, reproduces it —
+  `cledger export | head -1` against a 23MB ledger throws every time. Small
+  ledgers hide it, because the whole payload fits the buffer before the reader
+  exits. Fix is an `EPIPE` handler that exits 0, the convention every
+  `head`-friendly CLI follows. Kept out of the opencode adapter branch on
+  purpose; wants its own change.
+- **Subagent sessions are dropped by every adapter** — each adapter skips the
+  conversations its coding CLI spawns for subagents: claude-code ignores
+  `isSidechain` lines, opencode skips sessions with a `parentID`, and codex's
+  inter-agent traffic is only partly captured. What survives is whatever the
+  parent's tool-call event recorded as the subagent's *final output*; the
+  reasoning and tool calls that produced it are lost. That is often the more
+  interesting half — a subagent that read twenty files to answer one question
+  leaves no trace of which twenty. The blocker is not per-adapter plumbing but
+  a schema question that has to be answered once for all of them: a subagent
+  conversation needs an expressible relation to the parent turn that spawned
+  it (a `links` rel like `spawned_by`, or a `conversation.parent` field), and
+  a decision about whether `cledger log` shows those turns inline, nested, or
+  only on request. Ledger volume roughly multiplies with subagent-heavy
+  workflows, so the display default matters as much as the capture. Do the
+  schema and display design first, then turn all three adapters on together.
+- **opencode capture is positional over a mutable store** — the other two
+  adapters read append-only transcript files, so `conversation.seq` (the
+  source line index) is stable forever and event ids never churn. opencode
+  keeps sessions in SQLite, where `session revert`, `message.removed` and
+  `part.removed` can delete parts out of the middle of a session. Deleting a
+  part shifts the positions of everything after it, and since `seq` is part of
+  event identity, the shifted parts re-capture under new ids — duplicates in
+  the ledger rather than lost or corrupted content, and only for sessions you
+  actually revert. Capturing per *part* rather than per message already keeps
+  the blast radius to the parts after the deletion. A real fix would derive
+  `seq` from opencode's own part ids instead of a running index, which needs
+  those ids to be reliably orderable; worth confirming before committing to
+  it. Related: opencode's `session delete` removes a conversation from
+  opencode entirely while the ledger keeps it, which is a feature, not a bug.
+- **The opencode hook's session-id fallback is untested** — the plugin reads
+  `event.properties.sessionID`, confirmed against a live `session.idle` from
+  opencode 1.18.5, so the normal path is pinned to the real field. The hook
+  still treats the id as optional and falls back to capturing the most
+  recently updated session for the directory, so a future opencode that
+  renames the field degrades instead of silently stopping. That fallback has
+  never run in anger, and it would pick the wrong session if two sessions in
+  one project went idle in the same instant. Worth a test that exercises it
+  directly, and a warning when it triggers, so a silent rename does not look
+  like normal operation.
+- **`opencode export` truncates a piped stdout at 64KB** — an upstream Bun
+  flush bug: the process exits without draining stdout, so any session over
+  ~64KB comes back cut off, and the truncated JSON can still parse. cledger
+  works around it by routing the child's stdout to a temp file rather than a
+  pipe (see `runOpencode`). Worth reporting upstream; the workaround should
+  stay regardless, since it costs nothing and protects older opencode
+  versions.
 - **Config sections replace rather than merge, and it fails open** — `loadConfig`
   merges `~/.config/cledger/config.json` and `<repo>/.cledger.json` per
   *top-level section*, not per key (`const redact = override.redact ??

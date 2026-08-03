@@ -36,6 +36,16 @@ export {
 export type { GitUserIdentity, RepoInfo } from "./git.js";
 export { captureClaudeTranscript, runClaudeCodeHook } from "./adapters/claude-code.js";
 export { captureCodexTranscript, runCodexHook } from "./adapters/codex.js";
+export {
+  captureOpencodeAll,
+  captureOpencodeExport,
+  captureOpencodeExportFile,
+  captureOpencodeSession,
+  exportOpencodeSession,
+  listOpencodeSessions,
+  runOpencodeHook,
+} from "./adapters/opencode.js";
+export type { OpencodeExport } from "./adapters/opencode.js";
 export { renormalize } from "./renormalize.js";
 export type { RenormalizeResult } from "./renormalize.js";
 export { defaultRewriteTarget, detectRewrites, parseReAnchor, reAnchorDraft } from "./reanchor.js";
