@@ -18,6 +18,12 @@ import {
 import { parseEventLine, type EventDraft, type EvidenceEvent } from "./schema.js";
 import { runClaudeCodeHook, captureClaudeTranscript } from "./adapters/claude-code.js";
 import { runCodexHook, captureCodexTranscript } from "./adapters/codex.js";
+import {
+  runOpencodeHook,
+  captureOpencodeAll,
+  captureOpencodeExportFile,
+  captureOpencodeSession,
+} from "./adapters/opencode.js";
 import { renormalize } from "./renormalize.js";
 import { installAdapters } from "./install.js";
 import { forgeForRepo } from "./forge/forge.js";
@@ -84,9 +90,15 @@ Usage:
   cledger renormalize                      re-interpret preserved unrecognized transcript lines this
                                            cledger version can now parse into conversation_turns,
                                            superseding the raw-only placeholders (append-only, idempotent)
-  cledger install <claude-code|codex|all>  hook capture into coding CLIs (global)
-  cledger hook <claude-code>              capture entrypoint invoked by CLI hooks (stdin: hook payload)
+  cledger install <claude-code|codex|opencode|all>
+                                           hook capture into coding CLIs (global)
+  cledger hook <claude-code|codex|opencode>
+                                           capture entrypoint invoked by CLI hooks (stdin: hook payload)
   cledger capture <claude-code|codex> --transcript PATH   manual/backfill ingestion
+  cledger capture opencode [--session ID | --all | --transcript EXPORT.json]
+                                           opencode keeps sessions in SQLite, not a transcript file,
+                                           so capture shells out to \`opencode export\`; --all sweeps
+                                           every session opencode scopes to this project
   cledger --version | --help
 
 Events are anchored to the HEAD commit at capture time and stored under
@@ -649,6 +661,9 @@ async function main(): Promise<void> {
       if (positional[0] === "codex") {
         return runCodexHook(await readStdin());
       }
+      if (positional[0] === "opencode") {
+        return runOpencodeHook(await readStdin());
+      }
       process.stderr.write(`unknown hook source: ${positional[0]}\n`);
       process.exit(2);
       return;
@@ -664,7 +679,32 @@ async function main(): Promise<void> {
         await captureCodexTranscript(transcript, process.cwd());
         return;
       }
-      process.stderr.write("usage: cledger capture <claude-code|codex> --transcript PATH\n");
+      if (source === "opencode") {
+        // opencode has no transcript file; --transcript takes a saved
+        // `opencode export` JSON so backfill works without opencode present.
+        const session = typeof flags["session"] === "string" ? flags["session"] : undefined;
+        if (transcript) {
+          await captureOpencodeExportFile(transcript, process.cwd());
+          return;
+        }
+        if (session) {
+          await captureOpencodeSession(session, process.cwd());
+          return;
+        }
+        if (flags["all"]) {
+          await captureOpencodeAll(process.cwd());
+          return;
+        }
+        process.stderr.write(
+          "usage: cledger capture opencode (--session ID | --all | --transcript EXPORT.json)\n",
+        );
+        process.exit(2);
+        return;
+      }
+      process.stderr.write(
+        "usage: cledger capture <claude-code|codex> --transcript PATH\n" +
+          "       cledger capture opencode (--session ID | --all | --transcript EXPORT.json)\n",
+      );
       process.exit(2);
       return;
     }
