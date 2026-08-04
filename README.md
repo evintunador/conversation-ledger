@@ -676,6 +676,36 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   "squashes happen off-machine" problem at the source instead of
   reconstructing it after fetch; kept separate from core because it requires
   forge credentials and per-host setup.
+- **`KNOWN_SKIPPED_LINE_TYPES` discards too much, and the file-history
+  entries are the costly ones** — the claude-code adapter drops eleven line
+  types as "session bookkeeping, UI state, and file-history machinery". Two of
+  them, `file-history-snapshot` and `file-history-delta`, are the only record
+  of *intermediate file state*: the versions a file passed through between
+  commits. Tool calls alone cannot reconstruct that, because a `Bash` mutation
+  (`sed -i`, a redirect, `mv`) records the command and not the result, and a
+  cursor-resumed capture starts mid-file. Others look like pure UI but carry
+  real references — `queue-operation` payloads name task output paths,
+  `system` `local_command` lines carry command stdout, and `attachment`
+  carries pasted or referenced content.
+
+  Two things make this more than a one-line deletion. First, the skip set is
+  not the only gate: `CONVERTIBLE_LINE_TYPES` is `{user, assistant}`, so
+  merely removing a type from the skip set routes it to the *unrecognized*
+  branch — preserved raw (good) but also counted for the drift warning
+  (noise, and semantically wrong: these are known upstream types, not new
+  ones). The fix wants a third category — known, preserved raw, not
+  drift-counted — or real conversion for the types that deserve it. Second,
+  `file-history-*` lines carry only *pointers* (`trackingPath`,
+  `backupFileName`, `realParentDir`), never content; the bytes live under
+  `~/.claude/file-history/<session>/<hash>@v<N>`, a machine-local cache
+  Claude Code is free to prune. Recording the pointer alone would put a
+  dangling, unshareable reference into a store whose whole purpose is durable,
+  syncable records. Capturing the backup's **content hash** at capture time is
+  the cheap fix that keeps the ledger self-verifying without inlining file
+  bodies; capturing content is the thorough one.
+
+  Raised by context-graph, which wants sub-commit file history and currently
+  has to read `~/.claude/file-history/` directly to get it.
 
 ## Storage model, in one paragraph
 
