@@ -60,8 +60,9 @@ there's nothing to record and nothing to disable.
 cledger log                     # events on the current branch (via commit reachability)
 cledger log --all --json        # every event, as JSONL for jq & friends
 cledger log --model gpt-5.6-sol # only turns a given model served
+cledger log --with-state        # include session state, activity, injections, file snapshots
 cledger conversations           # sessions touching this branch, with the models they used
-cledger show claude-code:3f9a   # replay one conversation in order
+cledger show claude-code:3f9a   # replay one conversation in order (matches subagents too)
 cledger export > ledger.jsonl   # lossless dump, incl. source-native payloads
 cledger sync                    # explicit fetch/merge/push of the ledger ref
 cledger re-anchor               # what did the remote squash away? (--apply to map it)
@@ -129,6 +130,56 @@ the default branch's view. cledger repairs this automatically:
 - Opt out with `{"reanchor": {"auto": false}}`; the explicit command keeps
   working either way.
 
+## What gets recorded
+
+The goal is the whole record, not the readable half of it. A coding session
+produces far more than turns, and most of the rest used to be discarded at
+capture as "bookkeeping". It is not bookkeeping to a consumer asking whether an
+old turn still applies, or what a file looked like between two commits, or what
+a subagent actually did.
+
+Every event carries a `kind`:
+
+| Kind | What it is | Examples |
+|---|---|---|
+| `conversation_turn` | What someone said — human, agent, tool result, or the harness printing into the conversation | user prompts, assistant messages, tool calls and results, `<local-command-stdout>` |
+| `reasoning` | Provider-encrypted thinking, preserved opaquely and never interpreted | Codex `reasoning` items |
+| `session_state` | A declaration that holds until restated | mode, permission mode, sandbox and approval policy, model settings, session title, worktree relocation, Codex `turn_context` / `session_meta` / `world_state` |
+| `activity` | A point-in-time occurrence that is not a turn | hook runs, turn durations, token counts, task lifecycle, queue operations, context compaction, aborts, opencode step boundaries |
+| `context_injection` | Material the harness put into the model's context that nobody typed | Claude Code `attachment` lines — task reminders, skill listings, diagnostics, pasted files |
+| `file_snapshot` | Intermediate file state: the versions a file passed through between commits | Claude Code `file-history-snapshot` / `file-history-delta` |
+| `unrecognized` | A line type no adapter knows yet — preserved raw, warned about, upgradeable by `cledger renormalize` | anything upstream adds |
+
+The last four are *session machinery*: `log`, `show` and `conversations` hide
+them unless you pass `--with-state` or name the kind with `--kind`, because a
+session restates its mode and its tracked-file set far more often than anyone
+speaks. They are always captured, always exported, always synced — the flag
+only changes what is displayed.
+
+### Sub-conversations
+
+A subagent's turns are its own conversation, not part of its parent's turn
+sequence. They get their own `conversation.id` and point back via
+`conversation.parent`, so `cledger show <subagent-id>` reads one subagent in
+isolation while `cledger show <session-id>` still matches the parent and every
+child under it. Claude Code sidechains and opencode subagent sessions were both
+dropped entirely before this existed — for an agent-heavy session that was most
+of the work.
+
+### File snapshots and `resolved`
+
+Sources describe intermediate file versions with *pointers* into a local cache
+(`~/.claude/file-history/<session>/<hash>@vN`), never with content. Capture
+records the pointer in `content` and, in a separate top-level `resolved` field,
+the sha256 and size it read from that file at capture time.
+
+`resolved` is deliberately outside event identity. The cache is the source's to
+prune, so the same transcript line resolves differently on another machine or
+after a cleanup; folding that into the id would duplicate every snapshot on the
+next rescan instead of deduping it. The digest is stored rather than the bytes
+so the record stays verifiable without growing the ledger by whole file bodies —
+a consumer that still has the bytes can prove they are the ones the event means.
+
 ## Adapters
 
 Supported today (built-in, per-turn, triggered by the CLI's own hook or
@@ -141,9 +192,9 @@ not know.
 
 | Source | Trigger | Transcript store | Notes |
 |---|---|---|---|
-| Claude Code CLI | `Stop`/`SessionEnd` hooks | `~/.claude/projects/*/*.jsonl` | Also covers the VS Code extension and JetBrains plugin (both share `~/.claude/settings.json` hooks and transcripts), and desktop-app local/SSH/WSL sessions. Cloud "Remote" sessions and the Cowork tab run server-side — not captured. |
-| Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. Provider-encrypted `reasoning` items are preserved opaquely as `reasoning`-kind events (hidden from `log`/`show` by default, see Roadmap); inter-agent messages (`agent_message`) are captured with their visible text but their embedded encrypted blocks are still dropped outright. |
-| opencode | `session.idle` plugin event | SQLite at `~/.local/share/opencode/opencode.db` | The only adapter without an append-only transcript file. Rather than read opencode's database — whose schema is mid-migration, and which also stores API tokens — capture shells out to `opencode export --pure <id>` and converts its JSON. One event per *part*, not per message: opencode's store is mutable, and a part is the finest unit that stops changing, so a message that gains parts after an early idle appends rather than duplicating. Unlike Codex, `reasoning` parts are plaintext, so they become ordinary visible `thinking` blocks. Unsettled (`running`) tool calls are skipped and hold the cursor back until they finish. Subagent sessions are skipped (see Roadmap). Requires `opencode` on `PATH`; `cledger capture opencode --all` backfills every session opencode scopes to the current project, and `--transcript` reads a saved export. |
+| Claude Code CLI | `Stop`/`SessionEnd` hooks | `~/.claude/projects/*/*.jsonl` | Also covers the VS Code extension and JetBrains plugin (both share `~/.claude/settings.json` hooks and transcripts), and desktop-app local/SSH/WSL sessions. Cloud "Remote" sessions and the Cowork tab run server-side — not captured. Every line type is now recorded: `system` lines that printed text become turns spoken by the system, `attachment` becomes `context_injection`, `mode`/`permission-mode`/`worktree-state`/`pr-link` and friends become `session_state`, `queue-operation` and the rest become `activity`, and `file-history-*` becomes `file_snapshot` with backup digests resolved at capture time. Sidechain (subagent) turns are captured as sub-conversations instead of dropped. |
+| Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. Provider-encrypted `reasoning` items are preserved opaquely as `reasoning`-kind events (hidden from `log`/`show` by default, see Roadmap); inter-agent messages (`agent_message`) are captured with their visible text but their embedded encrypted blocks are still dropped outright. `turn_context` and `session_meta` are now recorded as `session_state` as well as read for `producer` metadata, so the sandbox policy, approval policy and reasoning effort a turn ran under are part of the record. Of the `event_msg` UI stream, only `agent_message`/`user_message` are dropped — they genuinely duplicate a `response_item`; token counts, task lifecycle, sub-agent activity, patch application and aborts have no twin and are recorded as `activity`. |
+| opencode | `session.idle` plugin event | SQLite at `~/.local/share/opencode/opencode.db` | The only adapter without an append-only transcript file. Rather than read opencode's database — whose schema is mid-migration, and which also stores API tokens — capture shells out to `opencode export --pure <id>` and converts its JSON. One event per *part*, not per message: opencode's store is mutable, and a part is the finest unit that stops changing, so a message that gains parts after an early idle appends rather than duplicating. Unlike Codex, `reasoning` parts are plaintext, so they become ordinary visible `thinking` blocks. Unsettled (`running`) tool calls are skipped and hold the cursor back until they finish. Subagent sessions are captured as their own conversation: opencode records a child's session id in the parent's `task` tool part, which is the only way to find them at all (`opencode session list` returns top-level sessions only), so capture walks them depth-first. Requires `opencode` on `PATH`; `cledger capture opencode --all` backfills every session opencode scopes to the current project, and `--transcript` reads a saved export. |
 
 TODO adapters, roughly in order of how ledger-friendly their storage/hook
 story looks (all have local session stores; most grew Claude-Code-style hook
@@ -212,21 +263,6 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   exits. Fix is an `EPIPE` handler that exits 0, the convention every
   `head`-friendly CLI follows. Kept out of the opencode adapter branch on
   purpose; wants its own change.
-- **Subagent sessions are dropped by every adapter** — each adapter skips the
-  conversations its coding CLI spawns for subagents: claude-code ignores
-  `isSidechain` lines, opencode skips sessions with a `parentID`, and codex's
-  inter-agent traffic is only partly captured. What survives is whatever the
-  parent's tool-call event recorded as the subagent's *final output*; the
-  reasoning and tool calls that produced it are lost. That is often the more
-  interesting half — a subagent that read twenty files to answer one question
-  leaves no trace of which twenty. The blocker is not per-adapter plumbing but
-  a schema question that has to be answered once for all of them: a subagent
-  conversation needs an expressible relation to the parent turn that spawned
-  it (a `links` rel like `spawned_by`, or a `conversation.parent` field), and
-  a decision about whether `cledger log` shows those turns inline, nested, or
-  only on request. Ledger volume roughly multiplies with subagent-heavy
-  workflows, so the display default matters as much as the capture. Do the
-  schema and display design first, then turn all three adapters on together.
 - **opencode capture is positional over a mutable store** — the other two
   adapters read append-only transcript files, so `conversation.seq` (the
   source line index) is stable forever and event ids never churn. opencode
@@ -676,36 +712,32 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   "squashes happen off-machine" problem at the source instead of
   reconstructing it after fetch; kept separate from core because it requires
   forge credentials and per-host setup.
-- **`KNOWN_SKIPPED_LINE_TYPES` discards too much, and the file-history
-  entries are the costly ones** — the claude-code adapter drops eleven line
-  types as "session bookkeeping, UI state, and file-history machinery". Two of
-  them, `file-history-snapshot` and `file-history-delta`, are the only record
-  of *intermediate file state*: the versions a file passed through between
-  commits. Tool calls alone cannot reconstruct that, because a `Bash` mutation
-  (`sed -i`, a redirect, `mv`) records the command and not the result, and a
-  cursor-resumed capture starts mid-file. Others look like pure UI but carry
-  real references — `queue-operation` payloads name task output paths,
-  `system` `local_command` lines carry command stdout, and `attachment`
-  carries pasted or referenced content.
-
-  Two things make this more than a one-line deletion. First, the skip set is
-  not the only gate: `CONVERTIBLE_LINE_TYPES` is `{user, assistant}`, so
-  merely removing a type from the skip set routes it to the *unrecognized*
-  branch — preserved raw (good) but also counted for the drift warning
-  (noise, and semantically wrong: these are known upstream types, not new
-  ones). The fix wants a third category — known, preserved raw, not
-  drift-counted — or real conversion for the types that deserve it. Second,
-  `file-history-*` lines carry only *pointers* (`trackingPath`,
-  `backupFileName`, `realParentDir`), never content; the bytes live under
-  `~/.claude/file-history/<session>/<hash>@v<N>`, a machine-local cache
-  Claude Code is free to prune. Recording the pointer alone would put a
-  dangling, unshareable reference into a store whose whole purpose is durable,
-  syncable records. Capturing the backup's **content hash** at capture time is
-  the cheap fix that keeps the ledger self-verifying without inlining file
-  bodies; capturing content is the thorough one.
-
-  Raised by context-graph, which wants sub-commit file history and currently
-  has to read `~/.claude/file-history/` directly to get it.
+- **Capturing file *content*, not just its digest** — `file_snapshot` records
+  the pointer a source states and the sha256 the ledger read from it at
+  capture time (see "What gets recorded"). That makes the record verifiable
+  and survives the cache being pruned, but a consumer who no longer has the
+  bytes still cannot reconstruct the file: the digest proves a copy is the
+  right one, it does not produce one. Inlining the bodies is the thorough fix
+  and the expensive one — unbounded ledger growth, whole source files through
+  the redaction stack — so it wants a size policy and probably an opt-in
+  before it ships. Raised by context-graph, which wants sub-commit file
+  history and reads `~/.claude/file-history/` directly today.
+- **Codex `agent_message` encrypted blocks are still dropped** — inter-agent
+  messages mix visible `input_text` with `encrypted_content` blocks. The
+  visible text converts; the encrypted blocks are dropped outright rather than
+  preserved opaquely the way standalone `reasoning` items are, because an
+  embedded block is only part of its line and preserving it needs either its
+  own event shape or a decision to fold it into a sibling `reasoning` event.
+  The omission is visible in `raw` (a bare `{type: "encrypted_content"}`
+  marker), so nothing is silently lost — but it is still the one place capture
+  discards provider-withheld material instead of keeping it sealed.
+- **Sub-conversation coverage is per-source, and one source may still be
+  lossy** — Claude Code sidechains and opencode subagent sessions are both
+  captured now, the latter by walking `task` tool parts to discover child
+  session ids. Codex's `sub_agent_activity` events are recorded as `activity`,
+  but whether codex writes a separate rollout for a sub-agent (and where) has
+  not been confirmed, so a codex sub-agent's internal steps may still go
+  unrecorded. Worth a rollout-format check before claiming parity.
 
 ## Storage model, in one paragraph
 

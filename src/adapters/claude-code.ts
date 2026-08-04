@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { sha256Hex } from "../canonical.js";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
@@ -10,30 +11,91 @@ import {
   warnUnrecognized,
   type CaptureResult,
 } from "./drift.js";
+import {
+  activityDraft,
+  contextInjectionDraft,
+  fileSnapshotDraft,
+  liftText,
+  recordDraft,
+  sessionStateDraft,
+  type RecordContext,
+  type ResolvedFile,
+  type SnapshotFile,
+} from "./records.js";
 
 const CONVERTIBLE_LINE_TYPES = new Set(["user", "assistant"]);
 
+// Unchanged at /1: `raw.data` is still one verbatim transcript line, which is
+// all the format marker promises. What changed is which lines get captured
+// and what `content` the ledger derives from them, neither of which affects
+// how a consumer re-parses the stored line.
 const RAW_FORMAT = "claude-code-jsonl/1";
 
 /**
- * Line types we deliberately do not capture: session bookkeeping, UI state,
- * and file-history machinery, not visible conversation content. A parsed
- * line whose type is in neither set is *unrecognized* — likely new upstream
- * content — and gets counted for the drift warning.
+ * Line types recorded as `session_state` — declarations about the session
+ * that hold until restated. Claude Code rewrites most of these on every turn;
+ * each restatement is kept as its own event, because "the permission mode was
+ * still `auto` at this point" is a fact a consumer judging an old turn needs
+ * and cannot recover from the first statement alone.
  */
-const KNOWN_SKIPPED_LINE_TYPES = new Set([
-  "system",
-  "summary",
-  "progress",
-  "attachment",
+const SESSION_STATE_LINE_TYPES = new Set([
   "mode",
   "permission-mode",
+  "agent-setting",
+  "agent-name",
   "ai-title",
   "last-prompt",
-  "queue-operation",
-  "file-history-snapshot",
-  "file-history-delta",
+  "summary",
+  "relocated",
+  "worktree-state",
+  "pr-link",
+  "bridge-session",
 ]);
+
+/** Line types recorded as `activity` — things that happened, not state. */
+const ACTIVITY_LINE_TYPES = new Set(["progress", "queue-operation"]);
+
+/**
+ * Line types recorded as `file_snapshot`. Handled apart from the rest of the
+ * routing because they are the only ones whose conversion touches the disk —
+ * their payload is a set of pointers into Claude Code's backup cache, and
+ * resolving those to digests is an async read the pure routing function
+ * cannot do.
+ */
+const FILE_HISTORY_LINE_TYPES = new Set(["file-history-snapshot", "file-history-delta"]);
+
+/**
+ * Envelope fields every Claude Code line carries. They are dropped from the
+ * structured `content` of state/activity/injection records — not because they
+ * are worthless, but because they are already on the event itself
+ * (`occurred_at`, `producer.session_id`, `producer.source_version`,
+ * `context.cwd`) or in `raw.data`, and repeating them in `content` would put
+ * the same fact in three places with three chances to disagree.
+ */
+const ENVELOPE_KEYS = new Set([
+  "type",
+  "uuid",
+  "parentUuid",
+  "sessionId",
+  "session_id",
+  "timestamp",
+  "cwd",
+  "version",
+  "gitBranch",
+  "isSidechain",
+  "userType",
+  "entrypoint",
+  "sessionKind",
+]);
+
+/** A line's own fields, envelope stripped — the payload the type is about. */
+function payloadFields(line: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(line)) {
+    if (!ENVELOPE_KEYS.has(key)) out[key] = value;
+  }
+  return out;
+}
 
 /** Claude Code hooks-engine payload (subset we read). */
 interface ClaudeCodeHookPayload {
@@ -47,11 +109,33 @@ interface ClaudeCodeHookPayload {
 interface ClaudeTranscriptLine {
   type?: string;
   isSidechain?: boolean;
+  /** Subagent this line belongs to; present on every sidechain line. */
+  agentId?: string;
+  /** Subagent type that produced an assistant sidechain line, e.g. "Explore". */
+  attributionAgent?: string;
   message?: {
     role?: string;
     model?: string;
     content?: unknown;
   };
+  /** `system` lines: which kind of system line, e.g. "local_command". */
+  subtype?: string;
+  /** `system` / `queue-operation` lines: the text the harness emitted. */
+  content?: unknown;
+  /** `attachment` lines: the injected material. */
+  attachment?: { type?: string } & Record<string, unknown>;
+  /** `file-history-snapshot` lines. */
+  snapshot?: {
+    messageId?: string;
+    trackedFileBackups?: Record<string, ClaudeFileBackup>;
+    timestamp?: string;
+  };
+  isSnapshotUpdate?: boolean;
+  /** `file-history-delta` lines. */
+  messageId?: string;
+  snapshotMessageId?: string;
+  trackingPath?: string;
+  backup?: ClaudeFileBackup;
   uuid?: string;
   parentUuid?: string;
   sessionId?: string;
@@ -59,6 +143,16 @@ interface ClaudeTranscriptLine {
   cwd?: string;
   gitBranch?: string;
   version?: string;
+}
+
+/** One tracked file version, as Claude Code's file-history machinery records it. */
+interface ClaudeFileBackup {
+  /** Name of the copy under `<config>/file-history/<session>/`, or null when
+   *  the file is tracked but no copy was taken. */
+  backupFileName?: string | null;
+  version?: number;
+  backupTime?: string;
+  realParentDir?: string;
 }
 
 function packageVersion(): string {
@@ -165,6 +259,179 @@ function agentContext(line: ClaudeTranscriptLine): ProducerAgentContext {
   return agent;
 }
 
+/**
+ * Which conversation a line belongs to.
+ *
+ * Sidechain lines are a subagent's conversation, not the parent's. They were
+ * dropped outright until now, which lost every subagent turn in every session
+ * — often most of the work in an agent-heavy transcript. They are recorded as
+ * their own conversation, keyed by the `agentId` Claude Code stamps on them,
+ * pointing back at the session that spawned them. That keeps `show` able to
+ * read one subagent in isolation while `show <session-prefix>` still matches
+ * parent and children together, and it keeps a subagent's turns out of the
+ * parent's turn sequence, where they never belonged.
+ */
+function conversationFor(
+  line: ClaudeTranscriptLine,
+  sessionId: string,
+): { id: string; parent?: string } {
+  const root = `claude-code:${sessionId}`;
+  if (line.isSidechain !== true) return { id: root };
+  const agentId = typeof line.agentId === "string" && line.agentId ? line.agentId : "unknown";
+  return { id: `${root}#agent:${agentId}`, parent: root };
+}
+
+/**
+ * Where Claude Code keeps the bytes a file-history line points at:
+ * `<config>/file-history/<session>/<backup file>`.
+ *
+ * `<config>` is derived from the transcript path rather than assumed to be
+ * `~/.claude`, so a `CLAUDE_CONFIG_DIR` override still resolves. It is found
+ * by walking up to the `projects` directory rather than by counting segments,
+ * because transcripts sit at two different depths: a session is
+ * `<config>/projects/<escaped cwd>/<session>.jsonl`, but a subagent is
+ * `<config>/projects/<escaped cwd>/<session>/subagents/agent-<id>.jsonl`, and
+ * a fixed number of `dirname` calls gets one of the two wrong.
+ *
+ * Returns null when no `projects` ancestor is there to anchor on — a
+ * hand-placed transcript, a test fixture — in which case there is no cache to
+ * resolve against and the pointers are stored unresolved.
+ */
+function fileHistoryDir(transcriptPath: string, sessionId: string): string | null {
+  let dir = dirname(transcriptPath);
+  while (true) {
+    const parent = dirname(dir);
+    if (parent === dir) return null; // reached the filesystem root
+    if (basename(dir) === "projects") return join(parent, "file-history", sessionId);
+    dir = parent;
+  }
+}
+
+/**
+ * Read one backup file and describe it: sha256 and size, never the bytes.
+ *
+ * Storing the digest rather than the content is the deliberate middle ground
+ * between a dangling pointer (useless once the cache is pruned) and inlining
+ * file bodies into git notes (which would grow the ledger without bound and
+ * put whole source files through the redaction stack). A digest makes the
+ * record self-verifying: a consumer that still has the bytes — from the cache,
+ * from a git object, from its own copy — can prove they are the ones this
+ * event refers to.
+ *
+ * Returns null when the backup is gone or unreadable, which is expected: the
+ * cache is Claude Code's to prune.
+ */
+async function resolveBackup(dir: string, backupFileName: string): Promise<ResolvedFile | null> {
+  try {
+    const bytes = await readFile(join(dir, backupFileName));
+    return { backup_file: backupFileName, sha256: sha256Hex(bytes), bytes: bytes.byteLength };
+  } catch {
+    return null;
+  }
+}
+
+/** Flatten a source backup record into the ledger's file shape. */
+function snapshotFile(path: string, backup: ClaudeFileBackup | undefined): SnapshotFile {
+  const file: SnapshotFile = { path };
+  if (typeof backup?.realParentDir === "string") file.dir = backup.realParentDir;
+  if (typeof backup?.version === "number") file.version = backup.version;
+  if (typeof backup?.backupTime === "string") file.backup_time = backup.backupTime;
+  file.backup_file = typeof backup?.backupFileName === "string" ? backup.backupFileName : null;
+  return file;
+}
+
+/**
+ * The file versions one file-history line names, and what the ledger could
+ * read of them. `snapshot` lines state every tracked file (an empty set is
+ * itself a fact — nothing was tracked at that message); `delta` lines state
+ * one file's new version.
+ */
+async function fileSnapshotRecord(
+  line: ClaudeTranscriptLine,
+  ctx: RecordContext,
+  historyDir: string | null,
+): Promise<EventDraft> {
+  const isDelta = line.type === "file-history-delta";
+  const files: SnapshotFile[] = isDelta
+    ? [snapshotFile(line.trackingPath ?? "", line.backup)]
+    : Object.entries(line.snapshot?.trackedFileBackups ?? {}).map(([path, backup]) =>
+        snapshotFile(path, backup),
+      );
+
+  const resolvedFiles: ResolvedFile[] = [];
+  const seen = new Set<string>();
+  for (const file of files) {
+    const name = file.backup_file;
+    if (historyDir === null || typeof name !== "string" || seen.has(name)) continue;
+    seen.add(name);
+    const resolved = await resolveBackup(historyDir, name);
+    if (resolved) resolvedFiles.push(resolved);
+  }
+
+  const detail: { message_id?: string; snapshot_message_id?: string; is_update?: boolean } = {};
+  const messageId = line.messageId ?? line.snapshot?.messageId;
+  if (typeof messageId === "string") detail.message_id = messageId;
+  if (typeof line.snapshotMessageId === "string") detail.snapshot_message_id = line.snapshotMessageId;
+  if (typeof line.isSnapshotUpdate === "boolean") detail.is_update = line.isSnapshotUpdate;
+
+  return fileSnapshotDraft(ctx, isDelta ? "delta" : "snapshot", detail, files, line, resolvedFiles);
+}
+
+/**
+ * Convert a line that is not a `user`/`assistant` turn into the record it
+ * deserves, or return null when the type is genuinely unknown (the caller
+ * then routes it to the drift path).
+ *
+ * `system` lines split on whether they carry text. Claude Code uses the type
+ * for two unrelated things: printing into the conversation (a slash command's
+ * stdout, an away summary, a refusal fallback — all of which the user read,
+ * so they are turns spoken by the system) and recording harness bookkeeping
+ * (turn durations, hook summaries — which nobody read, so they are activity).
+ * A string `content` field is exactly the difference, so that is the test,
+ * rather than a subtype list that would go stale the moment Claude Code adds
+ * a subtype.
+ */
+function convertRecordLine(line: ClaudeTranscriptLine, ctx: RecordContext): EventDraft | null {
+  const type = line.type;
+  if (typeof type !== "string") return null;
+  const fields = payloadFields(line as unknown as Record<string, unknown>);
+
+  if (type === "system") {
+    if (typeof line.content === "string" && line.content.trim() !== "") {
+      return recordDraft(
+        ctx,
+        "conversation_turn",
+        "system",
+        { ...liftText(fields, "content"), role: "system" },
+        line,
+      );
+    }
+    return activityDraft(ctx, `system/${line.subtype ?? "untyped"}`, fields, line);
+  }
+
+  if (type === "attachment") {
+    const attachmentType = line.attachment?.type;
+    return contextInjectionDraft(
+      ctx,
+      `attachment/${typeof attachmentType === "string" ? attachmentType : "untyped"}`,
+      fields,
+      line,
+    );
+  }
+
+  if (SESSION_STATE_LINE_TYPES.has(type)) {
+    return sessionStateDraft(ctx, type, fields, line);
+  }
+
+  if (ACTIVITY_LINE_TYPES.has(type)) {
+    // A `queue-operation` enqueue carries the queued prompt or task
+    // notification verbatim — the one activity type that is mostly text.
+    return activityDraft(ctx, type, liftText(fields, "content"), line);
+  }
+
+  return null;
+}
+
 /** Raw-only preservation event for an unrecognized claude-code line (see drift.ts). */
 function preserve(
   type: string,
@@ -175,6 +442,7 @@ function preserve(
   version: string,
 ): EventDraft {
   const sessionId = line.sessionId ?? fileSessionId;
+  const conversation = conversationFor(line, sessionId);
   return unrecognizedDraft({
     typeKey: type,
     line,
@@ -184,11 +452,53 @@ function preserve(
     seq,
     version,
     rawFormat: RAW_FORMAT,
-    conversationId: `claude-code:${sessionId}`,
+    conversationId: conversation.id,
+    ...(conversation.parent ? { parentConversationId: conversation.parent } : {}),
     agent: agentContext(line),
   });
 }
 
+/**
+ * The `RecordContext` a non-turn line converts under. Split out so the
+ * capture loop and the re-normalization hook build it identically — the
+ * context feeds `conversation` and `occurred_at`, both of which are part of
+ * event identity, so any divergence between the two paths would mint a second
+ * copy of an event instead of deduping against the first.
+ */
+function recordContext(
+  line: ClaudeTranscriptLine,
+  occurredAt: string,
+  seq: number,
+  fileSessionId: string,
+  version: string,
+): RecordContext {
+  const sessionId = line.sessionId ?? fileSessionId;
+  const conversation = conversationFor(line, sessionId);
+  return {
+    occurredAt,
+    source: "claude-code",
+    sessionId,
+    seq,
+    version,
+    rawFormat: RAW_FORMAT,
+    conversationId: conversation.id,
+    ...(conversation.parent ? { parentConversationId: conversation.parent } : {}),
+    agent: agentContext(line),
+  };
+}
+
+/**
+ * A `user`/`assistant` line, as a turn.
+ *
+ * Sidechain lines convert here now rather than being dropped: they are the
+ * subagent's side of the conversation, and the only reason to skip them was
+ * that the ledger had no way to say whose subagent they were. `conversationFor`
+ * gives them one. The subagent *type* Claude Code attributes an assistant
+ * sidechain line to (`attributionAgent`, e.g. "Explore") goes in `content`
+ * beside `role`, where opencode's agent persona already lives — it describes
+ * which agent spoke, which `producer` (the capture tool and the model) has no
+ * field for.
+ */
 function convertLine(
   line: ClaudeTranscriptLine,
   seq: number,
@@ -196,16 +506,21 @@ function convertLine(
   identity: GitUserIdentity,
 ): EventDraft | null {
   if (line.type !== "user" && line.type !== "assistant") return null;
-  if (line.isSidechain === true) return null;
   if (!line.message) return null;
   if (typeof line.timestamp !== "string") return null;
   const sessionId = line.sessionId ?? "";
+  const conversation = conversationFor(line, sessionId);
+  const isSidechain = line.isSidechain === true;
 
   const actor: Actor = line.type === "user" ? { type: "human" } : { type: "agent" };
-  if (line.type === "user") {
+  // A sidechain `user` line is the harness handing a subagent its prompt, not
+  // the person typing; attributing it to the git identity would put words in
+  // their mouth. Every other user line is theirs.
+  if (line.type === "user" && !isSidechain) {
     if (identity.email) actor.id = identity.email;
     if (identity.name) actor.display = identity.name;
   }
+  if (line.type === "user" && isSidechain) actor.type = "system";
   if (line.type === "assistant" && line.message.model) actor.id = line.message.model;
 
   return {
@@ -219,8 +534,14 @@ function convertLine(
       session_id: sessionId,
       ...agentContext(line),
     },
-    conversation: { id: `claude-code:${sessionId}`, seq },
-    content: { role: line.message.role, blocks: convertContentBlocks(line.message.content) },
+    conversation: { id: conversation.id, seq, ...(conversation.parent ? { parent: conversation.parent } : {}) },
+    content: {
+      role: line.message.role,
+      ...(typeof line.attributionAgent === "string" && line.attributionAgent
+        ? { agent: line.attributionAgent }
+        : {}),
+      blocks: convertContentBlocks(line.message.content),
+    },
     raw: { format: RAW_FORMAT, data: line },
   };
 }
@@ -240,6 +561,21 @@ function convertLine(
  * read). Returns null when this adapter still cannot interpret the line —
  * timestampless lines included, since `convertLine` requires a timestamp — in
  * which case it stays preserved raw-only.
+ *
+ * Non-turn types (`worktree-state`, `pr-link`, and the rest that reached
+ * ledgers as `unrecognized` before this adapter knew them) re-normalize too,
+ * into whichever record kind they now map to. Their `RecordContext` is rebuilt
+ * from the preserved event rather than from the line: `occurred_at` is the
+ * value the preservation path computed, including the session-base-time
+ * fallback for a line with no timestamp of its own, so the reconstructed
+ * record lands on the same instant and therefore the same id.
+ *
+ * `file_snapshot` is the one type deliberately left out. Its identity would be
+ * fine, but its `resolved` digests would not: the backup cache the pointers
+ * name is long pruned by the time anyone runs `renormalize`, so the upgrade
+ * would produce a snapshot record with no digests and permanently displace the
+ * preserved line that could have been resolved by a timelier capture. Leaving
+ * it preserved keeps the raw pointers intact and loses nothing.
  */
 export function renormalizeUnrecognized(
   event: EvidenceEvent,
@@ -247,7 +583,20 @@ export function renormalizeUnrecognized(
 ): EventDraft | null {
   if (!event.raw || event.conversation === undefined) return null;
   const line = event.raw.data as ClaudeTranscriptLine;
-  return convertLine(line, event.conversation.seq, packageVersion(), identity);
+  const version = packageVersion();
+  const turn = convertLine(line, event.conversation.seq, version, identity);
+  if (turn) return turn;
+  if (typeof line.type === "string" && FILE_HISTORY_LINE_TYPES.has(line.type)) return null;
+  return convertRecordLine(
+    line,
+    recordContext(
+      line,
+      event.occurred_at,
+      event.conversation.seq,
+      event.producer.session_id ?? "",
+      version,
+    ),
+  );
 }
 
 export async function runClaudeCodeHook(stdinJson: string): Promise<void> {
@@ -301,12 +650,25 @@ export async function captureClaudeTranscript(
     }
     const type = typeof parsed.type === "string" ? parsed.type : "(untyped)";
     if (!CONVERTIBLE_LINE_TYPES.has(type)) {
-      if (!KNOWN_SKIPPED_LINE_TYPES.has(type)) {
-        countUnrecognized(result.unrecognized, type);
-        if (baseTime === null) baseTime = firstTimestamp(lines) ?? (await sessionMtime(transcriptPath));
-        const occurredAt = typeof parsed.timestamp === "string" ? parsed.timestamp : baseTime;
-        drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version));
+      // Most non-turn lines carry no timestamp of their own, so the session
+      // base time is now needed on the common path rather than the rare one;
+      // it stays lazy so a transcript of nothing but turns never computes it.
+      if (baseTime === null) baseTime = firstTimestamp(lines) ?? (await sessionMtime(transcriptPath));
+      const occurredAt = typeof parsed.timestamp === "string" ? parsed.timestamp : baseTime;
+      const ctx = recordContext(parsed, occurredAt, i, sessionId, version);
+
+      if (FILE_HISTORY_LINE_TYPES.has(type)) {
+        drafts.push(await fileSnapshotRecord(parsed, ctx, fileHistoryDir(transcriptPath, ctx.sessionId)));
+        continue;
       }
+      const record = convertRecordLine(parsed, ctx);
+      if (record) {
+        drafts.push(record);
+        continue;
+      }
+      // Neither a turn nor a type this adapter knows: preserve raw and warn.
+      countUnrecognized(result.unrecognized, type);
+      drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version));
       continue;
     }
     const draft = convertLine(parsed, i, version, identity);

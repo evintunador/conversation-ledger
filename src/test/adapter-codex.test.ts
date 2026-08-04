@@ -13,10 +13,10 @@ const SESSION_ID = "codex-sess-1";
 // is the more common real-world case and worth exercising too.
 const FILENAME = "rollout-2026-01-01T00-00-00-123e4567-e89b-12d3-a456-426614174000.jsonl";
 
-/** Index 0 is session_meta (not a response_item, dropped); 1-4 are real
- * content; 5 is a reasoning item (preserved opaquely as a `reasoning` event,
- * never as a conversation_turn); 6 is a truncated trailing line that must be
- * tolerated. */
+/** Index 0 is session_meta (recorded as `session_state`, not a turn); 1-4 are
+ * real content; 5 is a reasoning item (preserved opaquely as a `reasoning`
+ * event, never as a conversation_turn); 6 is a truncated trailing line that
+ * must be tolerated. */
 function rolloutLines(): unknown[] {
   return [
     { type: "session_meta", payload: { session_id: SESSION_ID } },
@@ -72,8 +72,8 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
     const events = await readEvents(repo);
     assert.strictEqual(
       events.length,
-      5,
-      "session_meta and the malformed trailing line must be dropped; reasoning is preserved opaquely",
+      6,
+      "only the malformed trailing line is dropped; session_meta is state, reasoning is opaque",
     );
 
     for (const e of events) {
@@ -89,7 +89,13 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
 
     // seq must equal the original line index (session_meta occupies index 0).
     const bySeq = new Map(events.map((e) => [e.conversation!.seq, e]));
-    assert.deepStrictEqual([...bySeq.keys()].sort((a, b) => a - b), [1, 2, 3, 4, 5]);
+    assert.deepStrictEqual([...bySeq.keys()].sort((a, b) => a - b), [0, 1, 2, 3, 4, 5]);
+
+    // session_meta is what states the CLI version and provider for the whole
+    // rollout; it is recorded rather than merely read for `producer`.
+    const meta = bySeq.get(0)!;
+    assert.strictEqual(meta.kind, "session_state");
+    assert.deepStrictEqual(meta.content, { state_type: "session_meta", session_id: SESSION_ID });
 
     const userMsg = bySeq.get(1)!;
     assert.strictEqual(userMsg.actor.type, "human");
@@ -139,7 +145,7 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
     // --- Rerun on the unchanged rollout: cursor is past EOF, no new events. ---
     await captureCodexTranscript(rolloutPath, repo.root);
     const eventsAfterRerun = await readEvents(repo);
-    assert.strictEqual(eventsAfterRerun.length, 5, "rerun on unchanged rollout must not duplicate");
+    assert.strictEqual(eventsAfterRerun.length, 6, "rerun on unchanged rollout must not duplicate");
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(rolloutDir);
@@ -199,7 +205,11 @@ test("captureCodexTranscript: a populated reasoning summary becomes a visible co
     await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
 
     const result = await captureCodexTranscript(path, repo.root);
-    assert.strictEqual(result.appended, 2, "one visible turn plus one opaque reasoning event");
+    assert.strictEqual(
+      result.appended,
+      3,
+      "the session_meta state record, one visible turn, and one opaque reasoning event",
+    );
 
     const events = await readEvents(repo);
     const visible = events.find((e) => e.kind === "conversation_turn")!;
@@ -227,7 +237,7 @@ test("captureCodexTranscript: a later capture only ingests newly appended lines"
     await makeCommit(repo, "init");
     const rolloutPath = await writeRollout(rolloutDir);
     await captureCodexTranscript(rolloutPath, repo.root);
-    assert.strictEqual((await readEvents(repo)).length, 5);
+    assert.strictEqual((await readEvents(repo)).length, 6);
 
     await appendFile(
       rolloutPath,
@@ -240,7 +250,7 @@ test("captureCodexTranscript: a later capture only ingests newly appended lines"
     await captureCodexTranscript(rolloutPath, repo.root);
 
     const events = await readEvents(repo);
-    assert.strictEqual(events.length, 6, "only the newly appended line should be added");
+    assert.strictEqual(events.length, 7, "only the newly appended line should be added");
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(rolloutDir);
@@ -261,7 +271,7 @@ test("captureCodexTranscript: unrecognized line and payload types are counted fo
         payload: { type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] },
       },
       // Recognized-but-opaque: reasoning payloads become a reasoning event,
-      // not drift. Known-skipped: bookkeeping line types.
+      // not drift. turn_context is recognized too, as session_state.
       { type: "response_item", timestamp: "2026-01-01T00:00:02.000Z", payload: { type: "reasoning" } },
       { type: "turn_context", payload: {} },
       // Drift: a payload type and a line type this adapter has never seen.
@@ -275,8 +285,9 @@ test("captureCodexTranscript: unrecognized line and payload types are counted fo
     await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
 
     const result = await captureCodexTranscript(path, repo.root);
-    // 1 interpreted message + 1 opaque reasoning event + 2 raw-only preservation events for the drift lines.
-    assert.strictEqual(result.appended, 4);
+    // 2 session_state (session_meta, turn_context) + 1 interpreted message
+    // + 1 opaque reasoning event + 2 raw-only preservation events for drift.
+    assert.strictEqual(result.appended, 6);
     assert.deepStrictEqual(result.unrecognized, {
       "response_item/holo_call": 1,
       brand_new_line_kind: 1,
@@ -365,11 +376,11 @@ test("captureCodexTranscript: agent_message keeps visible text, drops encrypted 
     await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
 
     const result = await captureCodexTranscript(path, repo.root);
-    assert.strictEqual(result.appended, 1);
+    assert.strictEqual(result.appended, 2, "the session_meta state record and the agent_message turn");
     assert.deepStrictEqual(result.unrecognized, {}, "agent_message is a recognized type now");
 
     const events = await readEvents(repo);
-    const e = events[0]!;
+    const e = events.find((ev) => ev.kind === "conversation_turn")!;
     assert.strictEqual(e.actor.type, "agent");
     assert.strictEqual(e.actor.id, "/root");
     assert.deepStrictEqual(e.content, {
@@ -386,6 +397,82 @@ test("captureCodexTranscript: agent_message keeps visible text, drops encrypted 
     const rawContent = ((e.raw?.data as { payload?: { content?: unknown[] } }).payload?.content) ?? [];
     assert.deepStrictEqual(rawContent[1], { type: "encrypted_content" });
     assert.strictEqual(e.raw?.format, "codex-rollout-jsonl/2");
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
+  }
+});
+
+/**
+ * `event_msg` was skipped wholesale as "duplicates the response_item stream".
+ * Only two of its payload types actually do. The rest — token accounting, task
+ * lifecycle, sub-agent activity, aborts — have no twin anywhere in the rollout,
+ * and skipping them threw away the only record of them.
+ */
+test("captureCodexTranscript: event_msg splits into duplicates (dropped) and everything else (recorded)", async () => {
+  const repo = await makeTempRepo("cledger-codex-eventmsg-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-eventmsg-"));
+  try {
+    await makeCommit(repo, "init");
+    const path = join(dir, FILENAME);
+    const lines = [
+      { type: "session_meta", payload: { session_id: SESSION_ID } },
+      // Duplicates of response_item content: dropped, and silently — the
+      // content is captured from the response_item that carries it.
+      {
+        type: "event_msg",
+        timestamp: "2026-01-01T00:00:01.000Z",
+        payload: { type: "agent_message", message: "same text as the response_item" },
+      },
+      {
+        type: "event_msg",
+        timestamp: "2026-01-01T00:00:02.000Z",
+        payload: { type: "user_message", message: "same prompt as the response_item" },
+      },
+      // No response_item twin: recorded.
+      {
+        type: "event_msg",
+        timestamp: "2026-01-01T00:00:03.000Z",
+        payload: { type: "token_count", info: { total_tokens: 812 } },
+      },
+      {
+        type: "event_msg",
+        timestamp: "2026-01-01T00:00:04.000Z",
+        payload: { type: "task_started", task_id: "t-1" },
+      },
+      // Settings, not an occurrence.
+      {
+        type: "event_msg",
+        timestamp: "2026-01-01T00:00:05.000Z",
+        payload: { type: "thread_settings_applied", reasoning_effort: "high" },
+      },
+    ];
+    await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+
+    const result = await captureCodexTranscript(path, repo.root);
+    assert.deepStrictEqual(result.unrecognized, {}, "event_msg is a known line type, never drift");
+
+    const events = await readEvents(repo);
+    const bySeq = new Map(events.map((e) => [e.conversation!.seq, e]));
+    assert.deepStrictEqual(
+      [...bySeq.keys()].sort((a, b) => a - b),
+      [0, 3, 4, 5],
+      "only the two duplicate payload types are dropped",
+    );
+
+    assert.strictEqual(bySeq.get(3)!.kind, "activity");
+    assert.deepStrictEqual(bySeq.get(3)!.content, {
+      activity_type: "event_msg/token_count",
+      info: { total_tokens: 812 },
+    });
+    // The model drove the task; the harness drove the token accounting.
+    assert.strictEqual(bySeq.get(3)!.actor.type, "system");
+    assert.strictEqual(bySeq.get(4)!.actor.type, "agent");
+    assert.strictEqual(bySeq.get(5)!.kind, "session_state");
+    assert.deepStrictEqual(bySeq.get(5)!.content, {
+      state_type: "event_msg/thread_settings_applied",
+      reasoning_effort: "high",
+    });
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(dir);

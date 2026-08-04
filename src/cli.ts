@@ -17,7 +17,12 @@ import {
   transportPush,
   type ReadOptions,
 } from "./store.js";
-import { parseEventLine, type EventDraft, type EvidenceEvent } from "./schema.js";
+import {
+  parseEventLine,
+  SESSION_MACHINERY_KINDS,
+  type EventDraft,
+  type EvidenceEvent,
+} from "./schema.js";
 import { runClaudeCodeHook, captureClaudeTranscript } from "./adapters/claude-code.js";
 import { runCodexHook, captureCodexTranscript } from "./adapters/codex.js";
 import {
@@ -47,11 +52,17 @@ const USAGE = `conversation-ledger — durable records of coding-agent conversat
 Usage:
   cledger append [--quiet]                 append JSONL events/drafts from stdin
   cledger log [--all|--rev R] [--kind K] [--source S] [--model M] [--conversation C] [--json]
-              [--with-reasoning]           --model matches producer.model exactly, e.g. gpt-5.6-sol
-  cledger show <conversation-id-prefix> [--json] [--with-reasoning]
+              [--with-reasoning] [--with-state]
+                                           --model matches producer.model exactly, e.g. gpt-5.6-sol
+  cledger show <conversation-id-prefix> [--json] [--with-reasoning] [--with-state]
                                            opaque provider-encrypted \`reasoning\` events are hidden
-                                           by default on log/show; --with-reasoning reveals them
-  cledger conversations [--rev R] [--with-reasoning]
+                                           by default on log/show; --with-reasoning reveals them.
+                                           So are the session-machinery kinds (session_state,
+                                           activity, context_injection, file_snapshot), which a
+                                           session emits far more often than turns; --with-state
+                                           reveals those. Both are always captured and exported —
+                                           these flags only affect what is displayed
+  cledger conversations [--rev R] [--with-reasoning] [--with-state]
                                            list conversations on current branch (--all for every branch),
                                            one line each: id, source, model(s), count, time span
   cledger export [--rev R]                lossless JSONL dump (default: everything, incl. reasoning)
@@ -92,7 +103,8 @@ Usage:
   cledger re-anchor <old-rev...> --onto REV   assert one mapping manually (edited squashes,
                                            deleted branches, ambiguous matches)
   cledger renormalize                      re-interpret preserved unrecognized transcript lines this
-                                           cledger version can now parse into conversation_turns,
+                                           cledger version can now parse into their proper kind
+                                           (conversation_turn, session_state, activity, ...),
                                            superseding the raw-only placeholders (append-only, idempotent)
   cledger install <claude-code|codex|opencode|all>
                                            hook capture into coding CLIs (global)
@@ -166,12 +178,25 @@ function readOptionsFrom(flags: Flags): ReadOptions {
   return opts;
 }
 
+/**
+ * The one-line preview `log` shows per event. Record kinds lead with the
+ * source's own type name (`mode`, `event_msg/token_count`) because that is
+ * what distinguishes one from the next — falling straight through to
+ * `JSON.stringify` would show every `session_state` line as the same wall of
+ * envelope fields.
+ */
 function snippet(event: EvidenceEvent): string {
   const c = event.content as Record<string, unknown> | string | null;
   let text = "";
   if (typeof c === "string") text = c;
   else if (c && typeof c === "object") {
-    text = String(c["text"] ?? c["summary"] ?? c["title"] ?? JSON.stringify(c));
+    const label = c["state_type"] ?? c["activity_type"] ?? c["injection_type"] ?? c["operation"];
+    const body = c["text"] ?? c["summary"] ?? c["title"];
+    if (typeof label === "string") {
+      text = `${label}  ${typeof body === "string" ? body : JSON.stringify(c)}`;
+    } else {
+      text = String(body ?? JSON.stringify(c));
+    }
   }
   text = text.replace(/\s+/g, " ").trim();
   return text.length > 100 ? text.slice(0, 97) + "..." : text;
@@ -192,18 +217,29 @@ function printHuman(events: EvidenceEvent[]): void {
 }
 
 /**
- * `reasoning` events are opaque ciphertext, never meant for a human-facing
- * transcript — `log`/`show` hide them by default. `--with-reasoning` opts
- * in, as does asking for the kind explicitly via `--kind reasoning` (hiding
- * them there would just return nothing). `export`'s job is a lossless dump,
- * so it never filters by kind and needs no equivalent flag.
+ * What `log`/`show`/`conversations` leave out unless asked.
+ *
+ * Two groups are hidden by default, for two different reasons. `reasoning`
+ * events are opaque ciphertext, never meant for a human-facing transcript.
+ * The session-machinery kinds (see SESSION_MACHINERY_KINDS) are meaningful,
+ * but a session declares its mode, its tracked files and its token counts far
+ * more often than anyone speaks — showing them by default would bury the
+ * conversation in its own bookkeeping.
+ *
+ * `--with-reasoning` / `--with-state` opt in, as does asking for the kind
+ * explicitly via `--kind` (hiding it there would just return nothing).
+ * `export`'s job is a lossless dump, so it never filters and needs no
+ * equivalent flag; neither does capture, which records all of it regardless.
  */
-function includeReasoning(flags: Flags, opts: ReadOptions): boolean {
-  return flags["with-reasoning"] === true || opts.kind === "reasoning";
-}
-
-function hideOpaqueReasoning(events: EvidenceEvent[]): EvidenceEvent[] {
-  return events.filter((e) => e.kind !== "reasoning");
+function displayFilter(flags: Flags, opts: ReadOptions): (event: EvidenceEvent) => boolean {
+  const reasoning = flags["with-reasoning"] === true || opts.kind === "reasoning";
+  const state =
+    flags["with-state"] === true || (opts.kind !== undefined && SESSION_MACHINERY_KINDS.has(opts.kind));
+  return (event) => {
+    if (!reasoning && event.kind === "reasoning") return false;
+    if (!state && SESSION_MACHINERY_KINDS.has(event.kind)) return false;
+    return true;
+  };
 }
 
 function printJsonl(events: EvidenceEvent[], includeRaw: boolean): void {
@@ -236,7 +272,7 @@ async function cmdLog(flags: Flags): Promise<void> {
   const repo = await requireRepo();
   const opts = readOptionsFrom(flags);
   let events = await readEvents(repo, opts);
-  if (!includeReasoning(flags, opts)) events = hideOpaqueReasoning(events);
+  events = events.filter(displayFilter(flags, opts));
   if (flags["json"]) printJsonl(events, false);
   else printHuman(events);
 }
@@ -249,7 +285,7 @@ async function cmdShow(positional: string[], flags: Flags): Promise<void> {
   }
   const repo = await requireRepo();
   let events = await readEvents(repo, { conversation: prefix });
-  if (!includeReasoning(flags, {})) events = hideOpaqueReasoning(events);
+  events = events.filter(displayFilter(flags, {}));
   if (events.length === 0) {
     process.stderr.write(`no events for conversation ${prefix}\n`);
     process.exit(1);
@@ -274,7 +310,7 @@ async function cmdConversations(flags: Flags): Promise<void> {
   const repo = await requireRepo();
   const opts = readOptionsFrom(flags);
   let events = await readEvents(repo, opts);
-  if (!includeReasoning(flags, opts)) events = hideOpaqueReasoning(events);
+  events = events.filter(displayFilter(flags, opts));
   const byConv = new Map<
     string,
     { count: number; first: string; last: string; source: string; models: Set<string> }

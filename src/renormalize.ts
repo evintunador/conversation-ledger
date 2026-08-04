@@ -3,9 +3,10 @@
  * (the preservation half — emitting raw-only `unrecognized` events — lives in
  * adapters/drift.ts). When a newer cledger version has learned to interpret a
  * transcript line type it once preserved raw-only, `renormalize` turns each
- * such stored line into the proper `conversation_turn` and appends a
+ * such stored line into the event it should have been — a `conversation_turn`,
+ * or one of the record kinds a non-turn line maps to — and appends a
  * `supersession` event linking the two, so consumers stop seeing the raw
- * placeholder and see the interpreted turn instead.
+ * placeholder and see the interpreted event instead.
  *
  * Invariants:
  *  - Append-only. The `unrecognized` event is never deleted; it is superseded
@@ -13,7 +14,7 @@
  *  - Idempotent. A second run is a no-op: already-superseded events are
  *    skipped, and every id we produce is deterministic, so `appendEvents`
  *    dedups anything that slips through.
- *  - Id fidelity. The turn is reconstructed by re-feeding the stored `raw.data`
+ *  - Id fidelity. The event is reconstructed by re-feeding the stored `raw.data`
  *    through the owning adapter's *same* convert path (see each adapter's
  *    `renormalizeUnrecognized`), so it gets the exact id a live capture of the
  *    same line would — a future live capture then dedups against it rather
@@ -48,10 +49,10 @@ function renormalizerFor(source: string | undefined): Renormalizer | null {
 export interface RenormalizeResult {
   /** Preserved `unrecognized` events examined (excludes ones already superseded). */
   scanned: number;
-  /** Events an adapter could now interpret (a turn + supersession pair was produced). */
+  /** Events an adapter could now interpret (an event + supersession pair was produced). */
   interpreted: number;
-  /** Fresh `conversation_turn` events written (an interpreted turn that already
-   *  existed from a prior live capture dedups and is not counted here). */
+  /** Fresh interpreted events written, of whatever kind the line maps to (one
+   *  that already existed from a prior live capture dedups and is not counted here). */
   turnsAppended: number;
   /** Fresh `supersession` events written. */
   supersessionsAppended: number;
@@ -142,8 +143,10 @@ export async function renormalize(repo: RepoInfo): Promise<RenormalizeResult> {
   if (drafts.length > 0) {
     const appended = await appendEvents(repo, drafts);
     for (const e of appended.appended) {
-      if (e.kind === "conversation_turn") result.turnsAppended++;
-      else if (e.kind === "supersession") result.supersessionsAppended++;
+      // Anything that is not the supersession itself is the interpreted
+      // event: a turn, or one of the record kinds a non-turn line maps to.
+      if (e.kind === "supersession") result.supersessionsAppended++;
+      else result.turnsAppended++;
     }
   }
   return result;

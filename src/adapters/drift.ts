@@ -53,6 +53,8 @@ export function unrecognizedDraft(params: {
   version: string;
   rawFormat: string;
   conversationId: string;
+  /** Parent conversation id, for a line inside a sub-conversation. */
+  parentConversationId?: string;
   agent?: ProducerAgentContext;
 }): EventDraft {
   return {
@@ -66,7 +68,11 @@ export function unrecognizedDraft(params: {
       session_id: params.sessionId,
       ...params.agent,
     },
-    conversation: { id: params.conversationId, seq: params.seq },
+    conversation: {
+      id: params.conversationId,
+      seq: params.seq,
+      ...(params.parentConversationId ? { parent: params.parentConversationId } : {}),
+    },
     content: { unrecognized_type: params.typeKey },
     raw: { format: params.rawFormat, data: params.line },
   };

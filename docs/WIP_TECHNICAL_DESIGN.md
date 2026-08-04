@@ -27,8 +27,10 @@ An `EvidenceEvent` is immutable and has:
   and the id doubles as the content hash that makes mutation detectable.
 - `schema` version (`conversation-ledger/v1`);
 - `kind`: `conversation_turn`, `decision`, `document`, `annotation`,
-  `redaction`, or `supersession` — an open string; unknown kinds are stored
-  verbatim so downstream tools can extend without a schema release;
+  `redaction`, `supersession`, `re_anchor`, `unrecognized`, `reasoning`, or
+  one of the four session-machinery kinds `session_state` / `activity` /
+  `context_injection` / `file_snapshot` — an open string; unknown kinds are
+  stored verbatim so downstream tools can extend without a schema release;
 - `occurred_at` (from the source) and `recorded_at` (at append) timestamps;
 - `actor` (human/agent/system + identity) and `producer` (capture tool,
   source system, native session id, and the agent that served the turn —
@@ -522,10 +524,14 @@ Three layers exist today:
    `cli_version`), so captured content can always be re-normalized under a
    newer mapping without recapture.
 
-Drift detection and raw preservation: adapters are tolerant parsers, but
-each maintains an explicit known-skipped list (bookkeeping/UI line types)
-alongside its convertible set; parsed lines matching neither are
-*unrecognized*. Each such line is both counted
+Drift detection and raw preservation: adapters are tolerant parsers. Each
+routes a parsed line to one of three places: a conversational kind, one of the
+session-machinery kinds (`session_state`, `activity`, `context_injection`,
+`file_snapshot` — see "Session machinery" below), or, when no mapping exists,
+*unrecognized*. The old fourth place, a known-skipped list of line types that
+were parsed and thrown away, is gone except for codex's two `event_msg`
+payload types that genuinely duplicate a `response_item`; keeping a skip list
+meant a type had to be *both* known and worthless, and almost nothing was. Each such line is both counted
 per type for a capture-time warning (`CaptureResult.unrecognized`) and
 preserved rather than dropped: the adapter emits an `unrecognized` event
 whose `content` is only a `{unrecognized_type}` label and whose `raw.data`
@@ -544,6 +550,38 @@ are a third case distinct from both convertible and unrecognized lines:
 recognized but deliberately opaque, captured as their own `reasoning`-kind
 event (see the reasoning-policy paragraph above) rather than falling into
 either bucket, and never counted toward the drift warning.
+
+Session machinery: the four kinds beyond the conversational ones cover what a
+source records *around* the turns, and exist because discarding it was the
+largest remaining source of loss at capture. `session_state` is a declaration
+that holds until restated (mode, permission mode, sandbox and approval policy,
+model settings, title, worktree relocation); `activity` is a point-in-time
+occurrence that is not a turn (hooks, turn durations, token counts, task
+lifecycle, queue operations, compaction, step boundaries); `context_injection`
+is material the harness put into the model's context that nobody typed; and
+`file_snapshot` is intermediate file state between commits. All four use the
+same content shape — a `*_type` discriminator naming the source's own type
+verbatim, the source's own field names beside it, and `blocks` in the ordinary
+`[{type:"text",text}]` form whenever a record carries prose, so text extraction
+needs no per-kind special case. They are hidden by `log`/`show`/`conversations`
+unless `--with-state` or an explicit `--kind` asks for them, because sources
+restate this material far more often than anyone speaks; capture, export and
+sync are unaffected.
+
+Two structural consequences. First, `ConversationRef.parent` makes a
+sub-conversation expressible: a Claude Code sidechain or an opencode subagent
+session becomes its own conversation pointing back at the session that spawned
+it, rather than being dropped (opencode child sessions are discoverable only
+via the parent's `task` tool part metadata, which is why capture walks them).
+It is inside the identity subset like the rest of `ConversationRef`. Second,
+`EvidenceEvent.resolved` holds what the ledger read at capture time from
+pointers the source only names — currently the sha256 and size of a Claude Code
+file-history backup. It is deliberately *outside* the identity subset: the
+backing cache is machine-local and prunable, so the same line resolves
+differently elsewhere, and folding it into the id would duplicate every
+snapshot on a rescan after a prune. It holds derived facts only (digests,
+sizes), never file bodies, because the redaction stack walks `content` and
+`raw.data` and not this field.
 
 Re-normalization (the supersession half): `cledger renormalize` (library
 `renormalize()`, in `renormalize.ts`) turns a preserved line the current
@@ -602,11 +640,10 @@ for now (see the format-drift roadmap item).
 - Whether to preserve non-git-controlled harness artifacts that die with a
   worktree (agent memory directories, session state) as `document` events.
 - Per-turn agent provenance (`producer.model`/`provider`/`source_version`)
-  shipped in 0.12.0; see "Agent provenance". Remaining: the rest of what
-  codex's `session_meta`/`turn_context` lines carry — base instructions
-  (the full system prompt), sandbox/approval policy, reasoning effort — is
-  still uncaptured. Whether whole-session configuration belongs in the
-  ledger at all, and under which kind, is its own question.
+  shipped in 0.12.0; see "Agent provenance". The follow-up — the rest of what
+  codex's `session_meta`/`turn_context` lines carry (sandbox/approval policy,
+  reasoning effort, workspace roots) — is answered by `session_state`: those
+  lines are now recorded whole, in addition to being read for `producer`.
 - Whether an explicit `Conversation` manifest object earns its keep once
   multiple producers exist.
 - Reads deliberately do *not* walk the notes ref's history; only the tip tree

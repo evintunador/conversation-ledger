@@ -22,6 +22,38 @@ export const SCHEMA_VERSION = "conversation-ledger/v1";
  * for a consumer to opt into replaying back through the same provider.
  * Unlike `unrecognized`, this is not a placeholder awaiting a smarter
  * cledger version — no future version will ever be able to read it either.
+ *
+ * The four kinds below `reasoning` cover what a source records *around* the
+ * conversation. Every one of them was previously discarded at capture as
+ * "bookkeeping"; they are kept because the ledger's job is the whole record,
+ * and because the things a session declares about itself (which model, which
+ * sandbox, which worktree) are exactly what a consumer needs to judge whether
+ * a turn still applies. They are non-conversational by construction, so
+ * `log`/`show` hide them unless asked — recorded always, displayed on request.
+ *
+ * `session_state` is a *declaration that holds until restated*: the session's
+ * mode, permission mode, model settings, sandbox and approval policy, title,
+ * worktree or cwd relocation. Sources restate these freely, and each
+ * restatement is its own event — "still true at this point in the transcript"
+ * is a fact, not a duplicate.
+ *
+ * `activity` is a *point-in-time occurrence that is not a turn*: a hook run,
+ * a turn duration, a token count, a task starting or finishing, a queue
+ * operation, a context compaction, an aborted turn, a step boundary.
+ *
+ * `context_injection` is material the harness inserted into the model's
+ * context that no participant typed — Claude Code's `attachment` lines
+ * (task reminders, skill listings, diagnostics, pasted files). It is content
+ * the model read, which is why it is not `activity`, but nobody said it,
+ * which is why it is not `conversation_turn`.
+ *
+ * `file_snapshot` is intermediate file state: the versions a file passed
+ * through between commits. Tool calls cannot reconstruct this — a `Bash`
+ * mutation records the command, not the result — so without it the record of
+ * how a file got from one commit to the next has holes. Sources describe
+ * these versions with pointers into a machine-local cache, so the pointers
+ * live in `content` and what the ledger could resolve of them at capture time
+ * lives in `resolved`.
  */
 export const KNOWN_KINDS = [
   "conversation_turn",
@@ -33,7 +65,26 @@ export const KNOWN_KINDS = [
   "re_anchor",
   "unrecognized",
   "reasoning",
+  "session_state",
+  "activity",
+  "context_injection",
+  "file_snapshot",
 ] as const;
+
+/**
+ * The kinds that record machinery around the conversation rather than
+ * anything a participant said. `log`/`show` hide these unless `--with-state`
+ * (or an explicit `--kind`) asks for them: a session restates its mode and
+ * its tracked-file set constantly, and letting that outnumber the turns
+ * ten-to-one would make the default view useless. Capture, export, and sync
+ * are unaffected — this list is a display default, nothing more.
+ */
+export const SESSION_MACHINERY_KINDS = new Set<string>([
+  "session_state",
+  "activity",
+  "context_injection",
+  "file_snapshot",
+]);
 
 export interface Actor {
   /** "human" | "agent" | "system" */
@@ -100,6 +151,19 @@ export interface ConversationRef {
   id: string;
   /** Stable ordering key within the conversation (source line index). */
   seq: number;
+  /**
+   * The conversation this one was spawned from, when it is a sub-conversation
+   * — a Claude Code sidechain, an opencode subagent session. Sub-conversations
+   * get their own `id` (so `show` can isolate one) and point back here (so a
+   * consumer can reassemble the tree); both halves are needed because a
+   * subagent's turns are neither part of its parent's turn sequence nor
+   * meaningful without knowing whose subagent it was.
+   *
+   * Part of event identity, like the rest of `ConversationRef`: it is stated
+   * by the source, stable across rescans, and distinguishes a subagent's turn
+   * from an identical-looking parent turn.
+   */
+  parent?: string;
 }
 
 export interface EventLink {
@@ -133,6 +197,26 @@ export interface EvidenceEvent {
    * transcript line(s). Versioned by `format`. Not part of identity.
    */
   raw?: { format: string; data: unknown };
+  /**
+   * What the ledger could resolve, at capture time, of pointers the source
+   * line only names. A Claude Code `file-history-snapshot` says a file's
+   * bytes live at `<backup file>` under a machine-local cache directory; this
+   * is where the sha256 and size the ledger read from that file go, so the
+   * record can be verified later even though the cache itself is prunable and
+   * unshareable.
+   *
+   * Excluded from the identity subset, and that exclusion is the point: the
+   * same transcript line resolves differently on a machine without the cache,
+   * or after the cache is pruned, and identity must answer "which piece of
+   * source material is this", not "what could this machine see at the time".
+   * Folding it in would make a rescan after a prune duplicate every snapshot
+   * rather than dedup it.
+   *
+   * Holds derived facts about local state — digests, sizes, counts — never
+   * file bodies: the redaction stack walks `content` and `raw.data`, not this,
+   * so anything secret-bearing put here would bypass it.
+   */
+  resolved?: Record<string, unknown>;
   /**
    * Capture-time redaction records (rule id, ruleset version, fingerprint,
    * location path), present when the capture-tier ruleset rewrote part of
