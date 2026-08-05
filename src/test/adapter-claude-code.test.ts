@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, writeFile, appendFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureClaudeTranscript } from "../adapters/claude-code.js";
+import { captureClaudeTranscript, runClaudeCodeHook } from "../adapters/claude-code.js";
 import { readEvents } from "../store.js";
 import { cleanupDir, cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
 
@@ -464,5 +464,139 @@ test("captureClaudeTranscript: file-history lines resolve backup digests into `r
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(configDir);
+  }
+});
+
+/**
+ * Subagent transcripts are siblings of the session file, named by nothing the
+ * hook receives. Found live: a session whose subagent conversation was
+ * invisible even though the adapter converts its lines perfectly, because
+ * capture was only ever pointed at the main transcript.
+ */
+test("captureClaudeTranscript: subagent transcripts beside a session are captured too", async () => {
+  const repo = await makeTempRepo("cledger-cc-subagent-");
+  const transcriptDir = await mkdtemp(join(tmpdir(), "cledger-cc-subagent-"));
+  try {
+    await makeCommit(repo, "init");
+    const main = join(transcriptDir, `${SESSION_ID}.jsonl`);
+    await writeFile(
+      main,
+      JSON.stringify({
+        type: "user",
+        sessionId: SESSION_ID,
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: { role: "user", content: "go" },
+      }) + "\n",
+    );
+
+    // <dir>/<session>/subagents/agent-<id>.jsonl — the layout Claude Code uses.
+    const subDir = join(transcriptDir, SESSION_ID, "subagents");
+    await mkdir(subDir, { recursive: true });
+    await writeFile(
+      join(subDir, "agent-abc.jsonl"),
+      [
+        {
+          type: "user",
+          isSidechain: true,
+          agentId: "abc",
+          sessionId: SESSION_ID,
+          timestamp: "2026-01-01T00:00:01.000Z",
+          message: { role: "user", content: "subagent prompt" },
+        },
+        {
+          type: "assistant",
+          isSidechain: true,
+          agentId: "abc",
+          attributionAgent: "Explore",
+          sessionId: SESSION_ID,
+          timestamp: "2026-01-01T00:00:02.000Z",
+          message: { role: "assistant", model: "claude-x", content: "subagent answer" },
+        },
+      ]
+        .map((l) => JSON.stringify(l))
+        .join("\n") + "\n",
+    );
+
+    const result = await captureClaudeTranscript(main, repo.root);
+    assert.strictEqual(result.appended, 3, "one parent turn plus the subagent's two");
+
+    const events = await readEvents(repo);
+    const sub = events.filter((e) => e.conversation?.id.includes("#agent:abc"));
+    assert.strictEqual(sub.length, 2, "the subagent's turns are captured");
+    for (const e of sub) {
+      assert.strictEqual(e.conversation?.parent, `claude-code:${SESSION_ID}`);
+    }
+    // A sidechain user line is the harness prompting the subagent, not the
+    // person typing — it must not be attributed to the git identity.
+    const prompt = sub.find((e) => (e.content as { role?: string }).role === "user")!;
+    assert.strictEqual(prompt.actor.type, "system");
+    assert.strictEqual(prompt.actor.id, undefined);
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(transcriptDir);
+  }
+});
+
+/**
+ * A session cannot capture its own last lines: the hook reads to EOF, and
+ * Claude Code then writes the closing bookkeeping — including the session's
+ * most complete `file-history-snapshot`. Observed live as a cursor resting at
+ * line 40 of a 50-line transcript. The next session in the project sweeps it up.
+ */
+test("runClaudeCodeHook: a later session sweeps up the tail an earlier one could not reach", async () => {
+  const repo = await makeTempRepo("cledger-cc-sweep-");
+  const transcriptDir = await mkdtemp(join(tmpdir(), "cledger-cc-sweep-"));
+  try {
+    await makeCommit(repo, "init");
+    const earlier = join(transcriptDir, "sess-earlier.jsonl");
+    await writeFile(
+      earlier,
+      JSON.stringify({
+        type: "user",
+        sessionId: "sess-earlier",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: { role: "user", content: "first" },
+      }) + "\n",
+    );
+    await captureClaudeTranscript(earlier, repo.root);
+    assert.strictEqual((await readEvents(repo)).length, 1);
+
+    // The tail Claude Code writes after the last hook has already run.
+    await appendFile(
+      earlier,
+      JSON.stringify({
+        type: "assistant",
+        sessionId: "sess-earlier",
+        timestamp: "2026-01-01T00:00:01.000Z",
+        message: { role: "assistant", model: "claude-x", content: "stranded tail" },
+      }) + "\n",
+    );
+
+    // A different session's hook fires. It must notice the grown transcript.
+    const later = join(transcriptDir, "sess-later.jsonl");
+    await writeFile(
+      later,
+      JSON.stringify({
+        type: "user",
+        sessionId: "sess-later",
+        timestamp: "2026-01-02T00:00:00.000Z",
+        message: { role: "user", content: "a new session" },
+      }) + "\n",
+    );
+    await runClaudeCodeHook(JSON.stringify({ transcript_path: later, cwd: repo.root }));
+
+    const events = await readEvents(repo);
+    const tail = events.find(
+      (e) => e.conversation?.id === "claude-code:sess-earlier" && e.conversation.seq === 1,
+    );
+    assert.ok(tail, "the earlier session's stranded tail was swept up");
+    assert.strictEqual(events.length, 3, "the tail and the new session's turn, nothing duplicated");
+
+    // A second hook run must not re-read anything: the sweep is size-gated.
+    await runClaudeCodeHook(JSON.stringify({ transcript_path: later, cwd: repo.root }));
+    assert.strictEqual((await readEvents(repo)).length, 3, "re-running the sweep is a no-op");
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(transcriptDir);
   }
 });

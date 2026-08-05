@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { sha256Hex } from "../canonical.js";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
@@ -7,6 +7,7 @@ import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import {
   countUnrecognized,
+  mergeCaptureResult,
   unrecognizedDraft,
   warnUnrecognized,
   type CaptureResult,
@@ -174,20 +175,43 @@ function cursorPath(repo: RepoInfo, sessionId: string): string {
   return join(repo.commonDir, "conversation-ledger", "cursors", `${sanitizeId(sessionId)}.json`);
 }
 
-async function readCursor(repo: RepoInfo, sessionId: string): Promise<number> {
+/**
+ * How far a transcript has been captured: the line count consumed, and the
+ * file size that line count corresponded to.
+ *
+ * `size` exists for the catch-up sweep (see `sweepStaleTranscripts`), which
+ * needs to answer "did this file grow since we last read it" for every
+ * session in a project without reading them all. A cursor written by an
+ * older cledger has no `size`; that reads as 0, so the file looks grown and
+ * gets re-read once, which dedups.
+ */
+interface Cursor {
+  lines: number;
+  size: number;
+}
+
+async function readCursor(repo: RepoInfo, sessionId: string): Promise<Cursor> {
   try {
     const raw = await readFile(cursorPath(repo, sessionId), "utf8");
-    const data = JSON.parse(raw) as { lines?: number };
-    return typeof data.lines === "number" ? data.lines : 0;
+    const data = JSON.parse(raw) as { lines?: number; size?: number };
+    return {
+      lines: typeof data.lines === "number" ? data.lines : 0,
+      size: typeof data.size === "number" ? data.size : 0,
+    };
   } catch {
-    return 0;
+    return { lines: 0, size: 0 };
   }
 }
 
-async function writeCursor(repo: RepoInfo, sessionId: string, lines: number): Promise<void> {
+async function writeCursor(
+  repo: RepoInfo,
+  sessionId: string,
+  lines: number,
+  size: number,
+): Promise<void> {
   const path = cursorPath(repo, sessionId);
   await mkdir(join(repo.commonDir, "conversation-ledger", "cursors"), { recursive: true });
-  await writeFile(path, JSON.stringify({ lines }) + "\n");
+  await writeFile(path, JSON.stringify({ lines, size }) + "\n");
 }
 
 function convertContentBlocks(content: unknown): unknown[] {
@@ -599,6 +623,56 @@ export function renormalizeUnrecognized(
   );
 }
 
+/**
+ * Capture any *other* session in this project whose transcript has grown
+ * since it was last read.
+ *
+ * This exists because a session's own last lines are unreachable to it. The
+ * hook fires, capture reads to end-of-file, and Claude Code then writes more
+ * — the closing bookkeeping of the final turn, and crucially the session's
+ * last `file-history-snapshot`, which is the most complete one it will ever
+ * write. No further hook fires for that session, so those lines sat stranded
+ * behind a cursor nothing would ever advance again. Observed live: a cursor
+ * resting at line 40 of a 50-line transcript, with the only snapshot naming a
+ * real backup at line 49.
+ *
+ * The next session in the same project closes the gap. Staleness is decided
+ * by file size against the size recorded with the cursor, so the sweep stats
+ * each transcript rather than parsing it, and reads only the ones that grew.
+ *
+ * Failures are swallowed per session: a sweep is a bonus pass over
+ * conversations the user is not currently having, and must never be the
+ * reason their live capture reports an error.
+ */
+async function sweepStaleTranscripts(
+  transcriptPath: string,
+  cwd: string,
+  seen: Set<string>,
+): Promise<void> {
+  const repo = await findRepo(cwd);
+  if (!repo) return;
+  let entries: string[];
+  try {
+    entries = await readdir(dirname(transcriptPath));
+  } catch {
+    return;
+  }
+
+  for (const name of entries) {
+    if (!name.endsWith(".jsonl")) continue;
+    const path = join(dirname(transcriptPath), name);
+    if (seen.has(path)) continue;
+    try {
+      const cursor = await readCursor(repo, basename(name, ".jsonl"));
+      const info = await stat(path);
+      if (info.size <= cursor.size) continue; // nothing new since the last read
+      await captureClaudeTranscript(path, cwd, seen);
+    } catch {
+      continue;
+    }
+  }
+}
+
 export async function runClaudeCodeHook(stdinJson: string): Promise<void> {
   try {
     const payload = JSON.parse(stdinJson) as ClaudeCodeHookPayload;
@@ -606,7 +680,9 @@ export async function runClaudeCodeHook(stdinJson: string): Promise<void> {
     if (!payload.transcript_path) return;
     const repo = await findRepo(cwd);
     if (!repo) return; // hooks must never break the user's session outside a repo
-    await captureClaudeTranscript(payload.transcript_path, cwd);
+    const seen = new Set<string>();
+    await captureClaudeTranscript(payload.transcript_path, cwd, seen);
+    await sweepStaleTranscripts(payload.transcript_path, cwd, seen);
   } catch (err) {
     process.stderr.write(
       `cledger: claude-code hook error: ${err instanceof Error ? err.message : String(err)}\n`,
@@ -614,13 +690,14 @@ export async function runClaudeCodeHook(stdinJson: string): Promise<void> {
   }
 }
 
-export async function captureClaudeTranscript(
+/**
+ * Capture one transcript file. Does not print, does not follow subagents —
+ * `captureClaudeTranscript` wraps this to do both.
+ */
+async function captureTranscriptFile(
+  repo: RepoInfo,
   transcriptPath: string,
-  cwd: string,
 ): Promise<CaptureResult> {
-  const repo = await findRepo(cwd);
-  if (!repo) throw new Error("not inside a git repository");
-
   const result: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
   let raw: string;
   try {
@@ -632,7 +709,8 @@ export async function captureClaudeTranscript(
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
 
   const sessionId = basename(transcriptPath, ".jsonl");
-  let cursor = await readCursor(repo, sessionId);
+  const stored = await readCursor(repo, sessionId);
+  let cursor = stored.lines;
   if (cursor > lines.length) cursor = 0; // transcript is shorter than expected — rescan from the start
 
   const version = packageVersion();
@@ -680,10 +758,60 @@ export async function captureClaudeTranscript(
     result.appended = appendResult.appended.length;
     result.deduped = appendResult.deduped;
   }
-  await writeCursor(repo, sessionId, lines.length);
-  process.stderr.write(
-    `cledger: claude-code +${result.appended} events (${result.deduped} deduped)\n`,
-  );
-  warnUnrecognized("claude-code", result.unrecognized);
+  await writeCursor(repo, sessionId, lines.length, Buffer.byteLength(raw));
   return result;
+}
+
+/**
+ * Subagent transcripts belonging to a session.
+ *
+ * Claude Code writes a subagent's turns to
+ * `<dir>/<session>/subagents/agent-<id>.jsonl` — a sibling of the session
+ * transcript, never mentioned in it and never named by the hook payload,
+ * which carries only the main `transcript_path`. Nothing pointed capture at
+ * these files, so every subagent conversation was invisible no matter how
+ * well the adapter could convert its lines. (Older Claude Code versions
+ * inlined the same content as `isSidechain` lines in the main transcript;
+ * both layouts convert identically, since the lines carry the same fields.)
+ */
+async function subagentTranscripts(transcriptPath: string): Promise<string[]> {
+  const dir = join(dirname(transcriptPath), basename(transcriptPath, ".jsonl"), "subagents");
+  try {
+    const entries = await readdir(dir);
+    return entries.filter((name) => name.endsWith(".jsonl")).sort().map((name) => join(dir, name));
+  } catch {
+    return []; // no subagents ran, or an older layout
+  }
+}
+
+/**
+ * Capture a Claude Code session: the transcript itself, then every subagent
+ * transcript beneath it, depth-first.
+ *
+ * `seen` guards the recursion, which is otherwise unbounded — a subagent may
+ * spawn its own subagents, and the directory layout nests accordingly.
+ */
+export async function captureClaudeTranscript(
+  transcriptPath: string,
+  cwd: string,
+  seen: Set<string> = new Set(),
+): Promise<CaptureResult> {
+  const repo = await findRepo(cwd);
+  if (!repo) throw new Error("not inside a git repository");
+
+  const total: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
+  const queue = [transcriptPath];
+  while (queue.length > 0) {
+    const path = queue.shift()!;
+    if (seen.has(path)) continue;
+    seen.add(path);
+    mergeCaptureResult(total, await captureTranscriptFile(repo, path));
+    queue.push(...(await subagentTranscripts(path)));
+  }
+
+  process.stderr.write(
+    `cledger: claude-code +${total.appended} events (${total.deduped} deduped)\n`,
+  );
+  warnUnrecognized("claude-code", total.unrecognized);
+  return total;
 }

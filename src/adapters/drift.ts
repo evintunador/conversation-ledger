@@ -29,6 +29,20 @@ export function countUnrecognized(unrecognized: Record<string, number>, key: str
 }
 
 /**
+ * Fold one capture's tallies into a running total. Used wherever a single
+ * logical capture spans several source files or sessions — a Claude Code
+ * session plus its subagent transcripts, an opencode session plus the
+ * subagent sessions it spawned.
+ */
+export function mergeCaptureResult(total: CaptureResult, one: CaptureResult): void {
+  total.appended += one.appended;
+  total.deduped += one.deduped;
+  for (const [key, count] of Object.entries(one.unrecognized)) {
+    total.unrecognized[key] = (total.unrecognized[key] ?? 0) + count;
+  }
+}
+
+/**
  * Build the raw-only preservation event for one unrecognized transcript line.
  *
  * `content` holds only the type label — the ledger did not interpret the

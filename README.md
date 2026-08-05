@@ -166,6 +166,13 @@ child under it. Claude Code sidechains and opencode subagent sessions were both
 dropped entirely before this existed — for an agent-heavy session that was most
 of the work.
 
+Finding them is half the problem, and it is per-source. Claude Code writes a
+subagent to `<session>/subagents/agent-<id>.jsonl`, a sibling file the hook
+payload never mentions, so capture walks the directory. opencode records a
+child's session id in the parent's `task` tool part, and `opencode session
+list` returns top-level sessions only, so capture walks that instead. Both
+recurse depth-first, cycle-guarded.
+
 ### File snapshots and `resolved`
 
 Sources describe intermediate file versions with *pointers* into a local cache
@@ -192,7 +199,7 @@ not know.
 
 | Source | Trigger | Transcript store | Notes |
 |---|---|---|---|
-| Claude Code CLI | `Stop`/`SessionEnd` hooks | `~/.claude/projects/*/*.jsonl` | Also covers the VS Code extension and JetBrains plugin (both share `~/.claude/settings.json` hooks and transcripts), and desktop-app local/SSH/WSL sessions. Cloud "Remote" sessions and the Cowork tab run server-side — not captured. Every line type is now recorded: `system` lines that printed text become turns spoken by the system, `attachment` becomes `context_injection`, `mode`/`permission-mode`/`worktree-state`/`pr-link` and friends become `session_state`, `queue-operation` and the rest become `activity`, and `file-history-*` becomes `file_snapshot` with backup digests resolved at capture time. Sidechain (subagent) turns are captured as sub-conversations instead of dropped. |
+| Claude Code CLI | `Stop`/`SessionEnd` hooks | `~/.claude/projects/*/*.jsonl` | Also covers the VS Code extension and JetBrains plugin (both share `~/.claude/settings.json` hooks and transcripts), and desktop-app local/SSH/WSL sessions. Cloud "Remote" sessions and the Cowork tab run server-side — not captured. Every line type is now recorded: `system` lines that printed text become turns spoken by the system, `attachment` becomes `context_injection`, `mode`/`permission-mode`/`worktree-state`/`pr-link` and friends become `session_state`, `queue-operation` and the rest become `activity`, and `file-history-*` becomes `file_snapshot` with backup digests resolved at capture time. Sidechain (subagent) turns are captured as sub-conversations instead of dropped — including the `<session>/subagents/agent-*.jsonl` sibling files newer Claude Code writes, which the hook payload never names. The hook also sweeps other transcripts in the same project whose file grew since their cursor, which is how a session's final lines get captured at all: the last hook reads to EOF, and Claude Code writes the closing bookkeeping (including the session's most complete file-history snapshot) afterwards. |
 | Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. Provider-encrypted `reasoning` items are preserved opaquely as `reasoning`-kind events (hidden from `log`/`show` by default, see Roadmap); inter-agent messages (`agent_message`) are captured with their visible text but their embedded encrypted blocks are still dropped outright. `turn_context` and `session_meta` are now recorded as `session_state` as well as read for `producer` metadata, so the sandbox policy, approval policy and reasoning effort a turn ran under are part of the record. Of the `event_msg` UI stream, only `agent_message`/`user_message` are dropped — they genuinely duplicate a `response_item`; token counts, task lifecycle, sub-agent activity, patch application and aborts have no twin and are recorded as `activity`. |
 | opencode | `session.idle` plugin event | SQLite at `~/.local/share/opencode/opencode.db` | The only adapter without an append-only transcript file. Rather than read opencode's database — whose schema is mid-migration, and which also stores API tokens — capture shells out to `opencode export --pure <id>` and converts its JSON. One event per *part*, not per message: opencode's store is mutable, and a part is the finest unit that stops changing, so a message that gains parts after an early idle appends rather than duplicating. Unlike Codex, `reasoning` parts are plaintext, so they become ordinary visible `thinking` blocks. Unsettled (`running`) tool calls are skipped and hold the cursor back until they finish. Subagent sessions are captured as their own conversation: opencode records a child's session id in the parent's `task` tool part, which is the only way to find them at all (`opencode session list` returns top-level sessions only), so capture walks them depth-first. Requires `opencode` on `PATH`; `cledger capture opencode --all` backfills every session opencode scopes to the current project, and `--transcript` reads a saved export. |
 
@@ -731,13 +738,20 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   The omission is visible in `raw` (a bare `{type: "encrypted_content"}`
   marker), so nothing is silently lost — but it is still the one place capture
   discards provider-withheld material instead of keeping it sealed.
-- **Sub-conversation coverage is per-source, and one source may still be
-  lossy** — Claude Code sidechains and opencode subagent sessions are both
-  captured now, the latter by walking `task` tool parts to discover child
-  session ids. Codex's `sub_agent_activity` events are recorded as `activity`,
-  but whether codex writes a separate rollout for a sub-agent (and where) has
-  not been confirmed, so a codex sub-agent's internal steps may still go
+- **Codex sub-agent coverage is unconfirmed** — Claude Code and opencode
+  sub-conversations are both captured, each by walking the source-specific
+  trail to the child (a `subagents/` sibling directory; a `task` tool part's
+  metadata). Codex's `sub_agent_activity` events are recorded as `activity`,
+  but whether codex writes a separate rollout for a sub-agent, and where, has
+  not been confirmed — so a codex sub-agent's internal steps may still go
   unrecorded. Worth a rollout-format check before claiming parity.
+- **The tail sweep is a workaround, not a fix** — a session cannot capture its
+  own final lines, because the last hook runs before they are written. The
+  claude-code hook therefore sweeps other transcripts in the project whose
+  file grew past their cursor, which closes the gap on the *next* session in
+  that repo. A repo whose last session is never followed by another still ends
+  with an uncaptured tail. A `SessionEnd`-with-delay or an explicit `cledger
+  capture claude-code --all` sweep would close it properly.
 
 ## Storage model, in one paragraph
 
