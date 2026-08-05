@@ -264,16 +264,15 @@ function isEncryptedBlock(block: unknown): boolean {
 
 /**
  * Inter-agent messages mix visible input_text blocks with encrypted_content
- * blocks — the same provider-withheld material as reasoning payloads, whose
- * policy changed to opaque preservation (see `reasoningDraft`). These blocks
- * are still dropped outright rather than preserved opaquely: unlike a
- * standalone `reasoning` response_item, an embedded block here is only part
- * of the line, so preserving it needs its own event shape (or a decision to
- * fold it into `reasoning` alongside the parent message's seq) — left as a
- * follow-up rather than done alongside reasoning today. Visible blocks
- * convert normally; encrypted blocks are dropped, leaving a bare
- * {type: "encrypted_content"} marker in `raw` so the omission is visible.
- * The transform is a pure function of the source line, so ids stay stable
+ * blocks — the same provider-withheld material as reasoning payloads.
+ *
+ * The two halves are split across two events at the same `seq`: the visible
+ * turn this function shapes `raw` for, and a sibling `reasoning`-kind event
+ * carrying the ciphertext (see `encryptedAgentMessage`). So the turn keeps
+ * only a bare `{type: "encrypted_content"}` marker where a sealed block was,
+ * which is what makes the split visible rather than silent — but the blob
+ * itself is preserved, not dropped, exactly as a standalone `reasoning` item
+ * is. The transform is a pure function of the source line, so ids stay stable
  * across rescans.
  */
 function sanitizeAgentMessageRaw(line: CodexRolloutLine): CodexRolloutLine {
@@ -286,6 +285,29 @@ function sanitizeAgentMessageRaw(line: CodexRolloutLine): CodexRolloutLine {
       content: content.map((b) => (isEncryptedBlock(b) ? { type: "encrypted_content" } : b)),
     },
   };
+}
+
+/**
+ * The sealed half of an inter-agent message: the same line with `content`
+ * reduced to its `encrypted_content` blocks, or null when there are none.
+ *
+ * This is what a sibling `reasoning` event stores, so the ciphertext survives
+ * capture instead of being discarded. Preserving it matters for the same
+ * reason a standalone `reasoning` item's does: only the originating provider
+ * can decrypt it, and a consumer replaying a conversation back through that
+ * provider needs the blob to reconstruct what the agent was actually working
+ * from. Dropping it made inter-agent codex sessions the one place that replay
+ * could not be reconstructed.
+ *
+ * The redaction stack exempts `.../encrypted_content` on `reasoning`-kind
+ * events, so pattern-matching can never corrupt a blob it cannot read.
+ */
+function encryptedAgentMessage(line: CodexRolloutLine): CodexRolloutLine | null {
+  const content = line.payload?.["content"];
+  if (!Array.isArray(content)) return null;
+  const sealed = content.filter(isEncryptedBlock);
+  if (sealed.length === 0) return null;
+  return { ...line, payload: { ...line.payload, content: sealed } };
 }
 
 /**
@@ -647,6 +669,29 @@ export async function captureCodexTranscript(
     }
     const draft = convertLine(parsed, i, sessionId, baseTime, version, identity, agent);
     if (draft) drafts.push(draft);
+
+    // An inter-agent message's encrypted blocks ride alongside the visible
+    // turn as a sealed sibling at the same seq — the same pairing a reasoning
+    // item with a populated summary uses. Distinct kinds keep the two ids from
+    // colliding.
+    if (draft && parsed.payload?.["type"] === "agent_message") {
+      const sealed = encryptedAgentMessage(parsed);
+      if (sealed) {
+        drafts.push(
+          reasoningDraft({
+            line: sealed,
+            occurredAt: typeof parsed.timestamp === "string" ? parsed.timestamp : baseTime,
+            source: "codex",
+            sessionId,
+            seq: i,
+            version,
+            rawFormat: RAW_FORMAT,
+            conversationId: `codex:${sessionId}`,
+            agent: { ...agent },
+          }),
+        );
+      }
+    }
   }
 
   if (drafts.length > 0) {

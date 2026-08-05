@@ -376,7 +376,11 @@ test("captureCodexTranscript: agent_message keeps visible text, drops encrypted 
     await writeFile(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
 
     const result = await captureCodexTranscript(path, repo.root);
-    assert.strictEqual(result.appended, 2, "the session_meta state record and the agent_message turn");
+    assert.strictEqual(
+      result.appended,
+      3,
+      "the session_meta state record, the visible turn, and the sealed sibling",
+    );
     assert.deepStrictEqual(result.unrecognized, {}, "agent_message is a recognized type now");
 
     const events = await readEvents(repo);
@@ -390,13 +394,27 @@ test("captureCodexTranscript: agent_message keeps visible text, drops encrypted 
       blocks: [{ type: "text", text: "Message Type: NEW_TASK\nTask name: /root/subagent" }],
     });
 
-    // The encrypted payload must be gone from the event wholesale — content
-    // and raw alike — leaving only the bare type marker in raw.
+    // The ciphertext must be gone from the *visible turn* — content and raw
+    // alike — leaving only the bare type marker so the split is visible.
     const serialized = JSON.stringify(e);
-    assert.ok(!serialized.includes("opaque-blob"), "encrypted content must never be stored");
+    assert.ok(!serialized.includes("opaque-blob"), "the visible turn must not carry ciphertext");
     const rawContent = ((e.raw?.data as { payload?: { content?: unknown[] } }).payload?.content) ?? [];
     assert.deepStrictEqual(rawContent[1], { type: "encrypted_content" });
     assert.strictEqual(e.raw?.format, "codex-rollout-jsonl/2");
+
+    // ...but preserved on a sealed sibling at the same seq, so an inter-agent
+    // conversation can still be replayed back through the provider that
+    // encrypted it. This is the half that used to be discarded outright.
+    const sealed = events.find((ev) => ev.kind === "reasoning")!;
+    assert.ok(sealed, "the encrypted blocks are preserved as a reasoning event");
+    assert.strictEqual(sealed.conversation?.seq, e.conversation?.seq, "same source line, same seq");
+    assert.deepStrictEqual(sealed.content, { opaque: true }, "content carries only the opacity marker");
+    const sealedBlocks = (sealed.raw?.data as { payload?: { content?: unknown[] } }).payload?.content ?? [];
+    assert.strictEqual(sealedBlocks.length, 1, "only the encrypted blocks, not the visible text");
+    assert.deepStrictEqual(sealedBlocks[0], {
+      type: "encrypted_content",
+      encrypted_content: "gAAAAAB-opaque-blob-must-never-be-stored",
+    });
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(dir);
