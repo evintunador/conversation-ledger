@@ -50,35 +50,156 @@ interface ClaudeHookEntry {
   hooks: { type: string; command?: string; timeout?: number }[];
 }
 
-function hasCledgerHook(entries: ClaudeHookEntry[] | undefined, needle: string): boolean {
-  return (entries ?? []).some((entry) =>
-    entry.hooks?.some((h) => h.command?.includes(needle)),
-  );
+/** The cledger hook inside an event's entries, if it is already installed. */
+function findCledgerHook(
+  entries: ClaudeHookEntry[] | undefined,
+  needle: string,
+): { type: string; command?: string; timeout?: number } | undefined {
+  for (const entry of entries ?? []) {
+    const hook = entry.hooks?.find((h) => h.command?.includes(needle));
+    if (hook) return hook;
+  }
+  return undefined;
+}
+
+/**
+ * How long a hook may run before the CLI kills it — in whatever unit that CLI
+ * reads the field in, which is *not* the same across the three.
+ *
+ * Claude Code reads `timeout` as **seconds**. Gemini CLI and Qwen Code forked
+ * Claude's hook config format but not its unit: both pass the number straight
+ * to `setTimeout`, so theirs is **milliseconds**. Their own code says so —
+ * `Hook timed out after ${timeout}ms`, with `DEFAULT_HOOK_TIMEOUT = 6e4`.
+ *
+ * Writing Claude's `120` into their settings therefore asks to be SIGTERMed
+ * after 120 *milliseconds*. A cold capture is ~85ms of work on top of node's
+ * startup, so the hook loses that race nearly every time: Gemini reported
+ * "Hook(s) [...] failed" on almost every turn while its events sometimes still
+ * landed, because whether `appendEvents` finished before the signal was a coin
+ * flip. Diagnosed by trapping the signal in a wrapper script — the hook logged
+ * `caught SIGTERM` in the same second it started.
+ */
+const HOOK_TIMEOUT_SECONDS = 120;
+const HOOK_TIMEOUT_MILLISECONDS = 120_000;
+
+/**
+ * Appended to a hook command for the two Gemini-derived CLIs.
+ *
+ * **Its original rationale was wrong, and is kept here as a warning.** It was
+ * introduced after `qwen -p "..."` failed to capture: the CLI fires its `Stop`
+ * hook and exits, and a hook doing a git-notes append was seen to die partway.
+ * The explanation recorded at the time -- that the redirection "routes the
+ * command through a shell so the work runs as a grandchild that outlives the
+ * teardown" -- does not survive reading either CLI's source. Both *always*
+ * invoke a hook as `bash -c "<command>"` whether or not it redirects, and
+ * `bash -c` with a single simple command `exec`s it rather than forking, so
+ * there is no grandchild and nothing is detached. All the redirect ever did
+ * was hide the capture's own output.
+ *
+ * The real cause of hooks dying was the timeout unit (see
+ * HOOK_TIMEOUT_MILLISECONDS): every hook was being SIGTERMed after 120ms.
+ *
+ * It is left in place only because removing it is a separate, untested change
+ * -- the headless `qwen -p` case has not been re-run since the timeout was
+ * fixed, and it may well no longer need this. Until then it keeps costing what
+ * it always cost: `cledger capture <source> --all` is the only way to see a
+ * capture's output, format-drift warnings included. Removing it is the first
+ * thing to try if a hook failure ever needs diagnosing again.
+ */
+const DETACH_SUFFIX = " >/dev/null 2>&1";
+
+/**
+ * Install command hooks into a Claude-Code-shaped `settings.json`.
+ *
+ * Three of the supported CLIs share this exact config format -- a top-level
+ * `hooks` object mapping an event name to an array of
+ * `{matcher?, hooks:[{type:"command", command, timeout}]}` definitions. That
+ * is not a coincidence: Gemini CLI ships a `gemini hooks migrate` command
+ * whose whole job is importing Claude Code's hook config, and Qwen Code
+ * inherited the same engine. Only the file path and the event names differ,
+ * so they are the parameters here.
+ */
+async function installJsonHooks(
+  source: string,
+  settingsPath: string,
+  events: string[],
+  options: { detach?: boolean; timeout: number } = { timeout: HOOK_TIMEOUT_SECONDS },
+): Promise<string> {
+  const settings: Record<string, unknown> = existsSync(settingsPath)
+    ? (JSON.parse(await readFile(settingsPath, "utf8")) as Record<string, unknown>)
+    : {};
+  const command = (await hookCommand(source)) + (options.detach ? DETACH_SUFFIX : "");
+  const hooks = (settings["hooks"] ?? {}) as Record<string, ClaudeHookEntry[]>;
+  let changed = false;
+  let repaired = false;
+  for (const event of events) {
+    const existing = findCledgerHook(hooks[event], `hook ${source}`);
+    if (!existing) {
+      hooks[event] = [
+        ...(hooks[event] ?? []),
+        { hooks: [{ type: "command", command, timeout: options.timeout }] },
+      ];
+      changed = true;
+      continue;
+    }
+    // An install already here is still repaired in place, because the timeout
+    // this writes has been wrong before (see HOOK_TIMEOUT_MILLISECONDS) and a
+    // user whose capture is being killed mid-write should be able to fix it by
+    // re-running install rather than hand-editing JSON.
+    if (existing.timeout !== options.timeout) {
+      existing.timeout = options.timeout;
+      changed = true;
+      repaired = true;
+    }
+  }
+  if (!changed) return `${source}: already installed (${settingsPath})`;
+  if (repaired) {
+    settings["hooks"] = hooks;
+    await backup(settingsPath);
+    await mkdir(dirname(settingsPath), { recursive: true });
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+    return `${source}: hook timeout corrected to ${options.timeout} in ${settingsPath}`;
+  }
+  settings["hooks"] = hooks;
+  await backup(settingsPath);
+  await mkdir(dirname(settingsPath), { recursive: true });
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+  return `${source}: ${events.join(" + ")} hooks added to ${settingsPath}`;
 }
 
 export async function installClaudeCode(): Promise<string> {
-  const path = join(homedir(), ".claude", "settings.json");
-  const settings: Record<string, unknown> = existsSync(path)
-    ? (JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>)
-    : {};
-  const command = await hookCommand("claude-code");
-  const hooks = (settings["hooks"] ?? {}) as Record<string, ClaudeHookEntry[]>;
-  let changed = false;
-  for (const event of ["Stop", "SessionEnd"]) {
-    if (!hasCledgerHook(hooks[event], "hook claude-code")) {
-      hooks[event] = [
-        ...(hooks[event] ?? []),
-        { hooks: [{ type: "command", command, timeout: 120 }] },
-      ];
-      changed = true;
-    }
-  }
-  if (!changed) return `claude-code: already installed (${path})`;
-  settings["hooks"] = hooks;
-  await backup(path);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify(settings, null, 2) + "\n");
-  return `claude-code: Stop + SessionEnd hooks added to ${path}`;
+  return installJsonHooks(
+    "claude-code",
+    join(homedir(), ".claude", "settings.json"),
+    ["Stop", "SessionEnd"],
+    { timeout: HOOK_TIMEOUT_SECONDS },
+  );
+}
+
+/**
+ * Gemini CLI names its lifecycle events differently from Claude Code:
+ * `AfterAgent` is the "the agent finished responding" event (Claude's `Stop`),
+ * and `SessionEnd` matches by name. Both are used, for the same reason
+ * claude-code installs both -- `AfterAgent` captures each turn as it lands, and
+ * `SessionEnd` is the backstop for a session that exits mid-turn.
+ */
+export async function installGeminiCli(): Promise<string> {
+  return installJsonHooks(
+    "gemini-cli",
+    join(homedir(), ".gemini", "settings.json"),
+    ["AfterAgent", "SessionEnd"],
+    { detach: true, timeout: HOOK_TIMEOUT_MILLISECONDS },
+  );
+}
+
+/** Qwen Code forked Claude Code's event names verbatim, `Stop` included. */
+export async function installQwenCode(): Promise<string> {
+  return installJsonHooks(
+    "qwen-code",
+    join(homedir(), ".qwen", "settings.json"),
+    ["Stop", "SessionEnd"],
+    { detach: true, timeout: HOOK_TIMEOUT_MILLISECONDS },
+  );
 }
 
 export async function installCodex(): Promise<string> {
@@ -192,14 +313,27 @@ export const server = async ({ directory, worktree }) => {
   return `opencode: session.idle capture plugin written to ${path}`;
 }
 
+/** Every adapter `cledger install` knows how to wire up, in listing order. */
+export const INSTALLABLE_ADAPTERS: Record<string, () => Promise<string>> = {
+  "claude-code": installClaudeCode,
+  codex: installCodex,
+  opencode: installOpencode,
+  "gemini-cli": installGeminiCli,
+  "qwen-code": installQwenCode,
+};
+
 export async function installAdapters(which: string): Promise<void> {
+  const names =
+    which === "all"
+      ? Object.keys(INSTALLABLE_ADAPTERS)
+      : which in INSTALLABLE_ADAPTERS
+        ? [which]
+        : [];
   const results: string[] = [];
-  if (which === "claude-code" || which === "all") results.push(await installClaudeCode());
-  if (which === "codex" || which === "all") results.push(await installCodex());
-  if (which === "opencode" || which === "all") results.push(await installOpencode());
+  for (const name of names) results.push(await INSTALLABLE_ADAPTERS[name]!());
   if (results.length === 0) {
     process.stderr.write(
-      `unknown adapter: ${which} (expected claude-code|codex|opencode|all)\n`,
+      `unknown adapter: ${which} (expected ${Object.keys(INSTALLABLE_ADAPTERS).join("|")}|all)\n`,
     );
     process.exit(2);
   }
