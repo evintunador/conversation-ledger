@@ -50,35 +50,61 @@ interface ClaudeHookEntry {
   hooks: { type: string; command?: string; timeout?: number }[];
 }
 
-function hasCledgerHook(entries: ClaudeHookEntry[] | undefined, needle: string): boolean {
-  return (entries ?? []).some((entry) =>
-    entry.hooks?.some((h) => h.command?.includes(needle)),
-  );
+/** The cledger hook inside an event's entries, if it is already installed. */
+function findCledgerHook(
+  entries: ClaudeHookEntry[] | undefined,
+  needle: string,
+): { type: string; command?: string; timeout?: number } | undefined {
+  for (const entry of entries ?? []) {
+    const hook = entry.hooks?.find((h) => h.command?.includes(needle));
+    if (hook) return hook;
+  }
+  return undefined;
 }
 
 /**
- * Appended to a hook command so the capture is not killed mid-write.
+ * How long a hook may run before the CLI kills it — in whatever unit that CLI
+ * reads the field in, which is *not* the same across the three.
  *
- * Verified against Qwen Code 0.21.5: in one-shot headless mode (`qwen -p ...`)
- * the CLI fires its `Stop` hook and then exits immediately, tearing down the
- * hook process along with the stdio pipes it inherited. A hook that finishes
- * instantly survives; one that takes a few hundred milliseconds -- which a
- * git-notes append does -- is killed partway, and nothing is captured. A
- * deliberately slow probe hook reproduced it every time: it logged its start
- * and never its finish.
+ * Claude Code reads `timeout` as **seconds**. Gemini CLI and Qwen Code forked
+ * Claude's hook config format but not its unit: both pass the number straight
+ * to `setTimeout`, so theirs is **milliseconds**. Their own code says so —
+ * `Hook timed out after ${timeout}ms`, with `DEFAULT_HOOK_TIMEOUT = 6e4`.
  *
- * Redirecting the command's output fixes it, reliably and repeatably: the
- * redirection forces the CLI to route the command through a shell, so the
- * work runs as a grandchild that outlives the teardown, and it stops the
- * capture from writing into pipes that are being closed underneath it. This
- * is the same trade the opencode plugin already makes -- capture that survives
- * a one-shot run, at the cost of not seeing its own output -- so
- * `cledger capture <source> --all` remains the way to watch a capture,
- * format-drift warnings included.
+ * Writing Claude's `120` into their settings therefore asks to be SIGTERMed
+ * after 120 *milliseconds*. A cold capture is ~85ms of work on top of node's
+ * startup, so the hook loses that race nearly every time: Gemini reported
+ * "Hook(s) [...] failed" on almost every turn while its events sometimes still
+ * landed, because whether `appendEvents` finished before the signal was a coin
+ * flip. Diagnosed by trapping the signal in a wrapper script — the hook logged
+ * `caught SIGTERM` in the same second it started.
+ */
+const HOOK_TIMEOUT_SECONDS = 120;
+const HOOK_TIMEOUT_MILLISECONDS = 120_000;
+
+/**
+ * Appended to a hook command for the two Gemini-derived CLIs.
  *
- * Interactive sessions never needed this (the CLI is still running when the
- * hook fires), and claude-code and codex await their hooks properly, so
- * neither of those installs pays for it.
+ * **Its original rationale was wrong, and is kept here as a warning.** It was
+ * introduced after `qwen -p "..."` failed to capture: the CLI fires its `Stop`
+ * hook and exits, and a hook doing a git-notes append was seen to die partway.
+ * The explanation recorded at the time -- that the redirection "routes the
+ * command through a shell so the work runs as a grandchild that outlives the
+ * teardown" -- does not survive reading either CLI's source. Both *always*
+ * invoke a hook as `bash -c "<command>"` whether or not it redirects, and
+ * `bash -c` with a single simple command `exec`s it rather than forking, so
+ * there is no grandchild and nothing is detached. All the redirect ever did
+ * was hide the capture's own output.
+ *
+ * The real cause of hooks dying was the timeout unit (see
+ * HOOK_TIMEOUT_MILLISECONDS): every hook was being SIGTERMed after 120ms.
+ *
+ * It is left in place only because removing it is a separate, untested change
+ * -- the headless `qwen -p` case has not been re-run since the timeout was
+ * fixed, and it may well no longer need this. Until then it keeps costing what
+ * it always cost: `cledger capture <source> --all` is the only way to see a
+ * capture's output, format-drift warnings included. Removing it is the first
+ * thing to try if a hook failure ever needs diagnosing again.
  */
 const DETACH_SUFFIX = " >/dev/null 2>&1";
 
@@ -97,7 +123,7 @@ async function installJsonHooks(
   source: string,
   settingsPath: string,
   events: string[],
-  options: { detach?: boolean } = {},
+  options: { detach?: boolean; timeout: number } = { timeout: HOOK_TIMEOUT_SECONDS },
 ): Promise<string> {
   const settings: Record<string, unknown> = existsSync(settingsPath)
     ? (JSON.parse(await readFile(settingsPath, "utf8")) as Record<string, unknown>)
@@ -105,16 +131,35 @@ async function installJsonHooks(
   const command = (await hookCommand(source)) + (options.detach ? DETACH_SUFFIX : "");
   const hooks = (settings["hooks"] ?? {}) as Record<string, ClaudeHookEntry[]>;
   let changed = false;
+  let repaired = false;
   for (const event of events) {
-    if (!hasCledgerHook(hooks[event], `hook ${source}`)) {
+    const existing = findCledgerHook(hooks[event], `hook ${source}`);
+    if (!existing) {
       hooks[event] = [
         ...(hooks[event] ?? []),
-        { hooks: [{ type: "command", command, timeout: 120 }] },
+        { hooks: [{ type: "command", command, timeout: options.timeout }] },
       ];
       changed = true;
+      continue;
+    }
+    // An install already here is still repaired in place, because the timeout
+    // this writes has been wrong before (see HOOK_TIMEOUT_MILLISECONDS) and a
+    // user whose capture is being killed mid-write should be able to fix it by
+    // re-running install rather than hand-editing JSON.
+    if (existing.timeout !== options.timeout) {
+      existing.timeout = options.timeout;
+      changed = true;
+      repaired = true;
     }
   }
   if (!changed) return `${source}: already installed (${settingsPath})`;
+  if (repaired) {
+    settings["hooks"] = hooks;
+    await backup(settingsPath);
+    await mkdir(dirname(settingsPath), { recursive: true });
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+    return `${source}: hook timeout corrected to ${options.timeout} in ${settingsPath}`;
+  }
   settings["hooks"] = hooks;
   await backup(settingsPath);
   await mkdir(dirname(settingsPath), { recursive: true });
@@ -123,10 +168,12 @@ async function installJsonHooks(
 }
 
 export async function installClaudeCode(): Promise<string> {
-  return installJsonHooks("claude-code", join(homedir(), ".claude", "settings.json"), [
-    "Stop",
-    "SessionEnd",
-  ]);
+  return installJsonHooks(
+    "claude-code",
+    join(homedir(), ".claude", "settings.json"),
+    ["Stop", "SessionEnd"],
+    { timeout: HOOK_TIMEOUT_SECONDS },
+  );
 }
 
 /**
@@ -141,7 +188,7 @@ export async function installGeminiCli(): Promise<string> {
     "gemini-cli",
     join(homedir(), ".gemini", "settings.json"),
     ["AfterAgent", "SessionEnd"],
-    { detach: true },
+    { detach: true, timeout: HOOK_TIMEOUT_MILLISECONDS },
   );
 }
 
@@ -151,7 +198,7 @@ export async function installQwenCode(): Promise<string> {
     "qwen-code",
     join(homedir(), ".qwen", "settings.json"),
     ["Stop", "SessionEnd"],
-    { detach: true },
+    { detach: true, timeout: HOOK_TIMEOUT_MILLISECONDS },
   );
 }
 
