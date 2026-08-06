@@ -213,6 +213,12 @@ systems):
 - **Kimi CLI** — `~/.kimi-code/sessions/**/agents/<agent>/wire.jsonl`, an append-only
   wire log with a `protocol_version` header, one directory per agent (so subagents are
   separated at the filesystem level); Claude-Code-inspired lifecycle hooks.
+- **Google Antigravity** — where Google now sends individual users whose Gemini CLI
+  `oauth-personal` sign-in is refused (see the Gemini CLI note below). Unexamined:
+  whether it keeps a local session store worth capturing is unknown, and this list
+  does not guess. If it does, it is a *sibling* of the Gemini CLI adapter rather than
+  a replacement — that CLI is still published, still writes the same format, and is
+  still supported here.
 - **GitHub Copilot CLI** — `~/.copilot/session-state/`; documented hooks dirs.
 - **Factory droid** — `~/.factory/` sessions; `hooks.json`.
 - **Cursor (`cursor-agent` CLI)** — `~/.cursor/chats`; hooks exist, but IDE-side chats live in editor-internal storage.
@@ -283,6 +289,22 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   Fixing it properly means asking Gemini to record it, or accepting a
   capture-time "the binary on PATH said 0.53.1" annotation that is explicitly
   about the capture rather than the session.
+- **No Gemini CLI model turn has been captured from a live session** — the one
+  real Gemini transcript on hand holds a user prompt and a failed API call, so
+  the model-turn half of the adapter (`modelBlocks`' precedence between content
+  parts and the sibling `thoughts`/`toolCalls` fields, the settledness hold,
+  the `rewind`/`snapshot_drop` activities) is covered by unit tests against
+  synthetic logs rather than by a transcript that exercised it. Getting one now
+  costs money or a key: Google refuses `oauth-personal` sign-in for individuals
+  on this client — *"no longer supported for Gemini Code Assist for
+  individuals… migrate to the Antigravity suite"* — and that refusal is
+  server-side, not a client change. The shipped CLI still supports
+  `gemini-api-key`, `vertex-ai` and `cloud-shell`, and honours
+  `GOOGLE_GEMINI_BASE_URL`, so a key or a Gemini-shaped local endpoint is
+  enough; note that Gemini CLI has no OpenAI-compatible mode, unlike Qwen Code
+  (`OPENAI_BASE_URL`), which is why Qwen has real sessions here and Gemini has
+  one failed call. The format itself is stable — Gemini CLI 0.54.0's record
+  predicates are byte-identical to 0.53.1's.
 - **Qwen `system` subtypes are classified by name, not by observed shape** —
   only `ui_telemetry` and `attribution_snapshot` appear in the sessions on
   hand; the rest of the kind mapping (`custom_title` → `session_state`,
