@@ -572,6 +572,14 @@ export async function captureQwenAll(cwd: string, limit?: number): Promise<Captu
   if (!repo) throw new Error("not inside a git repository");
   const total: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
   const paths = await projectTranscripts(cwd);
+  // The chats directory is derived from the exact cwd, so running this from a
+  // subdirectory of the project finds nothing. Say so rather than reporting a
+  // `+0 events` that reads as "already captured".
+  if (paths.length === 0) {
+    process.stderr.write(
+      `cledger: qwen-code found no sessions for ${cwd} (looked in ${qwenProjectChatsDir(cwd)})\n`,
+    );
+  }
   for (const path of typeof limit === "number" ? paths.slice(0, limit) : paths) {
     mergeCaptureResult(total, await captureTranscriptFile(repo, path));
   }

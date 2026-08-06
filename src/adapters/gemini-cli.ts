@@ -30,10 +30,12 @@
  * evidence, and the human did type it. So capture takes the *union* of every
  * message the file ever contained, each at its last-written value, and treats
  * `$rewindTo` and snapshot truncation as facts about Gemini's live view
- * rather than instructions to forget. The removal itself is recorded too, as
- * an `activity` — a rewind is something that happened, and a consumer
+ * rather than instructions to forget. Each removal is recorded in its own
+ * right as an `activity` naming the ids it withdrew — `rewind` for an explicit
+ * `$rewindTo`, `snapshot_drop` for a `$set.messages` snapshot that quietly
+ * omitted what the document used to hold. Both matter: a consumer
  * reconstructing intent needs to know a turn was withdrawn, not just that it
- * exists.
+ * exists, and the snapshot is the path the real incident above took.
  *
  * **Ordering key.** `seq` is the index of the log record a thing was first
  * seen at, counted in file order across messages *and* the mutation records
@@ -170,14 +172,19 @@ interface OrderedMessage {
 }
 
 /**
- * A log record that is not a message: a metadata patch or a rewind. Recorded
- * in its own right rather than only being applied, so the ledger keeps the
- * session's declarations and the fact that a rewind happened.
+ * A log record that is not a message: a metadata patch, a rewind, or a
+ * snapshot that withdrew messages. Recorded in its own right rather than only
+ * being applied, so the ledger keeps the session's declarations and the fact
+ * that messages were withdrawn.
  */
 interface OrderedMutation {
   seq: number;
-  /** "metadata" for a `$set`/header patch, "rewind" for a `$rewindTo`. */
-  kind: "metadata" | "rewind";
+  /**
+   * "metadata" for a `$set`/header patch, "rewind" for a `$rewindTo`,
+   * "snapshot_drop" for a `$set.messages` snapshot that omitted messages the
+   * document previously held.
+   */
+  kind: "metadata" | "rewind" | "snapshot_drop";
   fields: Record<string, unknown>;
   raw: unknown;
 }
@@ -266,16 +273,34 @@ export function replaySession(text: string): GeminiSession {
 
     if (isRecord(record["$set"])) {
       const set = record["$set"] as Record<string, unknown>;
+      const stored = withoutMessageList(record);
       if (Array.isArray(set["messages"])) {
         // A snapshot replaces the live document wholesale; anything it omits
-        // is dropped from the CLI's view but kept in `seen`.
+        // is dropped from the CLI's view but kept in `seen`. *Which* ids it
+        // omitted is the fact worth recording — this is the removal that
+        // actually cost a real session its typed prompt (see the module
+        // comment), so without this the recovered message is indistinguishable
+        // from one nothing ever happened to.
+        const kept = new Set<string>();
+        for (const message of set["messages"]) {
+          if (isStringProp(message, "id")) kept.add(message["id"] as string);
+        }
+        const removed = [...live].filter((id) => !kept.has(id));
+        if (removed.length > 0) {
+          mutations.push({
+            seq: nextSeq++,
+            kind: "snapshot_drop",
+            fields: { removed_messages: removed, kept_message_count: kept.size },
+            raw: stored,
+          });
+        }
         live = new Set();
         for (const message of set["messages"]) upsert(message);
       }
       Object.assign(metadata, set);
       const fields = patchFields(set);
       if (Object.keys(fields).length > 0) {
-        mutations.push({ seq: nextSeq++, kind: "metadata", fields, raw: record });
+        mutations.push({ seq: nextSeq++, kind: "metadata", fields, raw: stored });
       }
       continue;
     }
@@ -287,7 +312,12 @@ export function replaySession(text: string): GeminiSession {
       }
       const fields = patchFields(record);
       if (Object.keys(fields).length > 0) {
-        mutations.push({ seq: nextSeq++, kind: "metadata", fields, raw: record });
+        mutations.push({
+          seq: nextSeq++,
+          kind: "metadata",
+          fields,
+          raw: withoutMessageList(record),
+        });
       }
     }
   }
@@ -299,6 +329,36 @@ export function replaySession(text: string): GeminiSession {
     .sort((a, b) => a.seq - b.seq);
   const rewound = new Set([...seen.keys()].filter((id) => !live.has(id)));
   return { metadata, messages, mutations, rewound };
+}
+
+/**
+ * A metadata record as stored in `raw`, minus the message list it may carry.
+ *
+ * This is the one place an adapter prunes `raw` rather than keeping the source
+ * line verbatim, and the amplification is what earns the exception: Gemini
+ * rewrites the *entire* conversation into `$set.messages` every time it
+ * re-syncs history, so a session that does that N times appends N copies of
+ * its whole transcript to the log. Storing them verbatim files N copies into
+ * the ledger too — on the five-record real session this adapter was built
+ * against, the two snapshots alone were 22% of the captured bytes, and the
+ * share grows with the length of the conversation.
+ *
+ * Nothing is lost. Every message in that list is captured as its own event
+ * carrying its own verbatim `raw`, and what the snapshot *did* — which
+ * messages it withdrew — is recorded by the `snapshot_drop` activity beside
+ * it. What is dropped here is only the duplicate copy.
+ */
+function withoutMessageList(record: Record<string, unknown>): unknown {
+  const set = record["$set"];
+  if (isRecord(set) && Array.isArray(set["messages"])) {
+    const { messages: _messages, ...rest } = set;
+    return { ...record, $set: rest };
+  }
+  if (Array.isArray(record["messages"])) {
+    const { messages: _messages, ...rest } = record;
+    return rest;
+  }
+  return record;
 }
 
 /** A metadata record's own fields, minus the message list it may carry. */
@@ -507,13 +567,19 @@ function convertMessage(
  *
  * A `$set` is a declaration about the session that holds until restated —
  * `session_state`, exactly like claude-code's `mode` and `summary` lines,
- * restatements included. A `$rewindTo` is something that happened, so it is
- * `activity`; it is the one record that makes the withdrawn turns above it
- * legible as withdrawn rather than merely present.
+ * restatements included.
+ *
+ * Removals are `activity`, because they are things that happened, and they are
+ * what make the withdrawn turns above them legible as withdrawn rather than
+ * merely present. Gemini has two ways to withdraw a message and the ledger
+ * records both: an explicit `$rewindTo`, and a `$set.messages` snapshot that
+ * quietly omits what it no longer wants. The second is the one that cost a
+ * real session its typed prompt, so recording only the first would leave the
+ * motivating case exactly as illegible as it was.
  */
 function convertMutation(mutation: OrderedMutation, ctx: RecordContext): EventDraft {
-  if (mutation.kind === "rewind") {
-    return activityDraft(ctx, "rewind", mutation.fields, mutation.raw);
+  if (mutation.kind === "rewind" || mutation.kind === "snapshot_drop") {
+    return activityDraft(ctx, mutation.kind, mutation.fields, mutation.raw);
   }
   return sessionStateDraft(ctx, "metadata", liftText(mutation.fields, "summary"), mutation.raw);
 }
@@ -590,7 +656,16 @@ export async function captureGeminiSession(
 ): Promise<CaptureResult> {
   const repo = await findRepo(cwd);
   if (!repo) throw new Error("not inside a git repository");
-  const result = await captureSessionInto(repo, text, fallbackSessionId, sourceVersion, parentId, 0);
+  // No file behind this entrypoint, so the caller's id is also the cursor key.
+  const result = await captureSessionInto(
+    repo,
+    text,
+    fallbackSessionId,
+    fallbackSessionId,
+    sourceVersion,
+    parentId,
+    0,
+  );
   process.stderr.write(
     `cledger: gemini-cli +${result.appended} events (${result.deduped} deduped)\n`,
   );
@@ -598,11 +673,22 @@ export async function captureGeminiSession(
   return result;
 }
 
-/** The conversion half, without printing — shared by every capture entrypoint. */
+/**
+ * The conversion half, without printing — shared by every capture entrypoint.
+ *
+ * `cursorKey` is deliberately separate from the session id the events carry.
+ * The session id comes from inside the file (`metadata.sessionId`, a uuid);
+ * the cursor is keyed by the file's own name, because that is the only
+ * identifier the catch-up sweep has before it reads anything. Keying the
+ * cursor by the declared id instead means the sweep looks under a name capture
+ * never writes, finds nothing, and silently skips every session forever — the
+ * exact bug this parameter exists to prevent.
+ */
 async function captureSessionInto(
   repo: RepoInfo,
   text: string,
   fallbackSessionId: string,
+  cursorKey: string,
   sourceVersion: string | undefined,
   parentId: string | undefined,
   fileSize: number,
@@ -621,13 +707,17 @@ async function captureSessionInto(
   // in the replayed list. Because keys are assigned at first sighting and never
   // reused, a rewind that shortens the document cannot make the cursor skip
   // past records written after it.
-  const cursor = (await readCursor(repo, sessionId, CURSOR_FIELD))?.count ?? 0;
+  const cursor = (await readCursor(repo, cursorKey, CURSOR_FIELD))?.count ?? 0;
   let nextCursor = cursor;
   let held = false;
 
   const drafts: EventDraft[] = [];
+  // Monotonic: messages and mutations are examined in two separate passes, and
+  // whichever runs last must not be able to drag the cursor back to its own
+  // highest key. Backwards is safe (re-emitted records dedup) but it means the
+  // tail is re-converted on every hook fire, forever.
   const advance = (seq: number) => {
-    if (!held) nextCursor = seq + 1;
+    if (!held && seq + 1 > nextCursor) nextCursor = seq + 1;
   };
 
   for (const mutation of session.mutations) {
@@ -680,11 +770,20 @@ async function captureSessionInto(
     result.appended = appendResult.appended.length;
     result.deduped = appendResult.deduped;
   }
-  await writeCursor(repo, sessionId, CURSOR_FIELD, nextCursor, fileSize);
+  await writeCursor(repo, cursorKey, CURSOR_FIELD, nextCursor, fileSize);
   return result;
 }
 
-/** Session id embedded in `session-<timestamp>-<short id>.jsonl`, else the stem. */
+/**
+ * A session file's name, without the extension.
+ *
+ * Two jobs. It is the cursor key (see `captureSessionInto`), because the sweep
+ * has to identify a session from its path alone. And it is the fallback
+ * session id for a file too young to have written its header yet — Gemini
+ * embeds the session's short id in the name (`session-<ts>-<short id>`), so
+ * the stem is at least session-specific, and the real uuid replaces it as soon
+ * as the header lands.
+ */
 function sessionIdFromPath(path: string): string {
   return basename(path, ".jsonl");
 }
@@ -707,6 +806,7 @@ async function captureSessionFile(
     await captureSessionInto(
       repo,
       text,
+      sessionIdFromPath(path),
       sessionIdFromPath(path),
       undefined,
       parentId,
@@ -831,6 +931,16 @@ export async function captureGeminiAll(cwd: string, limit?: number): Promise<Cap
   if (!repo) throw new Error("not inside a git repository");
   const total: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
   const paths = await projectSessions(cwd);
+  // Gemini scopes chats to the workspace root it was launched in, so running
+  // this from a subdirectory finds nothing. Say so: a silent `+0 events` is
+  // indistinguishable from "captured everything already".
+  if (paths.length === 0) {
+    const dir = await geminiProjectChatsDir(cwd);
+    process.stderr.write(
+      `cledger: gemini-cli found no sessions for ${cwd} ` +
+        `(${dir ? `looked in ${dir}` : "no Gemini project directory is registered for this path"})\n`,
+    );
+  }
   for (const path of typeof limit === "number" ? paths.slice(0, limit) : paths) {
     mergeCaptureResult(total, await captureSessionFile(repo, path));
   }

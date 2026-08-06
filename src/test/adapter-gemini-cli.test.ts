@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -92,6 +92,105 @@ test("gemini-cli replay: a message dropped by a snapshot is still captured", () 
   );
   assert.deepEqual(session.messages.map((m) => m.message.id), ["ctx", "hi"]);
   assert.deepEqual([...session.rewound], ["hi"], "the CLI dropped it; the ledger records that it did");
+});
+
+test("gemini-cli capture: a snapshot that withdraws a message says so", async () => {
+  // The motivating incident, reproduced: Gemini rewrites the document with a
+  // `$set.messages` snapshot that omits the prompt the user just typed. Keeping
+  // the prompt is half the job — without a record of the withdrawal it reads as
+  // an ordinary turn, and a consumer cannot tell the CLI stopped believing in
+  // it. This is the path the real session took; `$rewindTo` is the other one.
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo);
+    const snapshot = {
+      $set: {
+        messages: [
+          { id: "ctx", timestamp: "2026-08-04T03:54:19.787Z", type: "user", content: "<session_context>\nsetup" },
+        ],
+        lastUpdated: "2026-08-04T03:54:20.500Z",
+      },
+    };
+    await capture(
+      log(
+        header(),
+        snapshot,
+        { id: "hi", timestamp: "2026-08-04T03:54:19.961Z", type: "user", content: [{ text: "hi" }] },
+        snapshot,
+      ),
+      repo.root,
+    );
+    const events = await readEvents(repo);
+
+    const kept = events.find(
+      (e) => e.kind === "conversation_turn" && e.actor.type === "human",
+    )!;
+    assert.deepEqual((kept.content as { blocks: unknown[] }).blocks, [{ type: "text", text: "hi" }]);
+
+    const drop = events.find(
+      (e) => (e.content as Record<string, unknown>)["activity_type"] === "snapshot_drop",
+    )!;
+    assert.ok(drop, "the withdrawal is an event in its own right");
+    assert.equal(drop.kind, "activity");
+    assert.deepEqual((drop.content as Record<string, unknown>)["removed_messages"], ["hi"]);
+    assert.ok(
+      drop.conversation!.seq > kept.conversation!.seq,
+      "the withdrawal is ordered after the message it withdrew",
+    );
+
+    // The first snapshot withdrew nothing (the document was empty), so it must
+    // not manufacture an event saying it did.
+    assert.equal(
+      events.filter((e) => (e.content as Record<string, unknown>)["activity_type"] === "snapshot_drop")
+        .length,
+      1,
+    );
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("gemini-cli capture: a snapshot does not file a second copy of the conversation", async () => {
+  // Gemini rewrites the *whole* message list into `$set.messages` on every
+  // history re-sync. Storing those verbatim would put N copies of the
+  // transcript in the ledger for a session that re-syncs N times; every message
+  // is already captured as its own event, so the duplicate is pure weight.
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo);
+    const bulky = "x".repeat(4000);
+    await capture(
+      log(header(), {
+        $set: {
+          messages: [
+            { id: "ctx", timestamp: "2026-08-04T03:54:19.787Z", type: "user", content: bulky },
+          ],
+          lastUpdated: "2026-08-04T03:54:20.500Z",
+        },
+      }),
+      repo.root,
+    );
+    const events = await readEvents(repo);
+
+    // The `$set` patch, not the header — both carry a `lastUpdated`.
+    const state = events.find(
+      (e) =>
+        e.kind === "session_state" &&
+        (e.content as Record<string, unknown>)["lastUpdated"] === "2026-08-04T03:54:20.500Z",
+    )!;
+    const set = (state.raw!.data as Record<string, Record<string, unknown>>)["$set"]!;
+    assert.equal(set["messages"], undefined, "the message list is not duplicated into raw");
+    assert.equal(set["lastUpdated"], "2026-08-04T03:54:20.500Z", "the patch itself is untouched");
+
+    const turn = events.find((e) => e.kind === "conversation_turn")!;
+    assert.equal(
+      (turn.raw!.data as Record<string, unknown>)["content"],
+      bulky,
+      "the message keeps its own verbatim raw, so nothing is lost",
+    );
+  } finally {
+    await cleanupRepo(repo);
+  }
 });
 
 test("gemini-cli replay: $rewindTo drops from the live view but never from the record", () => {
@@ -348,6 +447,50 @@ test("gemini-cli capture: rescanning dedups and a later turn resumes from the cu
       first + log({ id: "c", timestamp: "2026-08-04T03:54:21.000Z", type: "user", content: "c" });
     assert.equal((await capture(grown, repo.root)).appended, 1);
   } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("gemini-cli capture: the cursor is keyed by file name and reaches the end of the log", async () => {
+  // Two properties the catch-up sweep depends on, neither visible from the
+  // events themselves.
+  //
+  // The key: a Gemini session file is named `session-<ts>-<short id>` but
+  // declares a full uuid inside, and the sweep only has the path. Keying the
+  // cursor by the declared id means the sweep looks under a name capture never
+  // writes, finds nothing, and skips every session forever.
+  //
+  // The value: it must reach the last record examined. Messages and mutations
+  // are walked in separate passes, and if the second pass can lower the cursor
+  // to its own highest key, everything after the final metadata patch is
+  // re-converted on every hook fire for the life of the session.
+  const repo = await makeTempRepo();
+  const dir = await mkdtemp(join(tmpdir(), "cledger-gemini-"));
+  try {
+    await makeCommit(repo);
+    const path = join(dir, "session-2026-08-04T03-54-63ca4425.jsonl");
+    // Ends on messages, so a cursor that follows the mutation pass lands at 1.
+    await writeFile(
+      path,
+      log(
+        header(),
+        { id: "a", timestamp: "2026-08-04T03:54:19.000Z", type: "user", content: "a" },
+        { id: "b", timestamp: "2026-08-04T03:54:20.000Z", type: "gemini", model: "m", content: "b" },
+      ),
+    );
+    await captureGeminiTranscript(path, repo.root);
+
+    const cursorDir = join(repo.commonDir, "conversation-ledger", "cursors");
+    assert.deepEqual(
+      await readdir(cursorDir),
+      ["session-2026-08-04T03-54-63ca4425.json"],
+      "keyed by the file name the sweep will look it up under, not the declared session id",
+    );
+    const cursor = JSON.parse(await readFile(join(cursorDir, (await readdir(cursorDir))[0]!), "utf8"));
+    assert.equal(cursor.messages, 3, "advanced past every record, not back to the last mutation");
+    assert.ok(cursor.size > 0, "and records the size the sweep compares against");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
     await cleanupRepo(repo);
   }
 });
