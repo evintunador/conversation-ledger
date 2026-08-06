@@ -31,6 +31,12 @@ import {
   captureOpencodeExportFile,
   captureOpencodeSession,
 } from "./adapters/opencode.js";
+import {
+  runGeminiHook,
+  captureGeminiAll,
+  captureGeminiTranscript,
+} from "./adapters/gemini-cli.js";
+import { runQwenHook, captureQwenAll, captureQwenTranscript } from "./adapters/qwen-code.js";
 import { renormalize } from "./renormalize.js";
 import { installAdapters } from "./install.js";
 import { forgeForRepo } from "./forge/forge.js";
@@ -106,11 +112,17 @@ Usage:
                                            cledger version can now parse into their proper kind
                                            (conversation_turn, session_state, activity, ...),
                                            superseding the raw-only placeholders (append-only, idempotent)
-  cledger install <claude-code|codex|opencode|all>
+  cledger install <claude-code|codex|opencode|gemini-cli|qwen-code|all>
                                            hook capture into coding CLIs (global)
-  cledger hook <claude-code|codex|opencode>
+  cledger hook <claude-code|codex|opencode|gemini-cli|qwen-code>
                                            capture entrypoint invoked by CLI hooks (stdin: hook payload)
   cledger capture <claude-code|codex> --transcript PATH   manual/backfill ingestion
+  cledger capture <gemini-cli|qwen-code> [--transcript PATH | --all]
+                                           both keep per-project session logs; --all backfills every
+                                           session the CLI scopes to this directory, including ones
+                                           cledger has never seen (the hook's own catch-up sweep is
+                                           deliberately narrower — it only finishes sessions cledger
+                                           already tracks)
   cledger capture opencode [--session ID | --all | --transcript EXPORT.json]
                                            opencode keeps sessions in SQLite, not a transcript file,
                                            so capture shells out to \`opencode export\`; --all sweeps
@@ -732,6 +744,12 @@ async function main(): Promise<void> {
       if (positional[0] === "opencode") {
         return runOpencodeHook(await readStdin());
       }
+      if (positional[0] === "gemini-cli") {
+        return runGeminiHook(await readStdin());
+      }
+      if (positional[0] === "qwen-code") {
+        return runQwenHook(await readStdin());
+      }
       process.stderr.write(`unknown hook source: ${positional[0]}\n`);
       process.exit(2);
       return;
@@ -745,6 +763,23 @@ async function main(): Promise<void> {
       }
       if (source === "codex" && transcript) {
         await captureCodexTranscript(transcript, process.cwd());
+        return;
+      }
+      // gemini-cli and qwen-code both keep a per-project session log, so a
+      // sweep is scoped by the CLI's own project directory for this cwd.
+      if (source === "gemini-cli" || source === "qwen-code") {
+        const captureOne = source === "gemini-cli" ? captureGeminiTranscript : captureQwenTranscript;
+        const captureAll = source === "gemini-cli" ? captureGeminiAll : captureQwenAll;
+        if (transcript) {
+          await captureOne(transcript, process.cwd());
+          return;
+        }
+        if (flags["all"]) {
+          await captureAll(process.cwd());
+          return;
+        }
+        process.stderr.write(`usage: cledger capture ${source} (--transcript PATH | --all)\n`);
+        process.exit(2);
         return;
       }
       if (source === "opencode") {
@@ -771,6 +806,7 @@ async function main(): Promise<void> {
       }
       process.stderr.write(
         "usage: cledger capture <claude-code|codex> --transcript PATH\n" +
+          "       cledger capture <gemini-cli|qwen-code> (--transcript PATH | --all)\n" +
           "       cledger capture opencode (--session ID | --all | --transcript EXPORT.json)\n",
       );
       process.exit(2);

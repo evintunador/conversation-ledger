@@ -363,12 +363,48 @@ never throws — it runs inside capture):
 ## Capture adapters
 
 `cledger install` registers per-turn hooks globally: Claude Code
-(`Stop`/`SessionEnd` in `~/.claude/settings.json`) and Codex CLI
-(`[[hooks.Stop]]` in `~/.codex/config.toml`). Hooks receive
+(`Stop`/`SessionEnd` in `~/.claude/settings.json`), Codex CLI
+(`[[hooks.Stop]]` in `~/.codex/config.toml`), Gemini CLI
+(`AfterAgent`/`SessionEnd` in `~/.gemini/settings.json`), Qwen Code
+(`Stop`/`SessionEnd` in `~/.qwen/settings.json`), and opencode (a
+`session.idle` plugin, since opencode has no shell-hook config). Hooks receive
 `session_id`/`transcript_path`/`cwd` on stdin, no-op silently outside git
 repositories, never fail the user's session, and re-scan tolerantly —
-idempotent ids make duplicate capture harmless. Per-session cursors under
-`.git/conversation-ledger/cursors/` are a pure optimization.
+idempotent ids make duplicate capture harmless.
+
+Three of the five CLIs share one hook-config format — a top-level `hooks`
+object of `{matcher?, hooks:[{type:"command", command, timeout}]}` arrays —
+because Gemini CLI deliberately mirrored Claude Code's (it ships a
+`gemini hooks migrate` command) and Qwen Code forked Gemini's engine. Only the
+path and the event names differ, so `installJsonHooks` is parameterized on
+exactly those two things.
+
+Cursors under `.git/conversation-ledger/cursors/` are mostly an optimization,
+but three of their properties are load-bearing, and all three live in
+`adapters/common.ts` rather than being reimplemented per adapter:
+
+- **Absent is not zero.** A missing cursor means "cledger never captured this
+  session", which is what gates a catch-up sweep; a cursor legitimately at 0
+  must not be mistaken for it.
+- **`size` bounds the sweep.** A sweep asks "did this file grow since we last
+  read it" for every session in a project and must answer without parsing
+  them. A cursor from an older cledger has no `size`, reads as 0, and gets
+  re-read once — which dedups.
+- **The write is atomic.** A cursor has two writers, the session's own hook
+  and any other session sweeping it, so it is written to a temp file and
+  renamed.
+
+A cursor must also never advance past a record the adapter did not finalize.
+Two cases arise. A *half-written trailing line* — normal at the tail of a live
+transcript — holds the cursor at its own index so the completed line is read
+next time; the recorded `size` is that line's byte offset, not the file's, or
+the next sweep would see no growth and strand the very line held back. The
+condition is deliberately narrow (unterminated file *and* final line): a parse
+failure anywhere else is real corruption, and stopping there would stall the
+session's capture forever. An *unsettled record* — an opencode tool part still
+`running`, a Gemini message whose tool calls have no result yet — does the
+same, so the finished version is captured once, in final form, rather than
+frozen half-done into an immutable event id.
 
 ## Privacy and integrity
 

@@ -56,16 +56,57 @@ function hasCledgerHook(entries: ClaudeHookEntry[] | undefined, needle: string):
   );
 }
 
-export async function installClaudeCode(): Promise<string> {
-  const path = join(homedir(), ".claude", "settings.json");
-  const settings: Record<string, unknown> = existsSync(path)
-    ? (JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>)
+/**
+ * Appended to a hook command so the capture is not killed mid-write.
+ *
+ * Verified against Qwen Code 0.21.5: in one-shot headless mode (`qwen -p ...`)
+ * the CLI fires its `Stop` hook and then exits immediately, tearing down the
+ * hook process along with the stdio pipes it inherited. A hook that finishes
+ * instantly survives; one that takes a few hundred milliseconds -- which a
+ * git-notes append does -- is killed partway, and nothing is captured. A
+ * deliberately slow probe hook reproduced it every time: it logged its start
+ * and never its finish.
+ *
+ * Redirecting the command's output fixes it, reliably and repeatably: the
+ * redirection forces the CLI to route the command through a shell, so the
+ * work runs as a grandchild that outlives the teardown, and it stops the
+ * capture from writing into pipes that are being closed underneath it. This
+ * is the same trade the opencode plugin already makes -- capture that survives
+ * a one-shot run, at the cost of not seeing its own output -- so
+ * `cledger capture <source> --all` remains the way to watch a capture,
+ * format-drift warnings included.
+ *
+ * Interactive sessions never needed this (the CLI is still running when the
+ * hook fires), and claude-code and codex await their hooks properly, so
+ * neither of those installs pays for it.
+ */
+const DETACH_SUFFIX = " >/dev/null 2>&1";
+
+/**
+ * Install command hooks into a Claude-Code-shaped `settings.json`.
+ *
+ * Three of the supported CLIs share this exact config format -- a top-level
+ * `hooks` object mapping an event name to an array of
+ * `{matcher?, hooks:[{type:"command", command, timeout}]}` definitions. That
+ * is not a coincidence: Gemini CLI ships a `gemini hooks migrate` command
+ * whose whole job is importing Claude Code's hook config, and Qwen Code
+ * inherited the same engine. Only the file path and the event names differ,
+ * so they are the parameters here.
+ */
+async function installJsonHooks(
+  source: string,
+  settingsPath: string,
+  events: string[],
+  options: { detach?: boolean } = {},
+): Promise<string> {
+  const settings: Record<string, unknown> = existsSync(settingsPath)
+    ? (JSON.parse(await readFile(settingsPath, "utf8")) as Record<string, unknown>)
     : {};
-  const command = await hookCommand("claude-code");
+  const command = (await hookCommand(source)) + (options.detach ? DETACH_SUFFIX : "");
   const hooks = (settings["hooks"] ?? {}) as Record<string, ClaudeHookEntry[]>;
   let changed = false;
-  for (const event of ["Stop", "SessionEnd"]) {
-    if (!hasCledgerHook(hooks[event], "hook claude-code")) {
+  for (const event of events) {
+    if (!hasCledgerHook(hooks[event], `hook ${source}`)) {
       hooks[event] = [
         ...(hooks[event] ?? []),
         { hooks: [{ type: "command", command, timeout: 120 }] },
@@ -73,12 +114,45 @@ export async function installClaudeCode(): Promise<string> {
       changed = true;
     }
   }
-  if (!changed) return `claude-code: already installed (${path})`;
+  if (!changed) return `${source}: already installed (${settingsPath})`;
   settings["hooks"] = hooks;
-  await backup(path);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify(settings, null, 2) + "\n");
-  return `claude-code: Stop + SessionEnd hooks added to ${path}`;
+  await backup(settingsPath);
+  await mkdir(dirname(settingsPath), { recursive: true });
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+  return `${source}: ${events.join(" + ")} hooks added to ${settingsPath}`;
+}
+
+export async function installClaudeCode(): Promise<string> {
+  return installJsonHooks("claude-code", join(homedir(), ".claude", "settings.json"), [
+    "Stop",
+    "SessionEnd",
+  ]);
+}
+
+/**
+ * Gemini CLI names its lifecycle events differently from Claude Code:
+ * `AfterAgent` is the "the agent finished responding" event (Claude's `Stop`),
+ * and `SessionEnd` matches by name. Both are used, for the same reason
+ * claude-code installs both -- `AfterAgent` captures each turn as it lands, and
+ * `SessionEnd` is the backstop for a session that exits mid-turn.
+ */
+export async function installGeminiCli(): Promise<string> {
+  return installJsonHooks(
+    "gemini-cli",
+    join(homedir(), ".gemini", "settings.json"),
+    ["AfterAgent", "SessionEnd"],
+    { detach: true },
+  );
+}
+
+/** Qwen Code forked Claude Code's event names verbatim, `Stop` included. */
+export async function installQwenCode(): Promise<string> {
+  return installJsonHooks(
+    "qwen-code",
+    join(homedir(), ".qwen", "settings.json"),
+    ["Stop", "SessionEnd"],
+    { detach: true },
+  );
 }
 
 export async function installCodex(): Promise<string> {
@@ -192,14 +266,27 @@ export const server = async ({ directory, worktree }) => {
   return `opencode: session.idle capture plugin written to ${path}`;
 }
 
+/** Every adapter `cledger install` knows how to wire up, in listing order. */
+export const INSTALLABLE_ADAPTERS: Record<string, () => Promise<string>> = {
+  "claude-code": installClaudeCode,
+  codex: installCodex,
+  opencode: installOpencode,
+  "gemini-cli": installGeminiCli,
+  "qwen-code": installQwenCode,
+};
+
 export async function installAdapters(which: string): Promise<void> {
+  const names =
+    which === "all"
+      ? Object.keys(INSTALLABLE_ADAPTERS)
+      : which in INSTALLABLE_ADAPTERS
+        ? [which]
+        : [];
   const results: string[] = [];
-  if (which === "claude-code" || which === "all") results.push(await installClaudeCode());
-  if (which === "codex" || which === "all") results.push(await installCodex());
-  if (which === "opencode" || which === "all") results.push(await installOpencode());
+  for (const name of names) results.push(await INSTALLABLE_ADAPTERS[name]!());
   if (results.length === 0) {
     process.stderr.write(
-      `unknown adapter: ${which} (expected claude-code|codex|opencode|all)\n`,
+      `unknown adapter: ${which} (expected ${Object.keys(INSTALLABLE_ADAPTERS).join("|")}|all)\n`,
     );
     process.exit(2);
   }

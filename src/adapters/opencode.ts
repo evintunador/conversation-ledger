@@ -22,13 +22,13 @@
  * ids depend on opencode's version.
  */
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, open, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
+import { findRepo, gitUserIdentity, type GitUserIdentity } from "../git.js";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
+import { packageVersion, readCursor, writeCursor } from "./common.js";
 import {
   countUnrecognized,
   mergeCaptureResult,
@@ -39,6 +39,8 @@ import {
 import { activityDraft, type RecordContext } from "./records.js";
 
 const RAW_FORMAT = "opencode-export-json/1";
+
+const CURSOR_FIELD = "parts";
 
 /**
  * Part types carrying visible conversation content.
@@ -164,41 +166,6 @@ interface FlatPart {
   info: OpencodeMessageInfo;
   part: OpencodePart;
   seq: number;
-}
-
-function packageVersion(): string {
-  try {
-    const pkg = JSON.parse(
-      readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
-    ) as { version?: string };
-    return pkg.version ?? "0.1.0";
-  } catch {
-    return "0.1.0";
-  }
-}
-
-function sanitizeId(id: string): string {
-  return id.replace(/[^A-Za-z0-9_-]/g, "_");
-}
-
-function cursorPath(repo: RepoInfo, sessionId: string): string {
-  return join(repo.commonDir, "conversation-ledger", "cursors", `${sanitizeId(sessionId)}.json`);
-}
-
-async function readCursor(repo: RepoInfo, sessionId: string): Promise<number> {
-  try {
-    const raw = await readFile(cursorPath(repo, sessionId), "utf8");
-    const data = JSON.parse(raw) as { parts?: number };
-    return typeof data.parts === "number" ? data.parts : 0;
-  } catch {
-    return 0;
-  }
-}
-
-async function writeCursor(repo: RepoInfo, sessionId: string, parts: number): Promise<void> {
-  const path = cursorPath(repo, sessionId);
-  await mkdir(join(repo.commonDir, "conversation-ledger", "cursors"), { recursive: true });
-  await writeFile(path, JSON.stringify({ parts }) + "\n");
 }
 
 /** opencode stores times as epoch milliseconds; the ledger wants ISO 8601. */
@@ -597,7 +564,7 @@ export async function captureOpencodeExport(
     typeof data.info?.parentID === "string" && data.info.parentID ? data.info.parentID : undefined;
 
   const flat = flattenParts(data);
-  let cursor = await readCursor(repo, sessionId);
+  let cursor = (await readCursor(repo, sessionId, CURSOR_FIELD))?.count ?? 0;
   // A session shorter than the cursor means parts were removed (a revert, or
   // a deleted message). Rescan from the start; identical events dedup.
   if (cursor > flat.length) cursor = 0;
@@ -646,7 +613,7 @@ export async function captureOpencodeExport(
     result.appended = appendResult.appended.length;
     result.deduped = appendResult.deduped;
   }
-  await writeCursor(repo, sessionId, nextCursor);
+  await writeCursor(repo, sessionId, CURSOR_FIELD, nextCursor);
   process.stderr.write(`cledger: opencode +${result.appended} events (${result.deduped} deduped)\n`);
   warnUnrecognized("opencode", result.unrecognized);
   return result;

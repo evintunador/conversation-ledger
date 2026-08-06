@@ -35,15 +35,23 @@ import { eventId, type EventDraft, type EventLink, type EvidenceEvent } from "./
 import { renormalizeUnrecognized as renormalizeClaude } from "./adapters/claude-code.js";
 import { renormalizeUnrecognized as renormalizeCodex } from "./adapters/codex.js";
 import { renormalizeUnrecognized as renormalizeOpencode } from "./adapters/opencode.js";
+import { renormalizeUnrecognized as renormalizeGemini } from "./adapters/gemini-cli.js";
+import { renormalizeUnrecognized as renormalizeQwen } from "./adapters/qwen-code.js";
 
 /** Route a preserved event to the adapter that owns its `producer.source`. */
 type Renormalizer = (event: EvidenceEvent, identity: Awaited<ReturnType<typeof gitUserIdentity>>) => EventDraft | null;
 
+const RENORMALIZERS: Record<string, Renormalizer> = {
+  "claude-code": renormalizeClaude,
+  codex: renormalizeCodex,
+  opencode: renormalizeOpencode,
+  "gemini-cli": renormalizeGemini,
+  "qwen-code": renormalizeQwen,
+};
+
 function renormalizerFor(source: string | undefined): Renormalizer | null {
-  if (source === "claude-code") return renormalizeClaude;
-  if (source === "codex") return renormalizeCodex;
-  if (source === "opencode") return renormalizeOpencode;
-  return null;
+  if (source === undefined) return null;
+  return RENORMALIZERS[source] ?? null;
 }
 
 export interface RenormalizeResult {
