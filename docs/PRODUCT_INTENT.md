@@ -34,7 +34,11 @@ retrieval are all valid independent uses.
   provider ciphertext (0.10.0+) is preserved losslessly as opaque raw state
   for a capable downstream consumer to decrypt later, but the ledger itself
   never attempts to read or reconstruct it, and stores nothing that would let
-  it reproduce a native agent session on its own.
+  it reproduce a native agent session on its own. As of 0.19.0 that covers
+  ciphertext embedded inside another payload too — an inter-agent message's
+  `encrypted_content` blocks ride alongside the visible turn as a sealed
+  sibling — so "preserved, never read" is now the rule everywhere rather than
+  the rule for standalone reasoning items only.
 
 Those belong to clients such as Turnbridge and Intent Recall, not to this core
 storage layer.

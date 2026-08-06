@@ -31,10 +31,12 @@ import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import {
   countUnrecognized,
+  mergeCaptureResult,
   unrecognizedDraft,
   warnUnrecognized,
   type CaptureResult,
 } from "./drift.js";
+import { activityDraft, type RecordContext } from "./records.js";
 
 const RAW_FORMAT = "opencode-export-json/1";
 
@@ -51,20 +53,27 @@ const RAW_FORMAT = "opencode-export-json/1";
 const CONVERTIBLE_PART_TYPES = new Set(["text", "reasoning", "tool"]);
 
 /**
- * Part types deliberately not captured: per-step bookkeeping (`step-start` /
- * `step-finish` carry token counts and finish reasons, not content) and
- * `patch`, which is a content hash plus file list pointing into opencode's
- * private snapshot store — meaningless outside opencode, and the diff it
- * refers to is already in git.
+ * Part types recorded as `activity` rather than as turns.
  *
- * Kept deliberately short. opencode's binary also references `file`, `agent`,
- * `snapshot` and `todo` part types that no session on hand exercises; listing
- * them here on speculation would silently discard content on the first
- * session that used one. Leaving them out routes them through the drift path
- * instead — preserved raw-only, warned about, and upgradeable later by
- * `cledger renormalize`, which is exactly what that machinery is for.
+ * `step-start` and `step-finish` carry no prose, which is why they were once
+ * dropped, but they carry the two things nothing else in the export does: the
+ * git snapshot hash opencode took at each step boundary, and the token counts,
+ * cost, and finish reason for the step. The snapshot hash in particular is a
+ * real handle on intermediate repository state — the closest opencode analogue
+ * to Claude Code's file history.
+ *
+ * `patch` points into opencode's private snapshot store, and the diff it names
+ * is usually already in git. It is recorded anyway, for the same reason the
+ * file-history pointers are: "usually already in git" is not "always", and a
+ * pointer with provenance beats a hole.
+ *
+ * Part types opencode's binary references but no session on hand exercises —
+ * `file`, `agent`, `snapshot`, `todo` — are still left off every list here.
+ * Guessing at their shape would discard content on the first session that used
+ * one; leaving them out routes them through the drift path, which preserves
+ * them raw, warns, and lets `cledger renormalize` upgrade them later.
  */
-const KNOWN_SKIPPED_PART_TYPES = new Set(["step-start", "step-finish", "patch"]);
+const ACTIVITY_PART_TYPES = new Set(["step-start", "step-finish", "patch"]);
 
 /**
  * Tool-call states that will never change again. A `pending`/`running` part
@@ -115,6 +124,13 @@ interface OpencodePart {
   text?: string;
   tool?: string;
   callID?: string;
+  /** `step-start`/`step-finish`: opencode's git snapshot hash at the boundary. */
+  snapshot?: string;
+  /** `step-finish`: why the step ended, e.g. "tool-calls" / "stop". */
+  reason?: string;
+  /** `step-finish`: token accounting for the step. */
+  tokens?: Record<string, unknown>;
+  cost?: number;
   state?: {
     status?: string;
     input?: unknown;
@@ -354,6 +370,7 @@ function convertPart(
   version: string,
   identity: GitUserIdentity,
   agent: ProducerAgentContext,
+  parentId?: string,
 ): EventDraft | null {
   const type = part.type;
   if (typeof type !== "string" || !CONVERTIBLE_PART_TYPES.has(type)) return null;
@@ -403,15 +420,74 @@ function convertPart(
   if (typeof info.agent === "string" && info.agent) content["agent"] = info.agent;
   content["blocks"] = blocks;
 
+  const conversation = conversationFor(sessionId, parentId);
   return {
     kind: "conversation_turn",
     occurred_at: partTime(info, part, baseTime),
     actor,
     producer: { tool: "cledger", version, source: "opencode", session_id: sessionId, ...agent },
-    conversation: { id: `opencode:${sessionId}`, seq },
+    conversation: {
+      id: conversation.id,
+      seq,
+      ...(conversation.parent ? { parent: conversation.parent } : {}),
+    },
     content,
     raw: { format: RAW_FORMAT, data: rawData(info, part) },
   };
+}
+
+/**
+ * Which conversation a session's parts belong to. opencode gives a subagent
+ * its own session id, so a subagent session is already its own conversation —
+ * all it was missing is the pointer back to the session that spawned it, and
+ * a capture path that did not return early on sight of `parentID`.
+ */
+function conversationFor(
+  sessionId: string,
+  parentId: string | undefined,
+): { id: string; parent?: string } {
+  const id = `opencode:${sessionId}`;
+  return parentId ? { id, parent: `opencode:${parentId}` } : { id };
+}
+
+/**
+ * The `RecordContext` a non-turn part converts under. Shared by the capture
+ * loop and the re-normalization hook so both mint the same event identity.
+ */
+function recordContext(
+  occurredAt: string,
+  seq: number,
+  sessionId: string,
+  parentId: string | undefined,
+  version: string,
+  agent: ProducerAgentContext,
+): RecordContext {
+  const conversation = conversationFor(sessionId, parentId);
+  return {
+    occurredAt,
+    source: "opencode",
+    sessionId,
+    seq,
+    version,
+    rawFormat: RAW_FORMAT,
+    conversationId: conversation.id,
+    ...(conversation.parent ? { parentConversationId: conversation.parent } : {}),
+    agent,
+  };
+}
+
+/**
+ * Convert a part that is not a turn into the record it deserves, or null when
+ * the part type is unknown (the caller routes it to the drift path).
+ *
+ * The actor is `agent`: a step boundary or a patch is the model's own work
+ * being recorded, not the harness reporting on itself.
+ */
+function convertRecordPart(part: OpencodePart, ctx: RecordContext, info: OpencodeMessageInfo): EventDraft | null {
+  const type = part.type;
+  if (typeof type !== "string" || !ACTIVITY_PART_TYPES.has(type)) return null;
+  const { type: _type, ...fields } = part as Record<string, unknown>;
+  return activityDraft(ctx, type, fields, rawData(info, part), "agent");
 }
 
 /** Raw-only preservation event for an unrecognized opencode part (see drift.ts). */
@@ -424,7 +500,9 @@ function preserve(
   sessionId: string,
   version: string,
   agent: ProducerAgentContext,
+  parentId?: string,
 ): EventDraft {
+  const conversation = conversationFor(sessionId, parentId);
   return unrecognizedDraft({
     typeKey,
     line: rawData(info, part),
@@ -434,7 +512,8 @@ function preserve(
     seq,
     version,
     rawFormat: RAW_FORMAT,
-    conversationId: `opencode:${sessionId}`,
+    conversationId: conversation.id,
+    ...(conversation.parent ? { parentConversationId: conversation.parent } : {}),
     agent: { ...agent },
   });
 }
@@ -464,15 +543,30 @@ export function renormalizeUnrecognized(
   if (event.producer.source_version) agent.source_version = event.producer.source_version;
   if (event.producer.model) agent.model = event.producer.model;
   if (event.producer.provider) agent.provider = event.producer.provider;
-  return convertPart(
+  const sessionId = event.producer.session_id ?? "";
+  const version = packageVersion();
+  // The parent session id is not in `raw.data` — it lives on the session
+  // export, which this path cannot see. It is read back off the preserved
+  // event's own `conversation.parent`, where the capture that preserved the
+  // part recorded it, and stripped of its `opencode:` namespace so
+  // `conversationFor` re-derives the identical ref.
+  const parentId = event.conversation.parent?.replace(/^opencode:/, "");
+  const turn = convertPart(
     info,
     stored.part,
     event.conversation.seq,
-    event.producer.session_id ?? "",
+    sessionId,
     event.occurred_at,
-    packageVersion(),
+    version,
     identity,
     agent,
+    parentId,
+  );
+  if (turn) return turn;
+  return convertRecordPart(
+    stored.part,
+    recordContext(event.occurred_at, event.conversation.seq, sessionId, parentId, version, agent),
+    info,
   );
 }
 
@@ -493,12 +587,14 @@ export async function captureOpencodeExport(
   const sessionId = data.info?.id;
   if (typeof sessionId !== "string" || !sessionId) return result;
 
-  // Subagent sessions are skipped, matching claude-code's treatment of
-  // sidechain lines: the parent's `task` tool part already stores the child's
-  // final output, so only the subagent's internal steps are missed. Capturing
-  // them properly needs a way to express the parent/child relation, which is
-  // a cross-adapter schema question rather than an opencode one.
-  if (typeof data.info?.parentID === "string" && data.info.parentID) return result;
+  // Subagent sessions are captured, as their own conversation pointing back
+  // at the parent (see `conversationFor`). They used to be skipped for want of
+  // a way to express that relation; `ConversationRef.parent` is that way. What
+  // was being lost was every internal step of every subagent — the parent's
+  // `task` tool part keeps only the child's final answer, so the reasoning
+  // that produced it, and every tool call behind it, went unrecorded.
+  const parentId =
+    typeof data.info?.parentID === "string" && data.info.parentID ? data.info.parentID : undefined;
 
   const flat = flattenParts(data);
   let cursor = await readCursor(repo, sessionId);
@@ -524,11 +620,15 @@ export async function captureOpencodeExport(
     const agent = agentContext(info, sessionVersion);
 
     if (!CONVERTIBLE_PART_TYPES.has(type)) {
-      if (!KNOWN_SKIPPED_PART_TYPES.has(type)) {
-        countUnrecognized(result.unrecognized, type);
-        const occurredAt = partTime(info, part, baseTime);
-        drafts.push(preserve(type, info, part, occurredAt, seq, sessionId, version, agent));
+      const occurredAt = partTime(info, part, baseTime);
+      const ctx = recordContext(occurredAt, seq, sessionId, parentId, version, agent);
+      const record = convertRecordPart(part, ctx, info);
+      if (record) {
+        drafts.push(record);
+        continue;
       }
+      countUnrecognized(result.unrecognized, type);
+      drafts.push(preserve(type, info, part, occurredAt, seq, sessionId, version, agent, parentId));
       continue;
     }
 
@@ -537,7 +637,7 @@ export async function captureOpencodeExport(
       continue;
     }
 
-    const draft = convertPart(info, part, seq, sessionId, baseTime, version, identity, agent);
+    const draft = convertPart(info, part, seq, sessionId, baseTime, version, identity, agent, parentId);
     if (draft) drafts.push(draft);
   }
 
@@ -552,14 +652,53 @@ export async function captureOpencodeExport(
   return result;
 }
 
-/** Export one session via the opencode CLI, then capture it. */
+/**
+ * The subagent sessions a session spawned, read off its own `task` tool
+ * parts: opencode records the child's session id in the part's
+ * `state.metadata.sessionId`.
+ *
+ * This is how subagent conversations are found at all. `opencode session list`
+ * returns only top-level sessions, so a child is reachable only from the
+ * parent that spawned it — which means a capture that stopped at the parent
+ * could never have found them, no matter how the ledger modelled the relation.
+ */
+function childSessionIds(data: OpencodeExport): string[] {
+  const ids: string[] = [];
+  for (const message of data.messages ?? []) {
+    for (const part of message.parts ?? []) {
+      if (part.type !== "tool" || part.tool !== "task") continue;
+      const metadata = (part.state as { metadata?: { sessionId?: unknown } } | undefined)?.metadata;
+      const id = metadata?.sessionId;
+      if (typeof id === "string" && id && id !== data.info?.id) ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Export one session via the opencode CLI, then capture it — and every
+ * subagent session it spawned, depth-first.
+ *
+ * `visited` guards the recursion. opencode's task metadata is not guaranteed
+ * acyclic by anything the ledger can see, and an export that named its own
+ * ancestor would otherwise loop forever inside a capture hook.
+ */
 export async function captureOpencodeSession(
   sessionId: string,
   cwd: string,
+  visited: Set<string> = new Set(),
 ): Promise<CaptureResult> {
+  const result: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
+  if (visited.has(sessionId)) return result;
+  visited.add(sessionId);
+
   const data = await exportOpencodeSession(sessionId, cwd);
-  if (!data) return { appended: 0, deduped: 0, unrecognized: {} };
-  return captureOpencodeExport(data, cwd);
+  if (!data) return result;
+  mergeCaptureResult(result, await captureOpencodeExport(data, cwd));
+  for (const child of childSessionIds(data)) {
+    mergeCaptureResult(result, await captureOpencodeSession(child, cwd, visited));
+  }
+  return result;
 }
 
 /** Capture a session from a saved `opencode export` JSON file (backfill). */
@@ -584,14 +723,12 @@ export async function captureOpencodeAll(
   const sessions = await listOpencodeSessions(cwd);
   const ordered = [...sessions].sort((a, b) => (b.updated ?? 0) - (a.updated ?? 0));
   const selected = typeof limit === "number" ? ordered.slice(0, limit) : ordered;
+  // One `visited` set across the sweep: two top-level sessions can name the
+  // same subagent session, and it should be exported once.
+  const visited = new Set<string>();
   for (const session of selected) {
     if (typeof session.id !== "string" || !session.id) continue;
-    const one = await captureOpencodeSession(session.id, cwd);
-    total.appended += one.appended;
-    total.deduped += one.deduped;
-    for (const [key, count] of Object.entries(one.unrecognized)) {
-      total.unrecognized[key] = (total.unrecognized[key] ?? 0) + count;
-    }
+    mergeCaptureResult(total, await captureOpencodeSession(session.id, cwd, visited));
   }
   return total;
 }

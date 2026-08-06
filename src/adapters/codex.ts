@@ -11,6 +11,12 @@ import {
   warnUnrecognized,
   type CaptureResult,
 } from "./drift.js";
+import {
+  activityDraft,
+  liftText,
+  sessionStateDraft,
+  type RecordContext,
+} from "./records.js";
 
 const RAW_FORMAT = "codex-rollout-jsonl/2";
 
@@ -40,30 +46,50 @@ const CONVERTIBLE_RESPONSE_TYPES = new Set([
 ]);
 
 /**
- * Line types we deliberately do not capture: session/turn bookkeeping and
- * the event_msg UI stream (whose conversation content duplicates
- * response_item lines). Anything else is unrecognized — likely new upstream
- * content — and counted for the drift warning; same for response_item
- * payload types outside CONVERTIBLE_RESPONSE_TYPES. `reasoning` payloads are
- * a third case: recognized, but their `encrypted_content` is opaque to us
- * by design (only the provider can decrypt it), so they're captured as a
- * `reasoning`-kind event instead of a `conversation_turn` or `unrecognized`
- * one — see `reasoningDraft` and the capture loop below.
+ * Line types recorded as `session_state` — what the session declares about
+ * the environment a turn ran in.
+ *
+ * `turn_context` is the valuable one and was the most expensive omission:
+ * it states the sandbox policy, the approval policy, the reasoning effort,
+ * the workspace roots and the model for every turn. A consumer asking "was
+ * this agent allowed to write files when it said that" had no way to answer
+ * before. `session_meta` states the originator and history mode; `world_state`
+ * states the environment and instruction set codex assembled.
  */
-const KNOWN_SKIPPED_LINE_TYPES = new Set([
-  "session_meta",
-  "turn_context",
-  "compacted",
-  "event_msg",
-  "world_state",
-  "inter_agent_communication_metadata",
-]);
+const SESSION_STATE_LINE_TYPES = new Set(["session_meta", "turn_context", "world_state"]);
+
+/**
+ * Line types recorded as `activity`.
+ *
+ * `compacted` carries the replacement history codex swapped in for the real
+ * conversation. It overlaps with the messages it replaces, and it is kept
+ * anyway: it is the only record of *what the model could still see* after a
+ * compaction, which is not recoverable from the turns it summarizes.
+ */
+const ACTIVITY_LINE_TYPES = new Set(["compacted", "inter_agent_communication_metadata"]);
+
+/**
+ * `event_msg` payload types that genuinely duplicate a `response_item` — the
+ * same message, written twice, once for the UI stream and once for the model
+ * transcript. These are the only lines this adapter still drops outright, and
+ * the reason it can: the content is not lost, it is captured from the
+ * response_item that carries it.
+ *
+ * Every other `event_msg` payload — token counts, task lifecycle, sub-agent
+ * activity, patch application, aborts, rollbacks — has no response_item twin
+ * and is recorded as `activity`.
+ */
+const DUPLICATE_EVENT_MSG_TYPES = new Set(["agent_message", "user_message"]);
+
+/** `event_msg` payloads that declare settings rather than report an event. */
+const STATE_EVENT_MSG_TYPES = new Set(["thread_settings_applied"]);
 
 /**
  * Line types that state agent facts (model, provider, CLI version) about the
- * response_items that follow them. They stay in KNOWN_SKIPPED_LINE_TYPES —
- * they are still not captured as events of their own — but they are now read
- * for `producer` metadata instead of being skipped outright.
+ * response_items that follow them. They are read for `producer` metadata on
+ * every line that follows, *and* recorded as `session_state` events in their
+ * own right — the rolling context answers "which model served this turn",
+ * while the event answers "what did the session declare, and when".
  */
 const CONTEXT_LINE_TYPES = new Set(["session_meta", "turn_context"]);
 
@@ -238,16 +264,15 @@ function isEncryptedBlock(block: unknown): boolean {
 
 /**
  * Inter-agent messages mix visible input_text blocks with encrypted_content
- * blocks — the same provider-withheld material as reasoning payloads, whose
- * policy changed to opaque preservation (see `reasoningDraft`). These blocks
- * are still dropped outright rather than preserved opaquely: unlike a
- * standalone `reasoning` response_item, an embedded block here is only part
- * of the line, so preserving it needs its own event shape (or a decision to
- * fold it into `reasoning` alongside the parent message's seq) — left as a
- * follow-up rather than done alongside reasoning today. Visible blocks
- * convert normally; encrypted blocks are dropped, leaving a bare
- * {type: "encrypted_content"} marker in `raw` so the omission is visible.
- * The transform is a pure function of the source line, so ids stay stable
+ * blocks — the same provider-withheld material as reasoning payloads.
+ *
+ * The two halves are split across two events at the same `seq`: the visible
+ * turn this function shapes `raw` for, and a sibling `reasoning`-kind event
+ * carrying the ciphertext (see `encryptedAgentMessage`). So the turn keeps
+ * only a bare `{type: "encrypted_content"}` marker where a sealed block was,
+ * which is what makes the split visible rather than silent — but the blob
+ * itself is preserved, not dropped, exactly as a standalone `reasoning` item
+ * is. The transform is a pure function of the source line, so ids stay stable
  * across rescans.
  */
 function sanitizeAgentMessageRaw(line: CodexRolloutLine): CodexRolloutLine {
@@ -260,6 +285,29 @@ function sanitizeAgentMessageRaw(line: CodexRolloutLine): CodexRolloutLine {
       content: content.map((b) => (isEncryptedBlock(b) ? { type: "encrypted_content" } : b)),
     },
   };
+}
+
+/**
+ * The sealed half of an inter-agent message: the same line with `content`
+ * reduced to its `encrypted_content` blocks, or null when there are none.
+ *
+ * This is what a sibling `reasoning` event stores, so the ciphertext survives
+ * capture instead of being discarded. Preserving it matters for the same
+ * reason a standalone `reasoning` item's does: only the originating provider
+ * can decrypt it, and a consumer replaying a conversation back through that
+ * provider needs the blob to reconstruct what the agent was actually working
+ * from. Dropping it made inter-agent codex sessions the one place that replay
+ * could not be reconstructed.
+ *
+ * The redaction stack exempts `.../encrypted_content` on `reasoning`-kind
+ * events, so pattern-matching can never corrupt a blob it cannot read.
+ */
+function encryptedAgentMessage(line: CodexRolloutLine): CodexRolloutLine | null {
+  const content = line.payload?.["content"];
+  if (!Array.isArray(content)) return null;
+  const sealed = content.filter(isEncryptedBlock);
+  if (sealed.length === 0) return null;
+  return { ...line, payload: { ...line.payload, content: sealed } };
 }
 
 /**
@@ -279,6 +327,71 @@ function reasoningSummaryText(summary: unknown): string | null {
     )
     .filter((t): t is string => typeof t === "string" && t.length > 0);
   return parts.length > 0 ? parts.join("\n\n") : null;
+}
+
+/**
+ * A payload's fields without its own `type` discriminator, which the record's
+ * `activity_type`/`state_type` already names — keeping both would put the
+ * same string in two places in one object.
+ */
+function payloadFields(payload: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!payload) return {};
+  const { type: _type, ...rest } = payload;
+  return rest;
+}
+
+/**
+ * The `RecordContext` a non-turn codex line converts under. Built identically
+ * by the capture loop and the re-normalization hook so both produce the same
+ * event identity for the same line.
+ */
+function recordContext(
+  occurredAt: string,
+  seq: number,
+  sessionId: string,
+  version: string,
+  agent: CodexAgentState,
+): RecordContext {
+  return {
+    occurredAt,
+    source: "codex",
+    sessionId,
+    seq,
+    version,
+    rawFormat: RAW_FORMAT,
+    conversationId: `codex:${sessionId}`,
+    agent: { ...agent },
+  };
+}
+
+/**
+ * Convert a codex line that is not a `response_item` into the record it
+ * deserves. Returns null for a type this adapter does not know (the caller
+ * routes it to the drift path) and for the `event_msg` payloads that
+ * duplicate a response_item (the caller drops those, deliberately).
+ */
+function convertRecordLine(line: CodexRolloutLine, ctx: RecordContext): EventDraft | null {
+  const type = line.type;
+  if (typeof type !== "string") return null;
+  const fields = payloadFields(line.payload);
+
+  if (SESSION_STATE_LINE_TYPES.has(type)) return sessionStateDraft(ctx, type, fields, line);
+  if (ACTIVITY_LINE_TYPES.has(type)) return activityDraft(ctx, type, fields, line);
+
+  if (type === "event_msg") {
+    const payloadType = line.payload?.["type"];
+    const pt = typeof payloadType === "string" ? payloadType : "(untyped)";
+    if (DUPLICATE_EVENT_MSG_TYPES.has(pt)) return null;
+    if (STATE_EVENT_MSG_TYPES.has(pt)) {
+      return sessionStateDraft(ctx, `event_msg/${pt}`, fields, line);
+    }
+    // The model drove the task and sub-agent events; the harness drove the
+    // rest (token accounting, patch application, rollbacks).
+    const actorType = pt.startsWith("task_") || pt.startsWith("sub_agent") ? "agent" : "system";
+    return activityDraft(ctx, `event_msg/${pt}`, liftText(fields, "message"), line, actorType);
+  }
+
+  return null;
 }
 
 /** Raw-only preservation event for an unrecognized codex line (see drift.ts). */
@@ -410,14 +523,23 @@ export function renormalizeUnrecognized(
   if (event.producer.source_version) agent.source_version = event.producer.source_version;
   if (event.producer.model) agent.model = event.producer.model;
   if (event.producer.provider) agent.provider = event.producer.provider;
-  return convertLine(
+  const version = packageVersion();
+  const turn = convertLine(
     line,
     event.conversation.seq,
     sessionId,
     event.occurred_at,
-    packageVersion(),
+    version,
     identity,
     agent,
+  );
+  if (turn) return turn;
+  // Non-turn types this adapter has since learned (`world_state`,
+  // `inter_agent_communication_metadata`, and any `event_msg` that reached a
+  // ledger before it was captured) re-normalize into their record kind.
+  return convertRecordLine(
+    line,
+    recordContext(event.occurred_at, event.conversation.seq, sessionId, version, agent),
   );
 }
 
@@ -531,13 +653,45 @@ export async function captureCodexTranscript(
         drafts.push(preserve(typeKey, parsed, occurredAt, i, sessionId, version, agent));
         continue;
       }
-    } else if (!KNOWN_SKIPPED_LINE_TYPES.has(type)) {
+    } else {
+      const record = convertRecordLine(parsed, recordContext(occurredAt, i, sessionId, version, agent));
+      if (record) {
+        drafts.push(record);
+        continue;
+      }
+      // Either an `event_msg` payload that duplicates a response_item (drop,
+      // silently — it is captured from its twin) or a type this adapter does
+      // not know (preserve raw and warn).
+      if (type === "event_msg") continue;
       countUnrecognized(result.unrecognized, type);
       drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version, agent));
       continue;
     }
     const draft = convertLine(parsed, i, sessionId, baseTime, version, identity, agent);
     if (draft) drafts.push(draft);
+
+    // An inter-agent message's encrypted blocks ride alongside the visible
+    // turn as a sealed sibling at the same seq — the same pairing a reasoning
+    // item with a populated summary uses. Distinct kinds keep the two ids from
+    // colliding.
+    if (draft && parsed.payload?.["type"] === "agent_message") {
+      const sealed = encryptedAgentMessage(parsed);
+      if (sealed) {
+        drafts.push(
+          reasoningDraft({
+            line: sealed,
+            occurredAt: typeof parsed.timestamp === "string" ? parsed.timestamp : baseTime,
+            source: "codex",
+            sessionId,
+            seq: i,
+            version,
+            rawFormat: RAW_FORMAT,
+            conversationId: `codex:${sessionId}`,
+            agent: { ...agent },
+          }),
+        );
+      }
+    }
   }
 
   if (drafts.length > 0) {

@@ -255,7 +255,9 @@ test("codex: a cursor-resumed capture still labels events from context lines it 
     await captureCodexTranscript(path, repo.root);
 
     const bySeq = new Map((await readEvents(repo)).map((e) => [e.conversation!.seq, e]));
-    assert.strictEqual(bySeq.size, 2, "the resumed capture appended exactly one new event");
+    // session_meta (0) and turn_context (1) are state records of their own, so
+    // the ledger holds four events: two state, two turns.
+    assert.strictEqual(bySeq.size, 4, "the resumed capture appended exactly one new event");
     const resumed = bySeq.get(3)!;
     assert.strictEqual(resumed.producer.model, "gpt-5.6-sol");
     assert.strictEqual(resumed.producer.provider, "openai");
@@ -343,11 +345,22 @@ test("readEvents --model selects only turns the source labelled with that model"
     ]);
     await captureCodexTranscript(path, repo.root);
 
-    assert.strictEqual((await readEvents(repo)).length, 2);
-    const sol = await readEvents(repo, { model: "gpt-5.6-sol" });
+    // 2 turns + 3 state records (session_meta and both turn_contexts), each of
+    // which also carries the model in force when it was written.
+    assert.strictEqual((await readEvents(repo)).length, 5);
+    const turns = (await readEvents(repo)).filter((e) => e.kind === "conversation_turn");
+    assert.strictEqual(turns.length, 2);
+
+    const sol = (await readEvents(repo, { model: "gpt-5.6-sol" })).filter(
+      (e) => e.kind === "conversation_turn",
+    );
     assert.strictEqual(sol.length, 1);
     assert.strictEqual(sol[0]!.conversation!.seq, 2);
-    assert.strictEqual((await readEvents(repo, { model: "gpt-5.6-pro" })).length, 1);
+    assert.strictEqual(
+      (await readEvents(repo, { model: "gpt-5.6-pro" })).filter((e) => e.kind === "conversation_turn")
+        .length,
+      1,
+    );
     assert.strictEqual((await readEvents(repo, { model: "no-such-model" })).length, 0);
   } finally {
     await cleanupRepo(repo);

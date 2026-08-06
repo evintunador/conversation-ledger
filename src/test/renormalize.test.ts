@@ -196,3 +196,47 @@ test("renormalize: a still-unrecognized line stays preserved and is skipped", as
     await cleanupRepo(repo);
   }
 });
+
+/**
+ * The upgrade path that matters for existing ledgers. `worktree-state` and
+ * friends reached them as `unrecognized` before the adapter knew the type;
+ * `renormalize` must now turn them into the record they should have been, with
+ * the exact id a live capture produces so the two dedup rather than duplicate.
+ */
+test("renormalize: a preserved non-turn line becomes its record kind, matching a live capture's id", async () => {
+  const repo = await makeTempRepo("cledger-renorm-record-");
+  const transcriptDir = await mkdtemp(join(tmpdir(), "cledger-renorm-record-tx-"));
+  try {
+    await makeCommit(repo, "init");
+
+    const line = {
+      type: "worktree-state",
+      sessionId: CC_SESSION,
+      timestamp: "2026-01-01T00:00:00.000Z",
+      worktreeSession: { worktreeBranch: "wt-1", originalBranch: "main" },
+    };
+    await appendEvents(repo, [await preserveClaudeLine(repo.root, line, 0)]);
+
+    const r = await renormalize(repo);
+    assert.strictEqual(r.interpreted, 1);
+    assert.strictEqual(r.turnsAppended, 1);
+
+    const state = (await readEvents(repo)).find((e) => e.kind === "session_state")!;
+    assert.ok(state, "the preserved line is now a session_state record");
+    assert.deepStrictEqual(state.content, {
+      state_type: "worktree-state",
+      worktreeSession: { worktreeBranch: "wt-1", originalBranch: "main" },
+    });
+
+    // A live capture of the same line must land on the same id — otherwise the
+    // ledger would hold the renormalized record and a near-identical twin.
+    const path = join(transcriptDir, `${CC_SESSION}.jsonl`);
+    await writeFile(path, JSON.stringify(line) + "\n");
+    const capture = await captureClaudeTranscript(path, repo.root);
+    assert.strictEqual(capture.appended, 0, "the live capture dedups against the renormalized record");
+    assert.strictEqual(capture.deduped, 1);
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(transcriptDir);
+  }
+});

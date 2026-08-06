@@ -46,8 +46,9 @@ function sessionExport(): OpencodeExport {
           time: { created: SESSION_CREATED + 2, completed: SESSION_CREATED + 9000 },
         },
         parts: [
-          // seq 1 — bookkeeping, skipped silently (no drift warning)
-          { id: "prt_1", type: "step-start" },
+          // seq 1 — a step boundary: recorded as `activity`, carrying the git
+          // snapshot hash nothing else in the export exposes
+          { id: "prt_1", type: "step-start", snapshot: "0d9b515140cdc80d" },
           // seq 2 — plaintext reasoning becomes a visible thinking block
           {
             id: "prt_2",
@@ -82,30 +83,49 @@ function sessionExport(): OpencodeExport {
           { id: "prt_6", type: "text", text: "   " },
           // seq 7 — unknown to this adapter version: preserved raw-only
           { id: "prt_7", type: "some-future-part", text: "from a newer opencode" },
-          // seq 8 — bookkeeping, skipped silently
-          { id: "prt_8", type: "step-finish" },
+          // seq 8 — the step's token accounting: `activity`, not a turn
+          { id: "prt_8", type: "step-finish", reason: "stop", tokens: { input: 10, output: 2 } },
         ],
       },
     ],
   };
 }
 
-test("captures visible parts, skips bookkeeping, preserves unknown part types", async () => {
+test("captures visible parts, records step boundaries, preserves unknown part types", async () => {
   const repo = await makeTempRepo();
   try {
     await makeCommit(repo, "initial");
     const result = await captureOpencodeExport(sessionExport(), repo.root);
 
-    assert.equal(result.appended, 5, "user text, reasoning, tool, assistant text, unrecognized");
+    assert.equal(
+      result.appended,
+      7,
+      "user text, two step boundaries, reasoning, tool, assistant text, unrecognized",
+    );
     assert.deepEqual(result.unrecognized, { "some-future-part": 1 });
 
     const events = await readEvents(repo);
     const bySeq = new Map(events.map((e) => [e.conversation?.seq, e]));
 
-    // Bookkeeping and empty/unsettled parts produced nothing.
-    for (const seq of [1, 4, 6, 8]) {
+    // Only the empty and unsettled parts produce nothing.
+    for (const seq of [4, 6]) {
       assert.equal(bySeq.has(seq), false, `seq ${seq} should not be captured`);
     }
+
+    // Step boundaries are `activity`, keeping their source fields verbatim.
+    assert.equal(bySeq.get(1)!.kind, "activity");
+    assert.deepEqual(bySeq.get(1)!.content, {
+      activity_type: "step-start",
+      id: "prt_1",
+      snapshot: "0d9b515140cdc80d",
+    });
+    assert.equal(bySeq.get(8)!.kind, "activity");
+    assert.deepEqual(bySeq.get(8)!.content, {
+      activity_type: "step-finish",
+      id: "prt_8",
+      reason: "stop",
+      tokens: { input: 10, output: 2 },
+    });
 
     const user = bySeq.get(0)!;
     assert.equal(user.kind, "conversation_turn");
@@ -181,7 +201,7 @@ test("re-capturing is idempotent, and an unsettled tool call is picked up once i
   try {
     await makeCommit(repo, "initial");
     const first = await captureOpencodeExport(sessionExport(), repo.root);
-    assert.equal(first.appended, 5);
+    assert.equal(first.appended, 7);
 
     // Same export again: the cursor was held at the running tool part, so
     // everything after it is re-examined and must dedup rather than duplicate.
@@ -198,21 +218,27 @@ test("re-capturing is idempotent, and an unsettled tool call is picked up once i
 
     const events = await readEvents(repo);
     const seqs = events.map((e) => e.conversation?.seq).sort((a, b) => (a ?? 0) - (b ?? 0));
-    assert.deepEqual(seqs, [0, 2, 3, 4, 5, 7]);
+    assert.deepEqual(seqs, [0, 1, 2, 3, 4, 5, 7, 8]);
   } finally {
     await cleanupRepo(repo);
   }
 });
 
-test("subagent sessions are skipped", async () => {
+test("subagent sessions are captured as their own conversation, pointing at the parent", async () => {
   const repo = await makeTempRepo();
   try {
     await makeCommit(repo, "initial");
     const child = sessionExport();
-    child.info!.parentID = "ses_parent00000000000000000";
+    const parentId = "ses_parent00000000000000000";
+    child.info!.parentID = parentId;
     const result = await captureOpencodeExport(child, repo.root);
-    assert.equal(result.appended, 0);
-    assert.equal((await readEvents(repo)).length, 0);
+    assert.equal(result.appended, 7, "a subagent's own steps are the point of capturing it");
+
+    const events = await readEvents(repo);
+    for (const e of events) {
+      assert.equal(e.conversation?.id, `opencode:${SESSION_ID}`);
+      assert.equal(e.conversation?.parent, `opencode:${parentId}`);
+    }
   } finally {
     await cleanupRepo(repo);
   }
