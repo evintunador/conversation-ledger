@@ -600,3 +600,92 @@ test("runClaudeCodeHook: a later session sweeps up the tail an earlier one could
     await cleanupDir(transcriptDir);
   }
 });
+
+/**
+ * The sweep closes gaps in sessions cledger was already capturing. It must not
+ * treat "no cursor" as "a gap": a transcript cledger never captured predates
+ * the install or was never wanted, and adopting it would silently backfill
+ * every conversation ever held in the repo — anchoring each to whatever HEAD
+ * is checked out now rather than to the commit it was actually about.
+ */
+test("runClaudeCodeHook: the sweep leaves never-captured transcripts alone", async () => {
+  const repo = await makeTempRepo("cledger-cc-nosweep-");
+  const transcriptDir = await mkdtemp(join(tmpdir(), "cledger-cc-nosweep-"));
+  try {
+    await makeCommit(repo, "init");
+    // A session from before cledger existed here: real content, no cursor.
+    await writeFile(
+      join(transcriptDir, "sess-ancient.jsonl"),
+      JSON.stringify({
+        type: "user",
+        sessionId: "sess-ancient",
+        timestamp: "2020-01-01T00:00:00.000Z",
+        message: { role: "user", content: "long before cledger" },
+      }) + "\n",
+    );
+
+    const current = join(transcriptDir, "sess-current.jsonl");
+    await writeFile(
+      current,
+      JSON.stringify({
+        type: "user",
+        sessionId: "sess-current",
+        timestamp: "2026-01-02T00:00:00.000Z",
+        message: { role: "user", content: "today" },
+      }) + "\n",
+    );
+    await runClaudeCodeHook(JSON.stringify({ transcript_path: current, cwd: repo.root }));
+
+    const events = await readEvents(repo);
+    assert.strictEqual(events.length, 1, "only the session whose hook fired was captured");
+    assert.strictEqual(events[0]!.conversation?.id, "claude-code:sess-current");
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(transcriptDir);
+  }
+});
+
+/**
+ * The last line of a transcript still being written is half-flushed JSON. The
+ * cursor must stop short of it rather than step over it, or the line is lost
+ * for good — and the tail is precisely what the sweep goes looking for.
+ */
+test("captureClaudeTranscript: a torn final line is captured once it is complete", async () => {
+  const repo = await makeTempRepo("cledger-cc-torn-");
+  const transcriptDir = await mkdtemp(join(tmpdir(), "cledger-cc-torn-"));
+  try {
+    await makeCommit(repo, "init");
+    const path = join(transcriptDir, "sess-torn.jsonl");
+    const whole =
+      JSON.stringify({
+        type: "user",
+        sessionId: "sess-torn",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: { role: "user", content: "complete" },
+      }) + "\n";
+    const tail = JSON.stringify({
+      type: "assistant",
+      sessionId: "sess-torn",
+      timestamp: "2026-01-01T00:00:01.000Z",
+      message: { role: "assistant", model: "claude-x", content: "the rest of the story" },
+    });
+
+    // Caught mid-write: the second line is cut off with no trailing newline.
+    await writeFile(path, whole + tail.slice(0, 40));
+    await captureClaudeTranscript(path, repo.root);
+    assert.strictEqual((await readEvents(repo)).length, 1, "the torn line is not captured yet");
+
+    // The writer finishes the line.
+    await writeFile(path, whole + tail + "\n");
+    await captureClaudeTranscript(path, repo.root);
+
+    const events = await readEvents(repo);
+    assert.strictEqual(events.length, 2, "the completed line is picked up, not skipped");
+    const finished = events.find((e) => e.conversation?.seq === 1);
+    assert.ok(finished, "the once-torn line landed at its own seq");
+    assert.match(JSON.stringify(finished!.content), /the rest of the story/);
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(transcriptDir);
+  }
+});

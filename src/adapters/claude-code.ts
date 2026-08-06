@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { sha256Hex } from "../canonical.js";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
@@ -190,7 +190,15 @@ interface Cursor {
   size: number;
 }
 
-async function readCursor(repo: RepoInfo, sessionId: string): Promise<Cursor> {
+/**
+ * The cursor recorded for a session, or null when there is none.
+ *
+ * The null is load-bearing, and is not the same as `{lines: 0}`: "cledger has
+ * never captured this session" is what gates the sweep (see
+ * `sweepStaleTranscripts`), and a cursor sitting legitimately at line 0 must
+ * not be mistaken for it.
+ */
+async function readCursor(repo: RepoInfo, sessionId: string): Promise<Cursor | null> {
   try {
     const raw = await readFile(cursorPath(repo, sessionId), "utf8");
     const data = JSON.parse(raw) as { lines?: number; size?: number };
@@ -199,10 +207,22 @@ async function readCursor(repo: RepoInfo, sessionId: string): Promise<Cursor> {
       size: typeof data.size === "number" ? data.size : 0,
     };
   } catch {
-    return { lines: 0, size: 0 };
+    return null;
   }
 }
 
+/**
+ * Record a cursor.
+ *
+ * Written to a temporary file and renamed, because a cursor now has two
+ * writers: the session's own hook, and any *other* session in the same
+ * project sweeping it (see `sweepStaleTranscripts`). `rename` is atomic
+ * within a directory, so a concurrent reader sees the old cursor or the new
+ * one, never a half-written file. Without it a torn read parses as "no
+ * cursor", which would send the sweep down the full-rescan path — safe, but
+ * the expensive kind of safe, and now reachable by two ordinary sessions
+ * running side by side.
+ */
 async function writeCursor(
   repo: RepoInfo,
   sessionId: string,
@@ -211,7 +231,9 @@ async function writeCursor(
 ): Promise<void> {
   const path = cursorPath(repo, sessionId);
   await mkdir(join(repo.commonDir, "conversation-ledger", "cursors"), { recursive: true });
-  await writeFile(path, JSON.stringify({ lines, size }) + "\n");
+  const tmp = `${path}.${process.pid}.tmp`;
+  await writeFile(tmp, JSON.stringify({ lines, size }) + "\n");
+  await rename(tmp, path);
 }
 
 function convertContentBlocks(content: unknown): unknown[] {
@@ -528,11 +550,16 @@ function convertLine(
   seq: number,
   version: string,
   identity: GitUserIdentity,
+  fileSessionId: string,
 ): EventDraft | null {
   if (line.type !== "user" && line.type !== "assistant") return null;
   if (!line.message) return null;
   if (typeof line.timestamp !== "string") return null;
-  const sessionId = line.sessionId ?? "";
+  // Same fallback the record and preservation paths use. They must agree:
+  // a line missing its own `sessionId` that landed in `claude-code:` here but
+  // in `claude-code:<file>` there would put one transcript in two
+  // conversations depending only on which branch read it.
+  const sessionId = line.sessionId ?? fileSessionId;
   const conversation = conversationFor(line, sessionId);
   const isSidechain = line.isSidechain === true;
 
@@ -608,18 +635,13 @@ export function renormalizeUnrecognized(
   if (!event.raw || event.conversation === undefined) return null;
   const line = event.raw.data as ClaudeTranscriptLine;
   const version = packageVersion();
-  const turn = convertLine(line, event.conversation.seq, version, identity);
+  const fileSessionId = event.producer.session_id ?? "";
+  const turn = convertLine(line, event.conversation.seq, version, identity, fileSessionId);
   if (turn) return turn;
   if (typeof line.type === "string" && FILE_HISTORY_LINE_TYPES.has(line.type)) return null;
   return convertRecordLine(
     line,
-    recordContext(
-      line,
-      event.occurred_at,
-      event.conversation.seq,
-      event.producer.session_id ?? "",
-      version,
-    ),
+    recordContext(line, event.occurred_at, event.conversation.seq, fileSessionId, version),
   );
 }
 
@@ -639,6 +661,15 @@ export function renormalizeUnrecognized(
  * The next session in the same project closes the gap. Staleness is decided
  * by file size against the size recorded with the cursor, so the sweep stats
  * each transcript rather than parsing it, and reads only the ones that grew.
+ *
+ * A transcript with *no* cursor is skipped, and that bound is the whole point
+ * of the pass. A missing cursor does not mean "this session has a gap", it
+ * means cledger never captured this session at all — it predates the install,
+ * or the user did not want it. Adopting those would turn a gap-closing sweep
+ * into a silent backfill of every conversation ever held in the repo, and
+ * would anchor each one to whatever HEAD happens to be checked out now rather
+ * than to the commit it was actually about. A session cledger already tracks
+ * is the only session it has any business finishing.
  *
  * Failures are swallowed per session: a sweep is a bonus pass over
  * conversations the user is not currently having, and must never be the
@@ -664,6 +695,7 @@ async function sweepStaleTranscripts(
     if (seen.has(path)) continue;
     try {
       const cursor = await readCursor(repo, basename(name, ".jsonl"));
+      if (cursor === null) continue; // never captured — not this pass's business
       const info = await stat(path);
       if (info.size <= cursor.size) continue; // nothing new since the last read
       await captureClaudeTranscript(path, cwd, seen);
@@ -705,13 +737,33 @@ async function captureTranscriptFile(
   } catch {
     return result; // transcript not written yet
   }
+  // Whether the writer had finished the last line when we read. A transcript
+  // that does not end in a newline was caught mid-write, which is how the
+  // final line comes to be torn — see `tornTail` below.
+  const endsWithNewline = raw.endsWith("\n");
   const lines = raw.split("\n");
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
 
   const sessionId = basename(transcriptPath, ".jsonl");
-  const stored = await readCursor(repo, sessionId);
+  const stored = (await readCursor(repo, sessionId)) ?? { lines: 0, size: 0 };
   let cursor = stored.lines;
   if (cursor > lines.length) cursor = 0; // transcript is shorter than expected — rescan from the start
+
+  /**
+   * Index of a half-written final line, when there is one.
+   *
+   * A line that fails to parse is normally a lost cause and gets skipped, but
+   * the last line of a file still being written is a different thing: the
+   * bytes are on their way. Advancing the cursor past it would skip it
+   * permanently, and this adapter now goes looking for transcript tails on
+   * purpose (see `sweepStaleTranscripts`), which is exactly where torn lines
+   * live. So the cursor stops short of it and the next read picks it up whole.
+   *
+   * The two conditions together are what make this safe: a parse failure
+   * anywhere but the unterminated last line is real corruption, and holding
+   * the cursor at it would stall the session's capture forever.
+   */
+  let tornTail: number | null = null;
 
   const version = packageVersion();
   const identity = await gitUserIdentity(repo);
@@ -724,7 +776,10 @@ async function captureTranscriptFile(
     try {
       parsed = JSON.parse(text) as ClaudeTranscriptLine;
     } catch {
-      continue; // partial line — normal at the tail of a live transcript
+      // Partial line — normal at the tail of a live transcript. Remember it
+      // so the cursor stops here rather than stepping over it for good.
+      if (!endsWithNewline && i === lines.length - 1) tornTail = i;
+      continue;
     }
     const type = typeof parsed.type === "string" ? parsed.type : "(untyped)";
     if (!CONVERTIBLE_LINE_TYPES.has(type)) {
@@ -749,7 +804,7 @@ async function captureTranscriptFile(
       drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version));
       continue;
     }
-    const draft = convertLine(parsed, i, version, identity);
+    const draft = convertLine(parsed, i, version, identity, sessionId);
     if (draft) drafts.push(draft);
   }
 
@@ -758,7 +813,15 @@ async function captureTranscriptFile(
     result.appended = appendResult.appended.length;
     result.deduped = appendResult.deduped;
   }
-  await writeCursor(repo, sessionId, lines.length, Buffer.byteLength(raw));
+  // With a torn tail the cursor stops before it, and the recorded size is the
+  // byte offset that line starts at — not the file's size, which would tell
+  // the next sweep nothing had changed and strand the very line we held back.
+  const consumed = tornTail ?? lines.length;
+  const size =
+    tornTail === null
+      ? Buffer.byteLength(raw)
+      : Buffer.byteLength(lines.slice(0, consumed).join("\n")) + (consumed > 0 ? 1 : 0);
+  await writeCursor(repo, sessionId, consumed, size);
   return result;
 }
 

@@ -31,6 +31,7 @@ import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import {
   countUnrecognized,
+  mergeCaptureResult,
   unrecognizedDraft,
   warnUnrecognized,
   type CaptureResult,
@@ -651,15 +652,6 @@ export async function captureOpencodeExport(
   return result;
 }
 
-/** Fold one capture's tallies into a running total. */
-function mergeResult(total: CaptureResult, one: CaptureResult): void {
-  total.appended += one.appended;
-  total.deduped += one.deduped;
-  for (const [key, count] of Object.entries(one.unrecognized)) {
-    total.unrecognized[key] = (total.unrecognized[key] ?? 0) + count;
-  }
-}
-
 /**
  * The subagent sessions a session spawned, read off its own `task` tool
  * parts: opencode records the child's session id in the part's
@@ -702,9 +694,9 @@ export async function captureOpencodeSession(
 
   const data = await exportOpencodeSession(sessionId, cwd);
   if (!data) return result;
-  mergeResult(result, await captureOpencodeExport(data, cwd));
+  mergeCaptureResult(result, await captureOpencodeExport(data, cwd));
   for (const child of childSessionIds(data)) {
-    mergeResult(result, await captureOpencodeSession(child, cwd, visited));
+    mergeCaptureResult(result, await captureOpencodeSession(child, cwd, visited));
   }
   return result;
 }
@@ -736,7 +728,7 @@ export async function captureOpencodeAll(
   const visited = new Set<string>();
   for (const session of selected) {
     if (typeof session.id !== "string" || !session.id) continue;
-    mergeResult(total, await captureOpencodeSession(session.id, cwd, visited));
+    mergeCaptureResult(total, await captureOpencodeSession(session.id, cwd, visited));
   }
   return total;
 }
