@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { sha256Hex } from "../canonical.js";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
+import { packageVersion, readCursor, writeCursor } from "./common.js";
 import {
   countUnrecognized,
   mergeCaptureResult,
@@ -25,6 +25,8 @@ import {
 } from "./records.js";
 
 const CONVERTIBLE_LINE_TYPES = new Set(["user", "assistant"]);
+
+const CURSOR_FIELD = "lines";
 
 // Unchanged at /1: `raw.data` is still one verbatim transcript line, which is
 // all the format marker promises. What changed is which lines get captured
@@ -154,86 +156,6 @@ interface ClaudeFileBackup {
   version?: number;
   backupTime?: string;
   realParentDir?: string;
-}
-
-function packageVersion(): string {
-  try {
-    const pkg = JSON.parse(
-      readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
-    ) as { version?: string };
-    return pkg.version ?? "0.1.0";
-  } catch {
-    return "0.1.0";
-  }
-}
-
-function sanitizeId(id: string): string {
-  return id.replace(/[^A-Za-z0-9_-]/g, "_");
-}
-
-function cursorPath(repo: RepoInfo, sessionId: string): string {
-  return join(repo.commonDir, "conversation-ledger", "cursors", `${sanitizeId(sessionId)}.json`);
-}
-
-/**
- * How far a transcript has been captured: the line count consumed, and the
- * file size that line count corresponded to.
- *
- * `size` exists for the catch-up sweep (see `sweepStaleTranscripts`), which
- * needs to answer "did this file grow since we last read it" for every
- * session in a project without reading them all. A cursor written by an
- * older cledger has no `size`; that reads as 0, so the file looks grown and
- * gets re-read once, which dedups.
- */
-interface Cursor {
-  lines: number;
-  size: number;
-}
-
-/**
- * The cursor recorded for a session, or null when there is none.
- *
- * The null is load-bearing, and is not the same as `{lines: 0}`: "cledger has
- * never captured this session" is what gates the sweep (see
- * `sweepStaleTranscripts`), and a cursor sitting legitimately at line 0 must
- * not be mistaken for it.
- */
-async function readCursor(repo: RepoInfo, sessionId: string): Promise<Cursor | null> {
-  try {
-    const raw = await readFile(cursorPath(repo, sessionId), "utf8");
-    const data = JSON.parse(raw) as { lines?: number; size?: number };
-    return {
-      lines: typeof data.lines === "number" ? data.lines : 0,
-      size: typeof data.size === "number" ? data.size : 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Record a cursor.
- *
- * Written to a temporary file and renamed, because a cursor now has two
- * writers: the session's own hook, and any *other* session in the same
- * project sweeping it (see `sweepStaleTranscripts`). `rename` is atomic
- * within a directory, so a concurrent reader sees the old cursor or the new
- * one, never a half-written file. Without it a torn read parses as "no
- * cursor", which would send the sweep down the full-rescan path — safe, but
- * the expensive kind of safe, and now reachable by two ordinary sessions
- * running side by side.
- */
-async function writeCursor(
-  repo: RepoInfo,
-  sessionId: string,
-  lines: number,
-  size: number,
-): Promise<void> {
-  const path = cursorPath(repo, sessionId);
-  await mkdir(join(repo.commonDir, "conversation-ledger", "cursors"), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  await writeFile(tmp, JSON.stringify({ lines, size }) + "\n");
-  await rename(tmp, path);
 }
 
 function convertContentBlocks(content: unknown): unknown[] {
@@ -694,7 +616,7 @@ async function sweepStaleTranscripts(
     const path = join(dirname(transcriptPath), name);
     if (seen.has(path)) continue;
     try {
-      const cursor = await readCursor(repo, basename(name, ".jsonl"));
+      const cursor = await readCursor(repo, basename(name, ".jsonl"), CURSOR_FIELD);
       if (cursor === null) continue; // never captured — not this pass's business
       const info = await stat(path);
       if (info.size <= cursor.size) continue; // nothing new since the last read
@@ -745,8 +667,8 @@ async function captureTranscriptFile(
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
 
   const sessionId = basename(transcriptPath, ".jsonl");
-  const stored = (await readCursor(repo, sessionId)) ?? { lines: 0, size: 0 };
-  let cursor = stored.lines;
+  const stored = (await readCursor(repo, sessionId, CURSOR_FIELD)) ?? { count: 0, size: 0 };
+  let cursor = stored.count;
   if (cursor > lines.length) cursor = 0; // transcript is shorter than expected — rescan from the start
 
   /**
@@ -821,7 +743,7 @@ async function captureTranscriptFile(
     tornTail === null
       ? Buffer.byteLength(raw)
       : Buffer.byteLength(lines.slice(0, consumed).join("\n")) + (consumed > 0 ? 1 : 0);
-  await writeCursor(repo, sessionId, consumed, size);
+  await writeCursor(repo, sessionId, CURSOR_FIELD, consumed, size);
   return result;
 }
 

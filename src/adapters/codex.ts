@@ -1,9 +1,9 @@
-import { readFileSync } from "node:fs";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
-import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
+import { readFile, stat } from "node:fs/promises";
+import { basename } from "node:path";
+import { findRepo, gitUserIdentity, type GitUserIdentity } from "../git.js";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
+import { packageVersion, readCursor, writeCursor } from "./common.js";
 import {
   countUnrecognized,
   reasoningDraft,
@@ -19,6 +19,8 @@ import {
 } from "./records.js";
 
 const RAW_FORMAT = "codex-rollout-jsonl/2";
+
+const CURSOR_FIELD = "lines";
 
 /** Codex CLI hooks-engine payload (subset we read). */
 interface CodexHookPayload {
@@ -183,41 +185,6 @@ function initialAgentContext(lines: string[], cursor: number): CodexAgentState {
     if (!state.model && stated.model) state.model = stated.model;
   }
   return state;
-}
-
-function packageVersion(): string {
-  try {
-    const pkg = JSON.parse(
-      readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
-    ) as { version?: string };
-    return pkg.version ?? "0.1.0";
-  } catch {
-    return "0.1.0";
-  }
-}
-
-function sanitizeId(id: string): string {
-  return id.replace(/[^A-Za-z0-9_-]/g, "_");
-}
-
-function cursorPath(repo: RepoInfo, sessionId: string): string {
-  return join(repo.commonDir, "conversation-ledger", "cursors", `${sanitizeId(sessionId)}.json`);
-}
-
-async function readCursor(repo: RepoInfo, sessionId: string): Promise<number> {
-  try {
-    const raw = await readFile(cursorPath(repo, sessionId), "utf8");
-    const data = JSON.parse(raw) as { lines?: number };
-    return typeof data.lines === "number" ? data.lines : 0;
-  } catch {
-    return 0;
-  }
-}
-
-async function writeCursor(repo: RepoInfo, sessionId: string, lines: number): Promise<void> {
-  const path = cursorPath(repo, sessionId);
-  await mkdir(join(repo.commonDir, "conversation-ledger", "cursors"), { recursive: true });
-  await writeFile(path, JSON.stringify({ lines }) + "\n");
 }
 
 /** Extract the trailing uuid from `rollout-<ts>-<uuid>.jsonl`, else the bare filename. */
@@ -572,6 +539,10 @@ export async function captureCodexTranscript(
   } catch {
     return result; // transcript not written yet
   }
+  // Whether the writer had finished the last line when we read. A rollout that
+  // does not end in a newline was caught mid-write, which is how the final
+  // line comes to be torn — see `tornTail` below.
+  const endsWithNewline = raw.endsWith("\n");
   const lines = raw.split("\n");
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
 
@@ -586,13 +557,22 @@ export async function captureCodexTranscript(
     }
   }
 
-  let cursor = await readCursor(repo, sessionId);
+  let cursor = (await readCursor(repo, sessionId, CURSOR_FIELD))?.count ?? 0;
   if (cursor > lines.length) cursor = 0; // transcript is shorter than expected — rescan from the start
 
   const baseTime = await sessionBaseTime(transcriptPath);
   const version = packageVersion();
   const identity = await gitUserIdentity(repo);
   const agent = initialAgentContext(lines, cursor);
+  /**
+   * Index of a half-written final line, when there is one. Advancing the
+   * cursor past it would skip that line permanently once the bytes land;
+   * holding the cursor short of it means the next capture reads it whole.
+   * Both conditions are load-bearing: a parse failure anywhere but the
+   * unterminated last line is real corruption, and stopping there would stall
+   * this session's capture forever.
+   */
+  let tornTail: number | null = null;
   const drafts: EventDraft[] = [];
   for (let i = cursor; i < lines.length; i++) {
     const text = lines[i]!;
@@ -601,7 +581,10 @@ export async function captureCodexTranscript(
     try {
       parsed = JSON.parse(text) as CodexRolloutLine;
     } catch {
-      continue; // partial line — normal at the tail of a live transcript
+      // Partial line — normal at the tail of a live rollout. Remember it so
+      // the cursor stops here rather than stepping over it for good.
+      if (!endsWithNewline && i === lines.length - 1) tornTail = i;
+      continue;
     }
     const type = typeof parsed.type === "string" ? parsed.type : "(untyped)";
     // Context lines precede the items they describe, so fold them in before
@@ -699,7 +682,8 @@ export async function captureCodexTranscript(
     result.appended = appendResult.appended.length;
     result.deduped = appendResult.deduped;
   }
-  await writeCursor(repo, sessionId, lines.length);
+  const consumed = tornTail ?? lines.length;
+  await writeCursor(repo, sessionId, CURSOR_FIELD, consumed);
   process.stderr.write(`cledger: codex +${result.appended} events (${result.deduped} deduped)\n`);
   warnUnrecognized("codex", result.unrecognized);
   return result;

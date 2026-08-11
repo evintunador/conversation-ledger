@@ -23,7 +23,8 @@
  * should not need a per-kind special case to find it.
  */
 
-import type { EventDraft, ProducerAgentContext } from "../schema.js";
+import type { Actor, EventDraft, ProducerAgentContext } from "../schema.js";
+import type { GitUserIdentity } from "../git.js";
 
 /** What every record shares: where it came from and where it sits. */
 export interface RecordContext {
@@ -40,6 +41,13 @@ export interface RecordContext {
   /** Parent conversation id, for sub-conversations (see ConversationRef). */
   parentConversationId?: string;
   agent?: ProducerAgentContext;
+  /**
+   * Who the person at the keyboard is. Used only for records attributed to
+   * `human` — a record the human drove should name them for the same reason a
+   * turn does, or the ledger says "a human did this" while declining to say
+   * which one, which is worse than either alternative.
+   */
+  identity?: GitUserIdentity;
 }
 
 /**
@@ -56,10 +64,15 @@ export function recordDraft(
   content: unknown,
   raw: unknown,
 ): EventDraft {
+  const actor: Actor = { type: actorType };
+  if (actorType === "human" && ctx.identity) {
+    if (ctx.identity.email) actor.id = ctx.identity.email;
+    if (ctx.identity.name) actor.display = ctx.identity.name;
+  }
   return {
     kind,
     occurred_at: ctx.occurredAt,
-    actor: { type: actorType },
+    actor,
     producer: {
       tool: "cledger",
       version: ctx.version,
