@@ -371,6 +371,67 @@ test("qwen-code renormalize: a preserved line becomes the event a live capture w
   }
 });
 
+test("qwen-code capture: a slash command is the human's, not the harness's", async () => {
+  // Shape taken from a live Qwen Code 0.21.5 session: `/chat save <title>`
+  // writes a pair of `slash_command` records carrying the literal keystrokes,
+  // and `sentToModel: false` — so it is an `activity` rather than a turn the
+  // model saw, but the person at the keyboard is who did it.
+  const repo = await makeTempRepo();
+  const { dir, path } = await writeTranscript([
+    {
+      sessionId: SESSION_ID,
+      uuid: "s-0",
+      timestamp: "2026-08-04T03:48:56.660Z",
+      type: "system",
+      subtype: "slash_command",
+      version: QWEN_VERSION,
+      systemPayload: {
+        phase: "invocation",
+        rawCommand: "/chat save smoke-test",
+        sentToModel: false,
+      },
+    },
+    {
+      sessionId: SESSION_ID,
+      uuid: "s-1",
+      timestamp: "2026-08-04T03:48:56.700Z",
+      type: "system",
+      subtype: "ui_telemetry",
+      version: QWEN_VERSION,
+      systemPayload: { uiEvent: { "event.name": "qwen-code.api_response" } },
+    },
+  ]);
+  try {
+    await makeCommit(repo);
+    await captureQwenTranscript(path, repo.root);
+    const events = await readEvents(repo);
+
+    const slash = events.find(
+      (e) => (e.content as Record<string, unknown>)["activity_type"] === "system/slash_command",
+    )!;
+    assert.equal(slash.kind, "activity", "not a turn: the model never saw it");
+    assert.equal(slash.actor.type, "human", "but a human typed it");
+    assert.equal(slash.actor.id, "test@example.com", "and the ledger says which human");
+    assert.equal(
+      ((slash.content as Record<string, unknown>)["systemPayload"] as Record<string, unknown>)[
+        "rawCommand"
+      ],
+      "/chat save smoke-test",
+      "the keystrokes are kept verbatim",
+    );
+
+    // Harness bookkeeping in the same file stays the harness's.
+    const telemetry = events.find(
+      (e) => (e.content as Record<string, unknown>)["activity_type"] === "system/ui_telemetry",
+    )!;
+    assert.equal(telemetry.actor.type, "system");
+    assert.equal(telemetry.actor.id, undefined, "and names no person");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+    await cleanupRepo(repo);
+  }
+});
+
 test("qwen-code capture: empty-part turns produce no event", async () => {
   const repo = await makeTempRepo();
   const { dir, path } = await writeTranscript([

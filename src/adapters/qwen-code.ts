@@ -95,6 +95,22 @@ const CONTEXT_INJECTION_SUBTYPES = new Set([
 const FILE_SNAPSHOT_SUBTYPES = new Set(["attribution_snapshot", "file_history_snapshot"]);
 
 /**
+ * `system` subtypes the person at the keyboard drove, rather than the harness.
+ *
+ * They stay `activity` — Qwen records `sentToModel: false` on them, so they
+ * are not turns in the conversation the model saw — but the actor is the human,
+ * because a human typed them. Verified on a live session: a `slash_command`
+ * record carries the literal `rawCommand` ("/chat save smoke-test"), which is
+ * keystrokes, not harness bookkeeping. Filing that under `system` would be the
+ * ledger recording a person's action as the machine's.
+ *
+ * This matches the rule the gemini-cli adapter already states for the same
+ * class of thing: harness-authored preambles are `system`, slash commands are
+ * the human's.
+ */
+const HUMAN_DRIVEN_SUBTYPES = new Set(["slash_command"]);
+
+/**
  * Envelope fields every Qwen Code line carries. Dropped from the structured
  * `content` of record events because they are already on the event itself
  * (`occurred_at`, `producer.session_id`, `producer.source_version`) or in
@@ -264,6 +280,7 @@ function recordContext(
   fileSessionId: string,
   version: string,
   parentId: string | undefined,
+  identity: GitUserIdentity,
 ): RecordContext {
   const sessionId = line.sessionId ?? fileSessionId;
   const conversation = conversationFor(sessionId, parentId);
@@ -277,6 +294,7 @@ function recordContext(
     conversationId: conversation.id,
     ...(conversation.parent ? { parentConversationId: conversation.parent } : {}),
     agent: agentContext(line),
+    identity,
   };
 }
 
@@ -327,7 +345,13 @@ function convertRecordLine(line: QwenTranscriptLine, ctx: RecordContext): EventD
   // `content` is where a text-bearing system record (a notification, a queued
   // mid-turn message) puts its prose; lifting it gives `blocks` for free and
   // is a no-op when there is none.
-  return activityDraft(ctx, `system/${subtype}`, liftText(fields, "content"), line);
+  return activityDraft(
+    ctx,
+    `system/${subtype}`,
+    liftText(fields, "content"),
+    line,
+    HUMAN_DRIVEN_SUBTYPES.has(subtype) ? "human" : "system",
+  );
 }
 
 function convertLine(
@@ -436,7 +460,15 @@ export function renormalizeUnrecognized(
   const turn = convertLine(line, event.conversation.seq, version, identity, sessionId, parentId);
   if (turn) return turn;
   if (line?.type !== "system") return null;
-  const ctx = recordContext(line, event.occurred_at, event.conversation.seq, sessionId, version, parentId);
+  const ctx = recordContext(
+    line,
+    event.occurred_at,
+    event.conversation.seq,
+    sessionId,
+    version,
+    parentId,
+    identity,
+  );
   return convertRecordLine(line, ctx);
 }
 
@@ -496,7 +528,7 @@ async function captureTranscriptFile(
         baseTime = firstTimestamp(lines) ?? (await sessionMtime(transcriptPath));
       }
       const occurredAt = typeof parsed.timestamp === "string" ? parsed.timestamp : baseTime;
-      const ctx = recordContext(parsed, occurredAt, i, sessionId, version, parentId);
+      const ctx = recordContext(parsed, occurredAt, i, sessionId, version, parentId, identity);
       const record = RECORD_TYPES.has(type) ? convertRecordLine(parsed, ctx) : null;
       if (record) {
         drafts.push(record);

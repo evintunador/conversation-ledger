@@ -268,18 +268,32 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 
 ## Roadmap
 
-- **Qwen Code's headless one-shot mode kills a hook mid-write** — verified on
-  Qwen Code 0.21.5: `qwen -p "..."` fires its `Stop` hook and exits
-  immediately, tearing down the hook process with the stdio pipes it
-  inherited. A hook that returns instantly survives; a git-notes append does
-  not, and nothing is captured. `cledger install qwen-code` and
-  `install gemini-cli` therefore append `>/dev/null 2>&1` to the generated
-  command, which reliably fixes it — the redirection routes the command
-  through a shell so the work outlives the teardown, at the cost of the
-  capture no longer printing its own output (drift warnings included) where
-  you can see it. `cledger capture <source> --all` remains the way to watch a
-  capture. The real fix belongs upstream (await the hook); until then these
-  two adapters trade visible hook output for actually capturing headless runs.
+- **The `>/dev/null 2>&1` on the Gemini and Qwen hooks is probably now
+  pointless, and costs visibility** — it was added after `qwen -p "..."` failed
+  to capture, on the theory that the redirect "routes the command through a
+  shell so the work outlives the teardown". That theory is wrong: both CLIs
+  *always* invoke a hook as `bash -c "<command>"`, and `bash -c` `exec`s a
+  single simple command rather than forking, so nothing was ever detached. The
+  actual cause of hooks dying was the timeout unit below. The suffix survives
+  only because removing it is an untested change — headless `qwen -p` has not
+  been re-run without it since the timeout was fixed — and until then it keeps
+  costing what it always cost: the capture cannot print drift warnings where
+  you would see them, so `cledger capture <source> --all` is the only way to
+  watch one. Removing it is the first thing to try; it is also what made the
+  timeout bug take a full debugging session to find.
+- **`cledger log` hides human-driven records by default** — the
+  session-machinery kinds (`session_state`, `activity`, `context_injection`,
+  `file_snapshot`) are hidden unless you pass `--with-state`. That default
+  earns its keep against telemetry: one real Qwen session emitted 57
+  `ui_telemetry` records against 45 events of actual content, and an unfiltered
+  default would bury the conversation. But it does not distinguish *whose*
+  action a record was, so a slash command the human typed is hidden by the same
+  rule as a token-count ping. Capture is unaffected — everything is recorded
+  and `cledger export` is lossless, these flags only change what is displayed —
+  but the display default is arguably drawing the line in the wrong place. The
+  fix worth trying is to key the default on the actor rather than the kind:
+  show human-driven records, keep harness and agent bookkeeping behind the
+  flag. `activity` already carries a real actor for exactly this reason.
 - **Gemini CLI's version is not in its session file** — claude-code and
   qwen-code stamp the CLI version onto every line, so `producer.source_version`
   comes for free. Gemini stamps none, and neither the hook payload nor the
