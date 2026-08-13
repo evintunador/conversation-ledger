@@ -47,11 +47,13 @@ import {
   filterFindings,
   findingGuidance,
   formatFinding,
+  formatGroupedReport,
   inAgentSession,
   loadAllowlist,
   renderFinding,
   scanEvents,
 } from "./redact/scan.js";
+import { runReview } from "./review.js";
 
 const USAGE = `conversation-ledger — durable records of coding-agent conversations, in git notes
 
@@ -86,13 +88,21 @@ Usage:
   cledger scan [--all|--rev R] [--paranoid]   scan local events for potential secrets (CI-friendly:
                                            exits 1 if any finding, 0 otherwise); default scope is
                                            every local event, --rev restricts by reachability
+  cledger review [--paranoid] [--context N]   step through every outstanding finding interactively:
+                                           one screen per distinct span, match highlighted in
+                                           context, one key to allow (here or globally), redact
+                                           everywhere, or skip. HUMANS ONLY, plain terminal —
+                                           refuses inside an agent session and without a TTY.
   cledger inspect <event-id-prefix> [--context N] [--reveal] [--stdout] [--force]
                                            show a finding with real surrounding context (default 400
                                            chars each side). Writes to a file outside the repo and
                                            refuses to run inside a coding-agent session — reports
                                            never print content, because reprinting it re-seeds the
                                            finding. HUMANS ONLY, in a plain terminal.
-  cledger allow <fingerprint...>          mark scan finding fingerprint(s) as known false positives
+  cledger allow <fingerprint...> [--global]   mark scan finding fingerprint(s) as known false
+                                           positives, for this repo or (--global) every repo on
+                                           this machine; repos can also commit shared entries in
+                                           .cledger.json {"scan":{"allowFingerprints":[...]}}
   cledger redact <event-id-prefix> (--pattern REGEX | --all) [--reason TEXT]
                                            rewrite a not-yet-pushed event to remove a secret, keeping
                                            its id stable, and sever the local notes history chain.
@@ -424,18 +434,71 @@ async function cmdScan(flags: Flags): Promise<void> {
   const opts: ReadOptions = {};
   if (typeof flags["rev"] === "string") opts.reachableFrom = flags["rev"];
   const events = await readEvents(repo, opts);
-  const findings = filterFindings(scanEvents(events, tier), await loadAllowlist(repo));
+  const config = await loadConfig(repo.root);
+  const findings = filterFindings(scanEvents(events, tier), await loadAllowlist(repo, config));
   if (findings.length === 0) {
     process.stderr.write("cledger scan: no findings\n");
     return;
   }
+  // stdout keeps the one-line-per-site format — it is the machine-readable
+  // surface CI greps. The human-facing summary on stderr groups by
+  // fingerprint, because that is the number of decisions actually pending.
   for (const f of findings) process.stdout.write(formatFinding(f) + "\n");
   const eventIds = [...new Set(findings.map((f) => f.eventId))];
+  const spans = new Set(findings.map((f) => f.fingerprint)).size;
+  process.stderr.write(`\n${formatGroupedReport(findings)}\n`);
   process.stderr.write(`\n${findingGuidance(eventIds)}\n`);
   process.stderr.write(
-    `\ncledger scan: ${findings.length} finding(s) across ${eventIds.length} event(s)\n`,
+    `\ncledger scan: ${spans} distinct span(s) — ${findings.length} site(s) across ${eventIds.length} event(s)\n`,
   );
   process.exit(1);
+}
+
+/**
+ * Interactive triage in a terminal: everything `cledger inspect` shows, per
+ * distinct span instead of per event, with the verdict applied on the spot.
+ * Refuses inside an agent session for exactly inspect's reason — and unlike
+ * inspect it deliberately has no --force: it exists for the human half of
+ * the review split, and an agent that wants coordinates already has scan.
+ */
+async function cmdReview(flags: Flags): Promise<void> {
+  const agentVar = inAgentSession();
+  if (agentVar) {
+    process.stderr.write(
+      `cledger review: refusing to run inside a coding-agent session (saw $${agentVar}).\n\n` +
+        "  Reviewing flagged content here would capture it into this conversation and\n" +
+        "  re-seed the findings being reviewed. Run this in a plain terminal.\n",
+    );
+    process.exit(2);
+  }
+  if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) {
+    process.stderr.write(
+      "cledger review: needs an interactive terminal on stdin and stdout.\n" +
+        "  Piping review output defeats its purpose — the content must not land in a\n" +
+        "  file or transcript. Use `cledger scan` for machine-readable coordinates.\n",
+    );
+    process.exit(2);
+  }
+  const repo = await requireRepo();
+  const tier: "standard" | "paranoid" = flags["paranoid"] ? "paranoid" : "standard";
+  const context = typeof flags["context"] === "string" ? Number(flags["context"]) : 600;
+  if (!Number.isFinite(context) || context < 0) {
+    process.stderr.write("cledger review: --context must be a non-negative number\n");
+    process.exit(2);
+  }
+  const summary = await runReview(repo, { tier, context });
+  const total =
+    summary.allowed + summary.allowedGlobally + summary.redacted + summary.skipped;
+  if (total === 0 && summary.errors.length === 0) {
+    process.stderr.write("cledger review: nothing to review\n");
+    return;
+  }
+  process.stderr.write(
+    `cledger review: ${summary.allowed} allowed here, ${summary.allowedGlobally} allowed globally, ` +
+      `${summary.redacted} event(s) redacted, ${summary.skipped} span(s) skipped\n`,
+  );
+  for (const err of summary.errors) process.stderr.write(`  ${err}\n`);
+  if (summary.skipped > 0 || summary.errors.length > 0) process.exit(1);
 }
 
 /**
@@ -523,14 +586,18 @@ async function cmdInspect(positional: string[], flags: Flags): Promise<void> {
   );
 }
 
-async function cmdAllow(positional: string[]): Promise<void> {
+async function cmdAllow(positional: string[], flags: Flags): Promise<void> {
   if (positional.length === 0) {
-    process.stderr.write("usage: cledger allow <fingerprint...>\n");
+    process.stderr.write("usage: cledger allow <fingerprint...> [--global]\n");
     process.exit(2);
   }
   const repo = await requireRepo();
-  await addToAllowlist(repo, positional);
-  process.stderr.write(`allowlisted ${positional.length} fingerprint(s)\n`);
+  const scope = flags["global"] === true ? "global" : "local";
+  await addToAllowlist(repo, positional, scope);
+  process.stderr.write(
+    `allowlisted ${positional.length} fingerprint(s) ` +
+      `(${scope === "global" ? "every repo on this machine" : "this repo"})\n`,
+  );
 }
 
 async function cmdRedact(positional: string[], flags: Flags): Promise<void> {
@@ -722,10 +789,12 @@ async function main(): Promise<void> {
       return cmdTransportPush(positional);
     case "scan":
       return cmdScan(flags);
+    case "review":
+      return cmdReview(flags);
     case "inspect":
       return cmdInspect(positional, flags);
     case "allow":
-      return cmdAllow(positional);
+      return cmdAllow(positional, flags);
     case "redact":
       return cmdRedact(positional, flags);
     case "re-anchor":

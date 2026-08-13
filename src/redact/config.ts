@@ -26,6 +26,16 @@ export interface CledgerConfig {
   };
   scan?: {
     tier?: "standard" | "paranoid" | "off";
+    /**
+     * Fingerprints of known false positives, same values `cledger allow`
+     * records. Unlike the allowlist files under `.git/`, these travel with
+     * the config: a repo can commit its own recurring false positives in
+     * `.cledger.json` so every clone and worktree inherits them, and the
+     * global config can carry personal ones. Fingerprints are truncated
+     * sha256 of the matched span — of text a human judged to NOT be a
+     * secret — so committing them discloses nothing.
+     */
+    allowFingerprints?: string[];
   };
   transport?: {
     /** Install/run the pre-push hook that shares the ledger ref (default true). */
@@ -100,10 +110,37 @@ async function readJsonConfig(path: string): Promise<CledgerConfig | null> {
 }
 
 /**
+ * Merge one top-level section key-by-key: any key the repo config sets wins,
+ * any key it leaves out keeps the global value. Before 0.21.0 the repo
+ * section replaced the global one wholesale, which failed open: a repo
+ * `.cledger.json` that set only `redact.capture` silently reverted a
+ * globally-enabled `redact.knownSecrets` — the user believed a protection
+ * was on when the mere presence of an unrelated key had turned it off.
+ *
+ * One exception to "repo wins": `allowFingerprints` arrays are unioned, not
+ * replaced. The allowlist is accumulative by nature — a fingerprint either
+ * config trusts is trusted — and replacing would make adding a repo-local
+ * entry silently drop every personal one.
+ */
+function mergeSection<T extends object>(
+  base: T | undefined,
+  override: T | undefined,
+): T | undefined {
+  if (base === undefined) return override;
+  if (override === undefined) return base;
+  const merged: Record<string, unknown> = { ...(base as Record<string, unknown>), ...(override as Record<string, unknown>) };
+  const baseAllow = (base as { allowFingerprints?: unknown }).allowFingerprints;
+  const overrideAllow = (override as { allowFingerprints?: unknown }).allowFingerprints;
+  if (Array.isArray(baseAllow) && Array.isArray(overrideAllow)) {
+    merged["allowFingerprints"] = [...new Set([...baseAllow, ...overrideAllow])];
+  }
+  return merged as T;
+}
+
+/**
  * Merges ~/.config/cledger/config.json then <repoRoot>/.cledger.json.
- * Repo wins, shallow per-section: whichever config defines a given
- * top-level section ("redact", "scan", "transport", "reanchor") supplies
- * that whole section — the two are never merged key-by-key within a section.
+ * Repo wins, key-by-key within each top-level section ("redact", "scan",
+ * "transport", "reanchor") — see mergeSection for why not per-section.
  */
 export async function loadConfig(repoRoot: string): Promise<CledgerConfig> {
   const userPath = join(homedir(), ".config", "cledger", "config.json");
@@ -115,10 +152,10 @@ export async function loadConfig(repoRoot: string): Promise<CledgerConfig> {
   const base = userConfig ?? {};
   const override = repoConfig ?? {};
   const enabled = override.enabled ?? base.enabled;
-  const redact = override.redact ?? base.redact;
-  const scan = override.scan ?? base.scan;
-  const transport = override.transport ?? base.transport;
-  const reanchor = override.reanchor ?? base.reanchor;
+  const redact = mergeSection(base.redact, override.redact);
+  const scan = mergeSection(base.scan, override.scan);
+  const transport = mergeSection(base.transport, override.transport);
+  const reanchor = mergeSection(base.reanchor, override.reanchor);
   return {
     ...(enabled !== undefined ? { enabled } : {}),
     ...(redact !== undefined ? { redact } : {}),

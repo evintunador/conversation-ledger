@@ -229,6 +229,24 @@ systems):
 
 Visible tool output can contain secrets: API keys in error messages, credentials in logs, etc. The trust boundary is transport — native transcripts are plaintext locally, so redaction protects the *shared* record, not the local disk. Once content reaches a note, removal is expensive, so prevention runs first at capture, with the last checkpoint at sync.
 
+### What cledger does and does not protect
+
+The one enforced guarantee: **an event that a scan rule or a human flagged does not leave this machine over the ledger ref.** The pre-push gate is the enforcement point — everything earlier (capture-time masking) is best-effort harm reduction, and everything the gate never sees is out of scope. Concretely out of scope:
+
+- **Your local disk.** The agent CLIs' own transcripts hold the same content in plaintext (`~/.claude/projects/**`, `~/.codex/sessions/**`, …) whether or not cledger exists. Ledger notes are no more and no less exposed locally than the transcripts they came from.
+- **Secrets an agent reads because you let it.** An agent that can `cat ~/.aws/credentials` will put the result in its transcript, and no pattern list catches every secret shape. Set file permissions so agents (which run as you) have nothing to find: keep real credentials in a password manager or OS keychain, not in world- or user-readable dotfiles inside repos you run agents in.
+- **Secrets you paste into a conversation.** Capture-tier rules catch well-known token formats; a pasted connection string or a bespoke internal token may sail through to the note. Treat an agent conversation like a group chat: if you would not paste it there, do not paste it here.
+- **Other exits.** `cledger export`, `log`, `show`, and the raw notes ref all print stored content freely on the machine that holds it — they are reads of local plaintext, not shares. The gate sits on the one path that publishes: pushing the ledger ref.
+
+If a real secret does reach the remote, redaction cannot recall it (see `cledger redact` below for why) — **rotate the credential**. That is the honest failure mode of every system in this category.
+
+### Writing secret-shaped fixtures
+
+Repos that test or document secret handling (this one included) constantly mint fake credentials, and every fake that looks real enough becomes a scan finding a human has to wave through. Two conventions keep fixtures out of the review queue *at authoring time* instead:
+
+- **Put an uppercase marker in the fake value**: `password=FAKEhunter2aa`, `api_key: "EXAMPLE-abcdef12345678"`. Scan-tier heuristics skip spans containing `FAKE`, `EXAMPLE`, `PLACEHOLDER`, `DUMMY`, `NOTREAL`, or `TESTONLY` (uppercase only — `example.com` in a URL does not count, writing the marker must be an authoring choice). This is the convention to teach your coding agents; this repo's `CLAUDE.md` does.
+- **For format-valid tokens** (a syntactically real `ghp_…` that must exercise a capture rule), markers are ignored by design — store the token split into parts and reassemble at runtime, as `src/test/fixtures/secret-corpus.json` does with `secret_parts`. A whole format-valid token should never exist as literal bytes in a file, a conversation, or a commit.
+
 ### Redaction layers
 
 **Capture-time redaction** (default on): Replaces prefixed tokens (`ghp_…`, `sk-ant-…`, `AKIA…`, `xox…-`, `AIza…`, `glpat-…`, `npm_…`, `sk_live_…`), PEM private keys, JWTs with `[REDACTED:<rule-id>:<fingerprint>]`. Conservative, near-zero false-positive ruleset applied before event ids are computed.
@@ -247,12 +265,17 @@ Visible tool output can contain secrets: API keys in error messages, credentials
 - Threat addressed: the capture/scan feedback loop — a value the broad sync scan catches but the conservative capture tier misses gets re-ingested raw every time you revisit it while fixing it. Once redacted, capture learns it and it can never be re-captured raw again.
 - Cost of enabling: confirmed secret plaintext lives in a new (local, unshared) file; like env masking, capture becomes machine-dependent for those values. Concretely, re-capturing a source line whose value is now remembered yields *scrubbed* content and therefore a different event id, so it no longer dedups against the pre-existing event — you get a second, also-scrubbed copy rather than a resurrected secret. Id churn, not leakage.
 
-**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push with a report and remediation instructions; the report prints **coordinates only** — event id, rule, JSON path + offset, fingerprint — and never a character of the flagged text or its surroundings, because the context around a match is itself what tripped the rule, so a printed excerpt re-seeds a finding on the report. Readable output lives behind `cledger inspect <event-id>`, which writes to a `0600` file outside the repo and refuses to run inside a coding-agent session. In the pre-push hook, a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
+**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push with a report and remediation instructions; the report prints **coordinates only** — event id, rule, JSON path + offset, fingerprint — and never a character of the flagged text or its surroundings, because the context around a match is itself what tripped the rule, so a printed excerpt re-seeds a finding on the report. The report is **grouped by fingerprint**: the same span recurring across an event's `content` and `raw` mirrors, or across every edit of one file, is one decision, and the report's size tracks decisions rather than match sites (this repo's own dogfood backlog was 153 sites that collapse to 11 spans). Readable content lives behind `cledger review` (interactive, one screen per span) and `cledger inspect <event-id>` (writes a `0600` file outside the repo); both refuse to run inside a coding-agent session. In the pre-push hook, a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
 - Threat addressed: secrets from older capture rules or new tool formats slipping through.
 - Cost of disabling: `{"scan": {"tier": "off"}}` — secrets in tool output push silently.
-- Remediation paths: `cledger redact <event-id>` (real secrets), `cledger allow <fingerprint>` (false positives), `cledger sync --no-scan` (bypass once). `--paranoid` tier adds entropy-based detection (noisier but broader).
+- Remediation paths: `cledger review` (walk every outstanding span, one keystroke each), `cledger redact <event-id>` (real secrets), `cledger allow <fingerprint>` (false positives), `cledger sync --no-scan` (bypass once). `--paranoid` tier adds entropy-based detection (noisier but broader).
+- Scan-tier heuristics skip a match whose span carries an uppercase fixture marker (`FAKE`, `EXAMPLE`, `PLACEHOLDER`, `DUMMY`, `NOTREAL`, `TESTONLY`) — see "Writing secret-shaped fixtures" below. Capture-tier rules never honor the marker: they match real token formats, and a real leaked token could contain those bytes by chance.
+
+**Allowlist tiers**: a false positive is usually a property of the *text* (a fixture, a doc example), not of the repo it was captured in — the same span gets re-flagged in the next repo that quotes the same doc. `cledger allow <fp>` records it for this repo (`.git/conversation-ledger/allowlist.json`); `cledger allow <fp> --global` records it for every repo on this machine (`~/.config/cledger/allowlist.json`); and a repo can commit shared entries in `.cledger.json` as `{"scan": {"allowFingerprints": ["..."]}}` so clones and teammates inherit them. All three union at scan time. Fingerprints are truncated `sha256` of a span a human judged *not* to be a secret, so committing them discloses nothing.
 
 ### Commands
+
+`cledger review [--paranoid] [--context N]`: The intended remediation path. Steps through every outstanding finding interactively — one screen per distinct span, the match highlighted inside real surrounding context, `a` to allow in this repo, `g` to allow globally, `r` to redact it everywhere it appears (the span is escaped into a literal pattern for you — you never retype a secret), `s` to skip. HUMANS ONLY: refuses inside a coding-agent session and without a TTY on both ends, for the same reason inspect does — flagged content that lands in a transcript re-seeds the finding.
 
 `cledger redact <event-id> (--pattern REGEX | --all) [--reason TEXT]`: Rewrites a stored event to a placeholder + audit metadata, appends a `redaction` event, and severs the local notes-ref commit chain so the prior note is unreachable from the ref.
 
@@ -268,6 +291,27 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 
 ## Roadmap
 
+- **Auto-triage of findings whose span is committed repo content — considered
+  and deferred, with data** (2026-08-12). The idea: if a flagged span exists
+  verbatim in a blob already on the remote, the ledger leaks nothing the repo
+  has not published, so the finding could downgrade itself. Tested against
+  the only backlog available — this repo's 11 outstanding fingerprints plus
+  turnbridge's 4 — it would have cleared **zero of 15**: the split-parts
+  corpus convention means assembled fixture bytes never reach a committed
+  file, and the other spans lived in shell commands and intermediate edit
+  states that were rewritten before committing. The mechanism is sound but
+  its hit rate on real backlogs is unproven, and it adds a scan-time
+  dependency on remote-reachability computation. Revisit if a backlog ever
+  shows committed-content spans; `cledger review` clearing 15 spans in a
+  minute weakens the case for more machinery.
+- **`cledger review` shows a context window, not the conversation** — the
+  0.21.0 reviewer renders the flagged string with ±600 chars (scrollable,
+  the whole string is available). A richer version would page through the
+  *conversation* around the event — prior and following turns, like reading
+  the transcript — which needs event-sequence pagination keyed on
+  `conversation.seq` and a real layout pass. Deferred until the per-span
+  flow proves insufficient; most verdicts so far need only the surrounding
+  string.
 - **The `>/dev/null 2>&1` on the Gemini and Qwen hooks is probably now
   pointless, and costs visibility** — it was added after `qwen -p "..."` failed
   to capture, on the theory that the redirect "routes the command through a
@@ -381,18 +425,17 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   pipe (see `runOpencode`). Worth reporting upstream; the workaround should
   stay regardless, since it costs nothing and protects older opencode
   versions.
-- **Config sections replace rather than merge, and it fails open** — `loadConfig`
-  merges `~/.config/cledger/config.json` and `<repo>/.cledger.json` per
-  *top-level section*, not per key (`const redact = override.redact ??
-  base.redact`). So a repo that commits a `.cledger.json` with *any* `redact`
-  key — a `patterns` list, say — silently replaces the user's entire `redact`
-  section, and a globally-enabled `redact.knownSecrets: true` reverts to its
-  default of `false`. Capture-time scrubbing of learned secret values then
-  stops in that repo, with nothing printed and nothing in the ledger to show
-  it happened. Same shape as the pre-0.13.0 worktree bug: silent, fails open,
-  visible only if you go looking. Fix is a deep merge within each section, or
-  at minimum a warning when a repo config overrides a section the user config
-  had already set. Worth doing together with a general sweep for this class.
+- **Config sections replace rather than merge, and it fails open** — *fixed in
+  0.21.0*: `loadConfig` now merges each top-level section key-by-key, so a
+  repo `.cledger.json` that sets only `redact.patterns` no longer silently
+  reverts a globally-enabled `redact.knownSecrets` to its default. The one
+  deliberate exception: `scan.allowFingerprints` arrays are unioned rather
+  than repo-wins, because the allowlist is accumulative — a fingerprint either
+  config trusts is trusted, and replacement would make a repo-local entry
+  silently drop every personal one. Kept here rather than deleted because the
+  bug is a family member (see below) and its shape — a config surface where
+  *mentioning* a section disabled a sibling protection — is worth remembering
+  when adding config keys.
 
   **Self-referential failures are now this project's characteristic bug
   family**, and are worth a standing check rather than four independent
@@ -504,6 +547,11 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   not a real-looking token") is a signal the `keyword-assignment` rule itself
   should get smarter — not something every project should have to
   allowlist for itself.
+  *0.21.0 delivered the shared-fix half*: the uppercase fixture marker keeps
+  deliberate fakes out of the queue entirely, `allow --global` and
+  `scan.allowFingerprints` in `.cledger.json` let one human decision travel
+  across repos and clones. The "make the rule smarter" half (a
+  discussion-vs-assignment discriminator) remains open below.
   - **The false positive is self-perpetuating through documentation**
     (observed 2026-07-27, from `intent-recall`): a design conversation that
     quoted *this very roadmap entry* — the paragraph above, containing the

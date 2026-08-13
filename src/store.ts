@@ -40,13 +40,13 @@ import {
   type UnmatchedBranch,
 } from "./reanchor.js";
 import { collectMatches, redactDraft, type ExtraValueGroup, type RedactionRecord } from "./redact/apply.js";
-import { captureRules, collectEnvValues, loadConfig } from "./redact/config.js";
+import { captureRules, collectEnvValues, loadConfig, type CledgerConfig } from "./redact/config.js";
 import { addKnownSecrets, loadKnownSecrets } from "./redact/known-secrets.js";
 import { RULESET_VERSION, type RedactionRule } from "./redact/rules.js";
 import {
   filterFindings,
   findingGuidance,
-  formatFinding,
+  formatGroupedReport,
   loadAllowlist,
   scanEvents,
 } from "./redact/scan.js";
@@ -794,6 +794,7 @@ async function runScanGate(
   remote: string,
   tier: "standard" | "paranoid",
   anchors: string[] | null,
+  config?: CledgerConfig,
 ): Promise<void> {
   const remoteIds = await remoteNoteIds(repo, remote);
 
@@ -814,18 +815,20 @@ async function runScanGate(
   const candidates = remoteIds ? localEvents.filter((e) => !remoteIds.has(e.id)) : localEvents;
   if (candidates.length === 0) return;
 
-  const findings = filterFindings(scanEvents(candidates, tier), await loadAllowlist(repo));
+  const findings = filterFindings(scanEvents(candidates, tier), await loadAllowlist(repo, config));
   if (findings.length === 0) return;
 
   const eventIds = [...new Set(findings.map((f) => f.eventId))];
+  const spans = new Set(findings.map((f) => f.fingerprint)).size;
   process.stderr.write(
-    `cledger sync: blocked — ${findings.length} potential secret(s) across ` +
-      `${eventIds.length} event(s) not yet on ${remote}\n\n`,
+    `cledger sync: blocked — ${spans} distinct potential secret(s) ` +
+      `(${findings.length} match site(s) across ${eventIds.length} event(s)) not yet on ${remote}\n\n`,
   );
-  for (const f of findings) process.stderr.write(`  ${formatFinding(f)}\n`);
+  process.stderr.write(`${formatGroupedReport(findings)}\n`);
   process.stderr.write(`\n${findingGuidance(eventIds)}\n`);
   process.stderr.write(
     "\nRemediate, then re-run sync:\n" +
+      "  cledger review                walk each span interactively (humans, plain terminal)\n" +
       "  cledger redact <event-id>     rewrite the event and remove the secret\n" +
       "  cledger allow <fingerprint>   mark a fingerprint as a known false positive\n" +
       "  cledger sync --no-scan        skip this gate for this sync only\n",
@@ -867,7 +870,7 @@ export async function sync(
     if (!scanDisabled) {
       const tier: "standard" | "paranoid" =
         opts.paranoid === true || config.scan?.tier === "paranoid" ? "paranoid" : "standard";
-      await runScanGate(repo, remote, tier, anchors);
+      await runScanGate(repo, remote, tier, anchors, config);
     }
     // The pushed child git inherits CLEDGER_INTERNAL, telling the pre-push
     // transport hook this push *is* the ledger push — no recursion.

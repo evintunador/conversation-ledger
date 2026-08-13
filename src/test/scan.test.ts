@@ -7,6 +7,8 @@ import {
   filterFindings,
   findingGuidance,
   formatFinding,
+  formatGroupedReport,
+  groupFindings,
   inAgentSession,
   loadAllowlist,
   renderFinding,
@@ -183,6 +185,99 @@ test("loadAllowlist/addToAllowlist: persists fingerprints under .git/conversatio
     assert.deepStrictEqual([...(await loadAllowlist(repo))].sort(), ["fp1", "fp2", "fp3"]);
   } finally {
     await cleanupRepo(repo);
+  }
+});
+
+test("allowlist tiers: global entries apply to every repo, config entries ride the config", async () => {
+  // HOME is isolated per test process (helpers.ts), so the "global" tier
+  // lands in a throwaway ~/.config/cledger.
+  const repoA = await makeTempRepo();
+  const repoB = await makeTempRepo();
+  try {
+    await addToAllowlist(repoA, ["feedfacefeed"], "global");
+    assert.ok((await loadAllowlist(repoA)).has("feedfacefeed"), "global entry visible in repo A");
+    assert.ok(
+      (await loadAllowlist(repoB)).has("feedfacefeed"),
+      "the same human decision must not be re-made per repo — that is the point of the tier",
+    );
+    // Local entries stay local.
+    await addToAllowlist(repoA, ["0123456789ab"], "local");
+    assert.ok(!(await loadAllowlist(repoB)).has("0123456789ab"));
+
+    // Config-carried fingerprints (committed in .cledger.json) join the union.
+    const withConfig = await loadAllowlist(repoB, {
+      scan: { allowFingerprints: ["cafebabecafe"] },
+    });
+    assert.ok(withConfig.has("cafebabecafe"));
+    assert.ok(withConfig.has("feedfacefeed"), "config tier adds to, never replaces, the files");
+  } finally {
+    await cleanupRepo(repoA);
+    await cleanupRepo(repoB);
+  }
+});
+
+test("scanEvents: an uppercase fixture marker exempts scan-tier heuristics, never capture-tier formats", () => {
+  // The fixture convention: a deliberately fake credential carries FAKE /
+  // EXAMPLE / PLACEHOLDER / DUMMY / NOTREAL / TESTONLY in the matched span,
+  // so it never becomes a finding and never needs allowlisting.
+  const marked = [
+    "password=FAKEhunter2hunter2",
+    'api_key: "EXAMPLE-abcdefgh12345678"',
+    "access_token=xPLACEHOLDERx1234567",
+  ];
+  for (const text of marked) {
+    const findings = scanEvents([event({ content: { text } })], "standard");
+    assert.strictEqual(findings.length, 0, `marker must exempt: ${text}`);
+  }
+
+  // Lowercase does not count: "example.com" in URL credentials is not an
+  // authoring choice, it is half the internet.
+  const lower = scanEvents(
+    [event({ content: { text: "https://admin:realpass123@example.com/x" } })],
+    "standard",
+  );
+  assert.ok(lower.length > 0, "lowercase 'example' must not exempt url-credentials");
+
+  // Capture-tier rules match real token formats and stay exempt-free: a
+  // format-valid GitHub token is flagged even with FAKE inside, because a
+  // real leaked token could contain those bytes by chance.
+  const ghpLike = `ghp_FAKE${"a1B2c3D4".repeat(4)}`; // ghp_ + 36 chars
+  const captureFindings = scanEvents([event({ content: { text: `x ${ghpLike} x` } })], "standard");
+  assert.ok(
+    captureFindings.some((f) => f.rule === "github-token"),
+    "capture-tier formats must not honor the marker",
+  );
+});
+
+test("groupFindings/formatGroupedReport: one block per distinct span, coordinates only", () => {
+  const secret = "supersecret123456";
+  const e1 = event({ content: { text: `password=${secret}` } });
+  const e2 = event({
+    content: { text: `again password=${secret}` },
+    raw: { format: "test/1", data: { blob: `password=${secret}` } },
+  });
+  const other = event({ content: { text: "api_key=differentsecret99" } });
+
+  const findings = scanEvents([e1, e2, other], "standard");
+  const groups = groupFindings(findings);
+  // Same span across events and content/raw mirrors collapses to one group;
+  // the different span stays its own group.
+  assert.strictEqual(groups.length, 2);
+  const big = groups.find((g) => g.findings.length > 1)!;
+  assert.strictEqual(big.eventIds.length, 2);
+
+  const report = formatGroupedReport(findings);
+  // One decision per span: each fingerprint appears exactly once as a block header.
+  for (const g of groups) {
+    assert.strictEqual(
+      report.split(`[${g.fingerprint}]`).length - 1,
+      1,
+      "each fingerprint must head exactly one block",
+    );
+  }
+  // Same no-content rule as formatFinding.
+  for (let i = 0; i + 6 <= secret.length; i++) {
+    assert.ok(!report.includes(secret.slice(i, i + 6)), "grouped report must not leak content");
   }
 });
 

@@ -262,7 +262,7 @@ test("redactDraft: extraValue groups scrub under their own rule ids", () => {
   assert.strictEqual(records.some((r) => r.rule === "env-value"), true);
 });
 
-test("loadConfig: repo config wins per-section over user config (shallow merge)", async () => {
+test("loadConfig: repo config wins per-key, and unmentioned keys keep global values", async () => {
   const home = await mkdtemp(join(tmpdir(), "cledger-home-"));
   const repoRoot = await mkdtemp(join(tmpdir(), "cledger-repo-"));
   const originalHome = process.env.HOME;
@@ -270,19 +270,33 @@ test("loadConfig: repo config wins per-section over user config (shallow merge)"
     await mkdir(join(home, ".config", "cledger"), { recursive: true });
     await writeFile(
       join(home, ".config", "cledger", "config.json"),
-      JSON.stringify({ redact: { capture: false, env: true }, scan: { tier: "standard" } }),
+      JSON.stringify({
+        redact: { capture: false, env: true, knownSecrets: true },
+        scan: { tier: "standard", allowFingerprints: ["aaaaaaaaaaaa"] },
+      }),
     );
-    await writeFile(join(repoRoot, ".cledger.json"), JSON.stringify({ redact: { capture: true } }));
+    await writeFile(
+      join(repoRoot, ".cledger.json"),
+      JSON.stringify({
+        redact: { capture: true },
+        scan: { allowFingerprints: ["bbbbbbbbbbbb"] },
+      }),
+    );
     process.env.HOME = home;
 
     const config = await loadConfig(repoRoot);
-    // Repo's `redact` section wins wholesale (shallow-per-section): the
-    // user's redact.env=true does not leak through even though repo's
-    // redact object never mentions `env`.
-    assert.deepStrictEqual(config.redact, { capture: true });
-    // `scan` is untouched by repo config, so the user's section carries
-    // through unchanged.
-    assert.deepStrictEqual(config.scan, { tier: "standard" });
+    // The key the repo sets wins; the keys it leaves out keep the global
+    // values. The old per-section replacement failed open here: a repo
+    // touching only `redact.capture` silently disabled the user's
+    // globally-enabled knownSecrets protection.
+    assert.deepStrictEqual(config.redact, { capture: true, env: true, knownSecrets: true });
+    // allowFingerprints is unioned, not replaced: a fingerprint either
+    // config trusts is trusted.
+    assert.strictEqual(config.scan?.tier, "standard");
+    assert.deepStrictEqual(
+      [...(config.scan?.allowFingerprints ?? [])].sort(),
+      ["aaaaaaaaaaaa", "bbbbbbbbbbbb"],
+    );
   } finally {
     if (originalHome === undefined) delete process.env.HOME;
     else process.env.HOME = originalHome;

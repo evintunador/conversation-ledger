@@ -475,6 +475,38 @@ Defense in depth, ordered by where they run and what they may do:
   otherwise do the helpful, wrong thing and read the secret straight into the
   record being protected. Reports therefore address humans and agents
   separately, and tell the agent to stop rather than merely warning it.
+
+  **The human half of the split is `cledger review` (0.21.0)**, an
+  interactive terminal walk of every outstanding finding, one screen per
+  distinct fingerprint (reports group by fingerprint too: review is a
+  judgment per *span*, and one span recurs across content/raw mirrors and
+  repeated edits — 153 sites, 11 decisions, in this repo's own backlog).
+  Verdicts apply on the spot: allow locally/globally, or redact — the span
+  is regex-escaped by the tool, so the human never retypes a secret. Same
+  agent-session refusal as inspect, no `--force`, plus a hard TTY
+  requirement on both ends since piped output is transcript-shaped. Content
+  renders to the terminal (alternate screen) rather than a file: inspect's
+  file exists so nothing passes through a possibly-recorded stdout, and
+  review accepts that trade for zero artifacts left on disk — a plain
+  terminal outside a harness is not a captured surface.
+
+  **False-positive decisions propagate (0.21.0).** Three allowlist tiers
+  union at scan time: per-repo (`.git/conversation-ledger/allowlist.json`),
+  per-user (`~/.config/cledger/allowlist.json`, written by `allow
+  --global`), and per-clone via `scan.allowFingerprints` in `.cledger.json`
+  — the only tier git carries, safe to commit because a fingerprint is a
+  truncated hash of a span a human ruled *harmless*. Motivating observation:
+  a false positive is a property of the text, not the repo — identical
+  fingerprints were found waiting for a second, redundant human review in a
+  sibling repo's queue.
+
+  **Fixture markers (0.21.0).** Scan-only rules skip a match whose span
+  contains uppercase `FAKE`/`EXAMPLE`/`PLACEHOLDER`/`DUMMY`/`NOTREAL`/
+  `TESTONLY`, so deliberately fake credentials in tests, docs, and the
+  conversations that write them never enter the queue. Capture-tier rules
+  ignore markers: they match real token formats, a real token can contain
+  those bytes by chance, and a silent capture-tier skip would fail open.
+  Format-valid fakes stay under the split-parts corpus convention instead.
 - **F. Known-secret learning (opt-in, default off).** Runs at capture like
   A/C/D, but is *sourced* from the E flow: a `cledger redact --pattern`
   remembers the exact values it scrubbed in a local, git-invisible store
