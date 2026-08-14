@@ -111,16 +111,15 @@ const RESET = "\x1b[0m";
 const DIM = "\x1b[2m";
 const BOLD = "\x1b[1m";
 const HIGHLIGHT = "\x1b[41;97;1m"; // white on red: the one thing on screen to judge
-const BAR = "\x1b[7m"; // reverse video status bar
 
-interface Screen {
+export interface Screen {
   write(s: string): void;
   columns: number;
   rows: number;
 }
 
 /** Everything the render needs, so it can be re-run on resize/scroll. */
-interface ViewState {
+export interface ViewState {
   group: FingerprintGroup;
   groupIndex: number;
   groupCount: number;
@@ -131,19 +130,60 @@ interface ViewState {
   opts: ReviewOptions;
 }
 
-function renderView(screen: Screen, view: ViewState): void {
+/** A dim horizontal rule with an inline label, e.g. `─── captured content ───…`. */
+function ruleLine(width: number, label: string, extra = ""): string {
+  const text = `─── ${label}${extra ? ` · ${extra}` : ""} `;
+  return DIM + (text + "─".repeat(Math.max(0, width - text.length))).slice(0, width) + RESET;
+}
+
+/** Bold every `[key]` cap so the actions read as a menu, not a sentence. */
+function emphasizeKeys(s: string): string {
+  return s.replace(/\[[^\]]+\]/g, (m) => `${BOLD}${m}${RESET}`);
+}
+
+/**
+ * Screen layout, top to bottom: a three-line header describing what is being
+ * shown, a ruled-off gutter pane holding the captured content (the only
+ * conversation text on screen), and a key menu of the possible verdicts, one
+ * action per line. The rules and the gutter exist so chrome and content
+ * cannot be confused — everything inside `│` is the record, everything
+ * outside it is the tool.
+ */
+export function renderView(screen: Screen, view: ViewState): void {
   const { group, event, opts } = view;
   const f = group.findings[view.siteIndex]!;
   const width = Math.max(40, screen.columns);
-  const bodyRows = Math.max(4, screen.rows - 7);
 
   const head = [
-    `${BOLD}span ${view.groupIndex + 1}/${view.groupCount}${RESET}  [${group.fingerprint}]  rule: ${group.rule}`,
-    `${group.findings.length} site(s) in ${group.eventIds.length} event(s) — showing site ${view.siteIndex + 1}: ` +
-      `${f.eventId.slice(0, 16)}  ${f.path}@${f.start}`,
-    `${DIM}${f.occurred_at}  ${f.conversation ?? "(no conversation)"}${RESET}`,
-    "",
+    `${BOLD}span ${view.groupIndex + 1} of ${view.groupCount}${RESET}  [${group.fingerprint}]  ${group.rule}`,
+    `${DIM}site ${view.siteIndex + 1} of ${group.findings.length} · event ${f.eventId.slice(0, 16)} · ${f.path} @${f.start}${RESET}`,
+    `${DIM}${f.occurred_at} · ${f.conversation ?? "(no conversation)"}${RESET}`,
   ];
+
+  const menuPairs: [string, string][] =
+    width >= 64
+      ? [
+          ["[a] allow in this repo", "[n]/[p] next / prev site"],
+          ["[g] allow on this machine", "[j]/[k] scroll"],
+          ["[r] redact everywhere", "[q] quit"],
+          ["[s] skip for now", ""],
+        ]
+      : [
+          ["[a] allow in this repo", ""],
+          ["[g] allow on this machine", ""],
+          ["[r] redact everywhere", ""],
+          ["[s] skip for now", ""],
+          ["[n]/[p] site · [j]/[k] scroll · [q] quit", ""],
+        ];
+  const menu = menuPairs.map(
+    ([left, right]) => "  " + emphasizeKeys(left.padEnd(28)) + (right ? emphasizeKeys(right) : ""),
+  );
+
+  // header + two rules + message line + menu; one spare row so the last
+  // write never scrolls the terminal.
+  const chromeRows = head.length + 2 + 1 + menu.length + 1;
+  const bodyRows = Math.max(4, screen.rows - chromeRows);
+  const paneWidth = width - 2; // "│ " gutter
 
   let bodyLines: string[];
   const value = event ? collectStrings(event).get(f.path) : undefined;
@@ -158,24 +198,26 @@ function renderView(screen: Screen, view: ViewState): void {
     runs.push({ text: value.slice(f.start, f.end), style: HIGHLIGHT });
     runs.push({ text: value.slice(f.end, hi), style: "" });
     if (hi < value.length) runs.push({ text: ` …[${value.length - hi} chars after]…`, style: DIM });
-    bodyLines = wrapRuns(runs, width);
+    bodyLines = wrapRuns(runs, paneWidth);
   }
   const maxScroll = Math.max(0, bodyLines.length - bodyRows);
   view.scroll = Math.min(view.scroll, maxScroll);
   const visible = bodyLines.slice(view.scroll, view.scroll + bodyRows);
   while (visible.length < bodyRows) visible.push("");
 
-  const scrollNote =
-    bodyLines.length > bodyRows ? `  (${view.scroll}/${maxScroll} scrolled, j/k)` : "";
-  const bar =
-    ` a allow here  g allow globally  r redact everywhere  s skip  n/p site  j/k scroll  q quit${scrollNote}`;
-  const msg = view.message ? `${BOLD}${view.message}${RESET}` : "";
+  const scrollExtra =
+    bodyLines.length > bodyRows
+      ? `lines ${view.scroll + 1}-${Math.min(view.scroll + bodyRows, bodyLines.length)} of ${bodyLines.length}, [j]/[k] to scroll`
+      : "";
+  const gutter = `${DIM}│${RESET} `;
 
   screen.write("\x1b[2J\x1b[H"); // clear + home
   screen.write(head.join("\n") + "\n");
-  screen.write(visible.join("\n") + "\n");
-  screen.write(msg + "\n");
-  screen.write(BAR + bar.slice(0, width - 1).padEnd(width - 1) + RESET);
+  screen.write(ruleLine(width, "captured content", scrollExtra) + "\n");
+  screen.write(visible.map((l) => gutter + l).join("\n") + "\n");
+  screen.write(ruleLine(width, "verdict for this span") + "\n");
+  screen.write((view.message ? ` ${BOLD}${view.message}${RESET}` : "") + "\n");
+  screen.write(menu.join("\n"));
 }
 
 async function readKeys(onKey: (key: string) => Promise<boolean>): Promise<void> {
