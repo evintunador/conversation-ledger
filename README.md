@@ -64,7 +64,8 @@ cledger log --model gpt-5.6-sol # only turns a given model served
 cledger log --with-state        # also the harness's own state, activity, injections, snapshots
 cledger conversations           # sessions touching this branch, with the models they used
 cledger show claude-code:3f9a   # replay one conversation in order (matches subagents too)
-cledger export > ledger.jsonl   # lossless dump, incl. source-native payloads
+cledger export > ledger.jsonl   # every field incl. source-native payloads, this branch
+cledger export --all            # ...and every branch this machine captured
 cledger sync                    # explicit fetch/merge/push of the ledger ref
 cledger re-anchor               # what did the remote squash away? (--apply to map it)
 echo '{"kind":"decision",...}' | cledger append   # any tool can write events
@@ -567,22 +568,54 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   place instead of leaving any file containing the marker untouched — only the
   marked region is rewritten, so surrounding user content survives.
 
-  *Not addressed here:* the read default. `cledger export` still defaults to
-  no reachability filter, and the fix belongs in `readEvents` rather than in
+  *Not addressed here:* the read default — `cledger export` still defaulted to
+  no reachability filter, and the fix belonged in `readEvents` rather than in
   one CLI command, since library consumers (intent-recall) never go through
-  the CLI and would otherwise inherit the unscoped view. Separate entry below.
+  the CLI and would otherwise inherit the unscoped view. Closed in 0.23.0; see
+  the entry below.
   Per-branch remote refs (`…-branches/<branch>` plus a wildcard fetch refspec)
   were considered and are *not* needed; they would only add fetch-side
   selectivity, letting a collaborator decline a branch's conversations
   entirely. Worth revisiting only if that is ever wanted.
-- **Reads default to unscoped** — `readEvents` applies reachability only when
-  the caller asks, and `cledger export` never asks, so an automated consumer
-  reading the ledger directly gets every branch's conversations unless it
-  knows to pass a rev. Now that push is scoped, this is the remaining half of
-  the same mismatch. The default belongs in `readEvents` (with an explicit
-  opt-out) rather than in `export`, precisely because the consumers that
-  matter — intent-recall and anything else using the library — never go
-  through the CLI at all.
+- **Reads defaulted to unscoped** *(shipped, 0.23.0)* — `readEvents` applied
+  reachability only when the caller asked, and `cledger export` never asked, so
+  an automated consumer reading the ledger directly got every branch's
+  conversations — including work that was abandoned and never merged — unless
+  it knew to pass a rev. With push scoped since 0.14.0, this was the remaining
+  half of the same mismatch.
+  `ReadOptions.reachableFrom` now defaults to `HEAD`, and the fix sits in
+  `readEvents` rather than in `export` precisely because the consumers that
+  matter — intent-recall and anything else using the library — never go through
+  the CLI at all. `cledger export` gains `--all` alongside `--rev`, matching
+  `log`.
+  *The opt-out is `null`, not "unset".* `undefined` means "the caller did not
+  say" and resolves to `HEAD`; only an explicit `reachableFrom: null` asks for
+  the whole local ledger. That distinction is the whole point — the callers
+  that genuinely want everything are few and deliberate, while the ones that
+  silently got everything by not asking were the bug. Four say so at their call
+  site, each for the same reason: they must not depend on what is checked out.
+  `cledger scan` and `cledger review` (a secret does not stop being one because
+  its branch is not checked out), `cledger inspect` (an event id is a global
+  handle), and `renormalize` (otherwise it strands preserved lines on every
+  branch but the current one). `cledger show <id>` is the fifth: you named one
+  conversation, so reachability is not the question you asked.
+  *Consequence worth knowing:* after a `cledger sync --fetch`, conversations
+  anchored to commits you have not fetched are invisible by default — correct,
+  since you cannot reach them, but it looks like nothing arrived. `--all`
+  answers "did it arrive"; the default answers "does it belong to this
+  history". Two of the transport tests had been quietly conflating the two.
+- **A closed reader can report `ENOTCONN`, not just `EPIPE`** *(shipped,
+  0.23.0)* — a follow-up to 0.22.0's stdout guard, which matched `EPIPE` alone.
+  On macOS Node does not always back stdio with a pipe, and a write to a
+  socket-backed stdout whose peer has closed reports `ENOTCONN` instead. So
+  `cledger log --json | head -1` still exited 1 with `write ENOTCONN` — the
+  stack trace was gone, the nonzero exit was not. Surfaced only under enough
+  concurrent load to change how far the teardown had progressed, which is why
+  the original test suite passed. `ECONNRESET` is matched too, for the
+  half-closed case. Which errno you get is an accident of what kind of file
+  descriptor Node handed the process, never of what the user did; the test now
+  asserts stderr is *empty* rather than free of one named errno, since an
+  assertion naming one would have passed while the command was still broken.
 - **Audit the allowlist for generalizable false-positive patterns** — this
   repo's own dogfood allowlist (2026-07-22) picked up two `keyword-assignment`
   fingerprints from this project's own development conversation: test code

@@ -252,7 +252,10 @@ async function loadGroups(
   decided: Set<string>,
 ): Promise<{ groups: FingerprintGroup[]; byId: Map<string, EvidenceEvent> }> {
   const config = await loadConfig(repo.root);
-  const events = await readEvents(repo, {});
+  // Whole local ledger, not the current branch: a secret does not stop being a
+  // secret because the branch that captured it is not checked out, and the
+  // reviewer's whole job is to empty the outstanding queue.
+  const events = await readEvents(repo, { reachableFrom: null });
   const findings = filterFindings(scanEvents(events, opts.tier), await loadAllowlist(repo, config));
   const groups = groupFindings(findings).filter((g) => !decided.has(g.fingerprint));
   return { groups, byId: new Map(events.map((e) => [e.id, e])) };

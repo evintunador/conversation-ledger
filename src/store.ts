@@ -256,8 +256,22 @@ export async function readPending(repo: RepoInfo): Promise<EvidenceEvent[]> {
 }
 
 export interface ReadOptions {
-  /** Restrict to events anchored to commits reachable from this rev. */
-  reachableFrom?: string;
+  /**
+   * Restrict to events anchored to commits reachable from this rev.
+   *
+   * **Defaults to `HEAD`.** Storage is per-commit and push has been
+   * branch-scoped since 0.14.0; reads were the last place where "the ledger"
+   * still meant every branch this machine ever captured, including work that
+   * was abandoned and never merged. A consumer asking what was said about
+   * *this* code wants the conversations that led to it, not every conversation
+   * that ever happened in the repo.
+   *
+   * Pass `null` for the whole local ledger. That is the right choice for
+   * maintenance and safety passes that must see everything regardless of what
+   * is checked out — `cledger scan`, `review`, `inspect`, `renormalize` — and
+   * they say so explicitly at the call site.
+   */
+  reachableFrom?: string | null;
   kind?: string;
   source?: string;
   /**
@@ -287,8 +301,14 @@ export async function readEvents(repo: RepoInfo, opts: ReadOptions = {}): Promis
     }
     return events;
   };
-  if (opts.reachableFrom) {
-    anchors = await resolveAnchors(repo, anchors, opts.reachableFrom, readNote);
+  // `undefined` means "the caller did not say", which now resolves to HEAD
+  // rather than to the whole ledger; only an explicit `null` opts out. The
+  // distinction matters because the callers that genuinely want everything are
+  // few and deliberate, while the ones that silently got everything by not
+  // asking were the bug.
+  const scope = opts.reachableFrom === undefined ? "HEAD" : opts.reachableFrom;
+  if (scope !== null) {
+    anchors = await resolveAnchors(repo, anchors, scope, readNote);
   }
   const events: EvidenceEvent[] = [];
   for (const anchor of anchors) {

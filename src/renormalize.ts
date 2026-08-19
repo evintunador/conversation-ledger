@@ -71,7 +71,10 @@ export interface RenormalizeResult {
 
 export async function renormalize(repo: RepoInfo): Promise<RenormalizeResult> {
   const identity = await gitUserIdentity(repo);
-  const all = await readEvents(repo);
+  // Whole local ledger: re-normalizing only what the current branch reaches
+  // would leave preserved lines stranded on every other branch, and silently
+  // make the result depend on what happened to be checked out.
+  const all = await readEvents(repo, { reachableFrom: null });
 
   // Targets of any existing supersession — already re-normalized, skip them so
   // a re-run does no work rather than relying on dedup alone.

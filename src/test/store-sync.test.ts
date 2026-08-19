@@ -23,9 +23,18 @@ test("sync: push from one repo, fetch into another, via a shared bare remote", a
     assert.strictEqual(fetchResult.fetched, true);
     assert.strictEqual(fetchResult.pushed, false);
 
-    const bEvents = await readEvents(b);
+    // B's history is deliberately unrelated to A's, so A's anchor is
+    // unreachable from B's HEAD. This test is about transport, so it asks for
+    // the whole local ledger; the default scope correctly reports nothing,
+    // which the assertion below pins rather than leaves to chance.
+    const bEvents = await readEvents(b, { reachableFrom: null });
     assert.strictEqual(bEvents.length, 1);
     assert.deepStrictEqual(bEvents[0]?.content, { text: "from-a" });
+    assert.deepStrictEqual(
+      await readEvents(b),
+      [],
+      "arrived is not the same question as reachable from here",
+    );
   } finally {
     await cleanupRepo(a);
     await cleanupRepo(b);
@@ -57,7 +66,9 @@ test("sync: concurrent divergent appends in two repos both survive a both-ways s
     assert.strictEqual(bBoth.fetched, true);
     assert.strictEqual(bBoth.pushed, true);
 
-    const bEvents = await readEvents(b);
+    // Both repos sit on unrelated commits, so neither reaches the other's
+    // anchor; the merge is what is under test, not the read scope.
+    const bEvents = await readEvents(b, { reachableFrom: null });
     assert.strictEqual(bEvents.length, 2);
     assert.deepStrictEqual(
       bEvents.map((e) => JSON.stringify(e.content)).sort(),
@@ -68,7 +79,7 @@ test("sync: concurrent divergent appends in two repos both survive a both-ways s
     const aFetch = await sync(a, "origin", "fetch");
     assert.strictEqual(aFetch.fetched, true);
 
-    const aEvents = await readEvents(a);
+    const aEvents = await readEvents(a, { reachableFrom: null });
     assert.strictEqual(aEvents.length, 2);
     const aContents = aEvents.map((e) => JSON.stringify(e.content)).sort();
     const bContents = bEvents.map((e) => JSON.stringify(e.content)).sort();
