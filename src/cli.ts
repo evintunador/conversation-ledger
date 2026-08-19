@@ -293,9 +293,53 @@ async function writeOut(text: string): Promise<void> {
   if (!process.stdout.write(text)) await once(process.stdout, "drain");
 }
 
-async function printHuman(events: EvidenceEvent[]): Promise<void> {
+/**
+ * Position of each event within its own conversation, for display.
+ *
+ * `conversation.seq` is an ordering key, not a counter — adapters are free to
+ * derive it from whatever the source makes stable, and the opencode adapter
+ * now takes it from the part id, which is a 48-bit timestamp. Printing that
+ * raw turned every opencode row into `opencode:9f2a#67580218395`. What a
+ * reader wants there is "where in the conversation is this", so `log` ranks
+ * the events it has and prints the rank.
+ *
+ * Ranked over the events the read returned, before the display filter narrows
+ * them — so hiding the harness's bookkeeping does not renumber the turns
+ * around it. A filter applied at read time (`--kind`, `--source`,
+ * `--conversation`) does narrow what there is to rank, which makes the number
+ * a position within the view you asked for rather than an absolute index into
+ * the conversation. That is the honest reading of it either way: the ledger
+ * only ever holds what it captured.
+ */
+function ordinals(events: EvidenceEvent[]): Map<string, number> {
+  const byConversation = new Map<string, EvidenceEvent[]>();
   for (const e of events) {
-    const conv = e.conversation ? `${e.conversation.id.slice(0, 28)}#${e.conversation.seq}` : "-";
+    if (!e.conversation) continue;
+    const bucket = byConversation.get(e.conversation.id);
+    if (bucket) bucket.push(e);
+    else byConversation.set(e.conversation.id, [e]);
+  }
+  const rank = new Map<string, number>();
+  for (const bucket of byConversation.values()) {
+    bucket.sort((a, b) => a.conversation!.seq - b.conversation!.seq);
+    // Ties share a rank: a reasoning blob and the turn it belongs to are
+    // deliberately written at the same seq, and numbering one of them second
+    // would invent an ordering the adapter went out of its way not to assert.
+    let position = 0;
+    let previousSeq: number | null = null;
+    for (const e of bucket) {
+      if (previousSeq === null || e.conversation!.seq !== previousSeq) position++;
+      previousSeq = e.conversation!.seq;
+      rank.set(e.id, position);
+    }
+  }
+  return rank;
+}
+
+async function printHuman(events: EvidenceEvent[], rank?: Map<string, number>): Promise<void> {
+  for (const e of events) {
+    const position = rank?.get(e.id) ?? e.conversation?.seq;
+    const conv = e.conversation ? `${e.conversation.id.slice(0, 28)}#${position}` : "-";
     const role =
       (e.content as Record<string, unknown> | null | undefined) &&
       typeof e.content === "object"
@@ -371,10 +415,14 @@ async function cmdAppend(flags: Flags): Promise<void> {
 async function cmdLog(flags: Flags): Promise<void> {
   const repo = await requireRepo();
   const opts = readOptionsFrom(flags);
-  let events = await readEvents(repo, opts);
-  events = events.filter(displayFilter(flags, opts));
+  const all = await readEvents(repo, opts);
+  const events = all.filter(displayFilter(flags, opts));
+  // Ranked over `all`, not `events`: the display filter hides bookkeeping, and
+  // hiding it must not renumber the turns around it. `--json` is untouched —
+  // it prints the stored `seq`, because a machine reading the ledger wants the
+  // real ordering key, not a per-view position.
   if (flags["json"]) await printJsonl(events, false);
-  else await printHuman(events);
+  else await printHuman(events, ordinals(all));
 }
 
 async function cmdShow(positional: string[], flags: Flags): Promise<void> {
