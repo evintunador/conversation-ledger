@@ -496,3 +496,145 @@ test("captureCodexTranscript: event_msg splits into duplicates (dropped) and eve
     await cleanupDir(dir);
   }
 });
+
+/**
+ * Codex writes one rollout per thread, sub-agents included, in the same flat
+ * date tree with no distinguishing filename. A child is told apart only by
+ * `session_meta.payload.source` being an object with a `subagent` key — and
+ * its `payload.session_id` holds the *parent's* id, not its own.
+ *
+ * Shapes here follow 40 real rollouts on a live Codex 0.146.0: `payload.id`
+ * matched the filename uuid for all 40, `session_id` for only the 29
+ * top-level ones, and the 11 that disagreed were exactly the 11 with an
+ * object `source`, every one carrying `parent_thread_id`.
+ */
+const CHILD_UUID = "222e4567-e89b-12d3-a456-426614174999";
+const PARENT_UUID = "111e4567-e89b-12d3-a456-426614174111";
+
+async function writeSubagentRollout(dir: string, meta: Record<string, unknown>): Promise<string> {
+  const path = join(dir, `rollout-2026-01-01T00-00-00-${CHILD_UUID}.jsonl`);
+  const lines = [
+    { type: "session_meta", payload: meta },
+    {
+      type: "response_item",
+      timestamp: "2026-01-01T00:00:01.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "child turn" }],
+      },
+    },
+  ].map((l) => JSON.stringify(l));
+  await writeFile(path, lines.join("\n") + "\n");
+  return path;
+}
+
+test("captureCodexTranscript: a sub-agent rollout is its own conversation, under its parent", async () => {
+  const repo = await makeTempRepo();
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-sub-"));
+  try {
+    await makeCommit(repo);
+    const path = await writeSubagentRollout(dir, {
+      id: CHILD_UUID,
+      // The trap: on a child rollout this names the PARENT thread.
+      session_id: PARENT_UUID,
+      parent_thread_id: PARENT_UUID,
+      source: { subagent: { thread_spawn: { agent_role: "reviewer", depth: 1 } } },
+    });
+    await captureCodexTranscript(path, repo.root);
+
+    const events = await readEvents(repo);
+    const turn = events.find((e) => e.kind === "conversation_turn")!;
+    assert.strictEqual(
+      turn.conversation!.id,
+      `codex:${CHILD_UUID}`,
+      "the child's turns belong to the child, not to whatever session_id claimed",
+    );
+    assert.strictEqual(
+      turn.conversation!.parent,
+      `codex:${PARENT_UUID}`,
+      "and the trail back to the parent is recorded",
+    );
+    assert.strictEqual(turn.producer.session_id, CHILD_UUID);
+    // Every event in the file gets the link, not just the turns — the parent
+    // is a property of the rollout.
+    assert.ok(
+      events.every((e) => e.conversation?.parent === `codex:${PARENT_UUID}`),
+      "session_meta and turns alike carry the parent",
+    );
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
+  }
+});
+
+test("captureCodexTranscript: a top-level rollout keeps its id and gains no parent", async () => {
+  // The no-churn guarantee: for a top-level session `id`, `session_id` and the
+  // filename uuid all agree, so preferring `id` changes no event's identity.
+  const repo = await makeTempRepo();
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-top-"));
+  try {
+    await makeCommit(repo);
+    const path = await writeSubagentRollout(dir, {
+      id: CHILD_UUID,
+      session_id: CHILD_UUID,
+      source: "cli",
+    });
+    await captureCodexTranscript(path, repo.root);
+
+    const events = await readEvents(repo);
+    assert.ok(events.length > 0);
+    assert.ok(
+      events.every((e) => e.conversation?.id === `codex:${CHILD_UUID}`),
+      "a string `source` is a top-level session",
+    );
+    assert.ok(
+      events.every((e) => e.conversation?.parent === undefined),
+      "and it is nobody's child",
+    );
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
+  }
+});
+
+test("captureCodexTranscript: parent and child do not share a capture cursor", async () => {
+  // Keying on the parent's id meant both threads wrote the same cursor file,
+  // each dragging the other into a full rescan. Distinct ids, distinct cursors:
+  // capturing the child must not make the parent re-ingest what it already had.
+  const repo = await makeTempRepo();
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-cursor-"));
+  try {
+    await makeCommit(repo);
+    const parentPath = join(dir, `rollout-2026-01-01T00-00-00-${PARENT_UUID}.jsonl`);
+    await writeFile(
+      parentPath,
+      [
+        JSON.stringify({ type: "session_meta", payload: { id: PARENT_UUID, session_id: PARENT_UUID, source: "cli" } }),
+        JSON.stringify({
+          type: "response_item",
+          timestamp: "2026-01-01T00:00:01.000Z",
+          payload: { type: "message", role: "user", content: [{ type: "input_text", text: "parent turn" }] },
+        }),
+      ].join("\n") + "\n",
+    );
+    const firstPass = await captureCodexTranscript(parentPath, repo.root);
+    assert.ok(firstPass.appended > 0);
+
+    const childPath = await writeSubagentRollout(dir, {
+      id: CHILD_UUID,
+      session_id: PARENT_UUID,
+      parent_thread_id: PARENT_UUID,
+      source: { subagent: { other: {} } },
+    });
+    await captureCodexTranscript(childPath, repo.root);
+
+    // The parent is now at EOF and has nothing new; if the child had clobbered
+    // its cursor this would re-ingest and report appended > 0.
+    const reRun = await captureCodexTranscript(parentPath, repo.root);
+    assert.strictEqual(reRun.appended, 0, "the parent's cursor survived the child's capture");
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
+  }
+});

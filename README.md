@@ -205,8 +205,8 @@ not know.
 | Source | Trigger | Transcript store | Notes |
 |---|---|---|---|
 | Claude Code CLI | `Stop`/`SessionEnd` hooks | `~/.claude/projects/*/*.jsonl` | Also covers the VS Code extension and JetBrains plugin (both share `~/.claude/settings.json` hooks and transcripts), and desktop-app local/SSH/WSL sessions. Cloud "Remote" sessions and the Cowork tab run server-side — not captured. Every line type is now recorded: `system` lines that printed text become turns spoken by the system, `attachment` becomes `context_injection`, `mode`/`permission-mode`/`worktree-state`/`pr-link` and friends become `session_state`, `queue-operation` and the rest become `activity`, and `file-history-*` becomes `file_snapshot` with backup digests resolved at capture time. Sidechain (subagent) turns are captured as sub-conversations instead of dropped — including the `<session>/subagents/agent-*.jsonl` sibling files newer Claude Code writes, which the hook payload never names. The hook also sweeps other transcripts in the same project that cledger already has a cursor for and whose file grew past it, which is how a session's final lines get captured at all: the last hook reads to EOF, and Claude Code writes the closing bookkeeping (including the session's most complete file-history snapshot) afterwards. A transcript with no cursor is left alone — it was never cledger's to capture, and adopting it would backfill old conversations against today's HEAD. |
-| Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. Provider-encrypted `reasoning` items are preserved opaquely as `reasoning`-kind events (hidden from `log`/`show` by default, see Roadmap); inter-agent messages (`agent_message`) are captured as two events at the same `seq`: the visible turn, and a sealed `reasoning`-kind sibling carrying the embedded `encrypted_content` blocks, so an inter-agent session can still be replayed back through the provider that encrypted it. `turn_context` and `session_meta` are now recorded as `session_state` as well as read for `producer` metadata, so the sandbox policy, approval policy and reasoning effort a turn ran under are part of the record. Of the `event_msg` UI stream, only `agent_message`/`user_message` are dropped — they genuinely duplicate a `response_item`; token counts, task lifecycle, sub-agent activity, patch application and aborts have no twin and are recorded as `activity`. |
-| opencode | `session.idle` plugin event | SQLite at `~/.local/share/opencode/opencode.db` | The only adapter without an append-only transcript file. Rather than read opencode's database — whose schema is mid-migration, and which also stores API tokens — capture shells out to `opencode export --pure <id>` and converts its JSON. One event per *part*, not per message: opencode's store is mutable, and a part is the finest unit that stops changing, so a message that gains parts after an early idle appends rather than duplicating. Unlike Codex, `reasoning` parts are plaintext, so they become ordinary visible `thinking` blocks. Unsettled (`running`) tool calls are skipped and hold the cursor back until they finish. Subagent sessions are captured as their own conversation: opencode records a child's session id in the parent's `task` tool part, which is the only way to find them at all (`opencode session list` returns top-level sessions only), so capture walks them depth-first. Requires `opencode` on `PATH`; `cledger capture opencode --all` backfills every session opencode scopes to the current project, and `--transcript` reads a saved export. |
+| Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. Provider-encrypted `reasoning` items are preserved opaquely as `reasoning`-kind events (hidden from `log`/`show` by default, see Roadmap); inter-agent messages (`agent_message`) are captured as two events at the same `seq`: the visible turn, and a sealed `reasoning`-kind sibling carrying the embedded `encrypted_content` blocks, so an inter-agent session can still be replayed back through the provider that encrypted it. Sub-agent threads get their own rollout file, indistinguishable by name, and are captured as sub-conversations of the thread that spawned them (a session is keyed on `session_meta.payload.id`, since a child's `session_id` field names its *parent*); cledger does not yet walk `sub_agent_activity`'s `agent_thread_id` to find those files, so a child is captured only if something hands cledger its rollout. `turn_context` and `session_meta` are now recorded as `session_state` as well as read for `producer` metadata, so the sandbox policy, approval policy and reasoning effort a turn ran under are part of the record. Of the `event_msg` UI stream, only `agent_message`/`user_message` are dropped — they genuinely duplicate a `response_item`; token counts, task lifecycle, sub-agent activity, patch application and aborts have no twin and are recorded as `activity`. |
+| opencode | `session.idle` plugin event | SQLite at `~/.local/share/opencode/opencode.db` | The only adapter without an append-only transcript file. Rather than read opencode's database — whose schema is mid-migration, and which also stores API tokens — capture shells out to `opencode export --pure <id>` and converts its JSON. One event per *part*, not per message: opencode's store is mutable, and a part is the finest unit that stops changing, so a message that gains parts after an early idle appends rather than duplicating. `conversation.seq` and the capture cursor both come from the part id (a 48-bit creation timestamp opencode encodes in it), so deleting a part out of the middle renumbers nothing — a session whose ids opencode did not mint falls back to positional numbering. Unlike Codex, `reasoning` parts are plaintext, so they become ordinary visible `thinking` blocks. Unsettled (`running`) tool calls are skipped and hold the cursor back until they finish. Subagent sessions are captured as their own conversation: opencode records a child's session id in the parent's `task` tool part, which is the only way to find them at all (`opencode session list` returns top-level sessions only), so capture walks them depth-first. Requires `opencode` on `PATH`; `cledger capture opencode --all` backfills every session opencode scopes to the current project, and `--transcript` reads a saved export. |
 | Gemini CLI | `AfterAgent`/`SessionEnd` hooks | `~/.gemini/tmp/<project>/chats/session-*.jsonl` | The session file is append-only but is *not* a transcript: it is a write-ahead log of mutations to one conversation document — `$rewindTo` removals, `$set` metadata patches, whole-document `$set.messages` snapshots, and message upserts keyed by a durable id. Capture replays it with Gemini's own record precedence but deliberately does **not** honour the removals: verified on a live session, Gemini rewrote the document after a failed API call and silently dropped the prompt the user had just typed, so a faithful replay records no trace of it having been asked. The ledger keeps the union of every message the file ever held, each at its last-written value, and records each withdrawal as an `activity` naming the ids it took out — `rewind` for an explicit `$rewindTo`, `snapshot_drop` for a `$set.messages` snapshot that quietly omits what the document used to hold — so a withdrawn turn is legible as withdrawn rather than merely present. Both paths matter: the snapshot is the one the live incident above actually took. Verified against live Gemini CLI 0.54.0 sessions — including one where Gemini **deleted its own session file** after a `/rewind`, leaving the ledger's copy of that conversation the only surviving record of it. `$set` patches become `session_state` (with the message list left out of `raw`, since Gemini rewrites the *whole* conversation into every snapshot and each message is already captured as its own event), `info`/`error`/`warning` notices become turns spoken by the system (Gemini discards them; "quota exceeded" is often the only explanation for why a turn looks abandoned). Because nothing is ever removed, `seq` is assigned at first sighting and never reused, so a rewind cannot renumber later turns — the positional churn the opencode adapter accepts does not arise here. A model turn whose tool calls have not settled is withheld and holds the cursor back. Sub-sessions filed under `<chats>/<parent session id>/` are captured as sub-conversations. Gemini's harness-authored `<session_context>`/`<hook_context>` preambles are recorded but attributed to `system`, not to you. |
 | Qwen Code | `Stop`/`SessionEnd` hooks | `~/.qwen/projects/<escaped-cwd>/chats/<session-id>.jsonl` | A fork of Gemini CLI that did *not* inherit its conversation store: plain append-only JSONL with a claude-code-shaped envelope, so capture is per line with a line-index `seq`, a torn-tail-safe cursor, and the same catch-up sweep claude-code runs. Content is a Google GenAI `Part` list (shared with the Gemini CLI adapter): a `thought` part becomes a visible `thinking` block, `functionCall`/`functionResponse` become `tool_use`/`tool_result`. Everything that is not a turn arrives as a `system` line discriminated by `subtype`, and each maps to a kind: `attribution_snapshot` becomes `file_snapshot` (with per-file content hashes already in the record, so nothing needs resolving against a local cache), `custom_title`/`session_source`/`parent_session`/`goal_state` become `session_state`, `at_command` and the agent-launch prompts become `context_injection`, and everything else — including a subtype a future Qwen adds — becomes `activity` rather than being dropped or guessed at. A `parent_session` record makes a subagent chat a sub-conversation of the session that spawned it — though on Qwen Code 0.21.5 that is **not** how delegation was observed to work: a subagent runs in-process behind an `agent` tool call, writes no chat file of its own and no `parent_session` record, so the ledger stores the delegation as an ordinary `tool_use`/`tool_result` pair in the parent. Nothing about it is lost — the prompt handed to the subagent, its status, terminate reason and a per-tool execution summary all ride in `toolCallResult.resultDisplay` and are preserved in `raw` — but the subagent's own turn-by-turn conversation is never written by Qwen at all, so no adapter can recover it. Assistant lines state the serving model; `provider` is left unset because Qwen records only an *auth mode* (`openai`, `qwen-oauth`), not the inference provider the schema asks for. |
 
@@ -445,20 +445,56 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   Regression-tested by spawning the real binary and closing the pipe after the
   first chunk: an in-process call has no pipe to break, and a fixture under
   64KB passes without the fix.
-- **opencode capture is positional over a mutable store** — the other two
-  adapters read append-only transcript files, so `conversation.seq` (the
-  source line index) is stable forever and event ids never churn. opencode
+- **opencode capture was positional over a mutable store** *(shipped, 0.25.0)*
+  — the other adapters read append-only transcript files, so `conversation.seq`
+  (the source line index) is stable forever and event ids never churn. opencode
   keeps sessions in SQLite, where `session revert`, `message.removed` and
-  `part.removed` can delete parts out of the middle of a session. Deleting a
-  part shifts the positions of everything after it, and since `seq` is part of
-  event identity, the shifted parts re-capture under new ids — duplicates in
-  the ledger rather than lost or corrupted content, and only for sessions you
-  actually revert. Capturing per *part* rather than per message already keeps
-  the blast radius to the parts after the deletion. A real fix would derive
-  `seq` from opencode's own part ids instead of a running index, which needs
-  those ids to be reliably orderable; worth confirming before committing to
-  it. Related: opencode's `session delete` removes a conversation from
-  opencode entirely while the ledger keeps it, which is a feature, not a bug.
+  `part.removed` delete parts out of the middle. Deleting a part shifted the
+  positions of everything after it, and since `seq` is part of event identity,
+  the shifted parts re-captured under new ids — duplicates in the ledger rather
+  than lost content, but permanent, because the ledger is append-only.
+
+  *The open question was whether opencode's part ids are orderable. They are.*
+  opencode mints `prt_` + 12 hex + 14 random base62, where the hex is a 48-bit
+  `Date.now() * 4096 + per-millisecond counter` — its own `Identifier` scheme,
+  ULID-shaped without being a ULID. Verified against a live 1.18.10 store: 859
+  parts, **zero ordering violations within any session**. So `seq` now comes
+  from the part's own id, which makes it a property of the part rather than of
+  its neighbours: a deletion renumbers nothing and a rescan dedups.
+
+  *Chosen per session, never per part.* Ids not minted by opencode exist in the
+  wild (test harnesses and other tooling write their own), and a session mixing
+  a 48-bit timestamp with a small integer would sort into nonsense. Unless
+  every part in a session parses — and the values are distinct — the whole
+  session keeps the positional numbering and behaves exactly as it did before.
+
+  *The cursor moved to the same key.* It stored a part **count**, which only
+  notices parts going away when the session gets shorter; a deletion offset by
+  a new part left the count looking healthy while pointing at the wrong place.
+  It is now a high-water mark over `seq`, which has nothing to be offset by.
+  The "an unsettled tool call holds the cursor back" rule is unchanged in
+  effect — it just holds below the held part's `seq` instead of its index.
+
+  *Cost, accepted deliberately:* a 48-bit `seq` is not a counter, and printing
+  it raw turned every opencode row into `opencode:9f2a#67580218395`. `cledger
+  log`'s human format now prints a **position within the conversation**,
+  ranked over the events the read returned so that hiding the harness's
+  bookkeeping does not renumber the turns around it. `--json` and `export` are
+  untouched and still carry the stored `seq`: a machine reading the ledger
+  wants the real ordering key, not a per-view position. Ties share a rank,
+  since a reasoning blob and the turn it belongs to are deliberately written at
+  the same `seq`.
+
+  *Migration:* forward-only, like every identity change here. Already-captured
+  opencode events keep their positional seqs; only newly captured parts use the
+  derived ones, and the two sort correctly together (small numbers first, which
+  is also their real order). Re-capturing an old session from scratch would
+  file second copies — the same one-round cost every identity change in this
+  project carries, and bounded here by how few opencode events exist relative
+  to a whole ledger.
+
+  Related: opencode's `session delete` removes a conversation from opencode
+  entirely while the ledger keeps it, which is a feature, not a bug.
 - **The opencode hook's session-id fallback is untested** — the plugin reads
   `event.properties.sessionID`, confirmed against a live `session.idle` from
   opencode 1.18.5, so the normal path is pinned to the real field. The hook
@@ -940,13 +976,42 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   the redaction stack — so it wants a size policy and probably an opt-in
   before it ships. Raised by context-graph, which wants sub-commit file
   history and reads `~/.claude/file-history/` directly today.
-- **Codex sub-agent coverage is unconfirmed** — Claude Code and opencode
-  sub-conversations are both captured, each by walking the source-specific
-  trail to the child (a `subagents/` sibling directory; a `task` tool part's
-  metadata). Codex's `sub_agent_activity` events are recorded as `activity`,
-  but whether codex writes a separate rollout for a sub-agent, and where, has
-  not been confirmed — so a codex sub-agent's internal steps may still go
-  unrecorded. Worth a rollout-format check before claiming parity.
+- **Codex sub-agent coverage: confirmed, and it was corrupting the parent**
+  *(partly shipped, 0.24.0)* — the question was whether codex writes a separate
+  rollout for a sub-agent. **It does.** Measured on 40 local rollouts from
+  Codex 0.146.0: 11 are sub-agent threads, sitting in the same flat
+  `YYYY/MM/DD/` tree with no distinguishing filename. A child is told apart by
+  the shape of `session_meta.payload.source` — a plain string for a top-level
+  session (`cli` 22, `exec` 5, `vscode` 2), an object carrying a `subagent` key
+  for a child — and all 11 carry `parent_thread_id`. They hold real
+  conversation, not just activity: messages, reasoning, tool calls, and 185
+  `sub_agent_activity` records of their own, so the nesting is recursive.
+
+  *Looking turned up a live bug, which is what actually shipped.* The adapter
+  keyed a session on `session_meta.payload.session_id`, and **on a child
+  rollout that field holds the parent's id**. Two silent consequences: a
+  child's turns were filed into the parent's conversation while numbered by the
+  child's own line index, interleaving nonsense into the parent's `seq`
+  ordering; and the capture cursor, keyed on that same id, was shared between
+  parent and child, each dragging the other into a full rescan. Keying on
+  `payload.id` fixes both, and costs nothing: `payload.id` equals the
+  filename's uuid for all 40 files while `session_id` does so for only the 29
+  top-level ones, so every top-level event id is unchanged and only the
+  children — mis-filed to begin with — move. A child now records
+  `conversation.parent`, the same shape claude-code sidechains and opencode
+  child sessions already use.
+
+  *Still open: discovery.* `event_msg/sub_agent_activity` carries an
+  `agent_thread_id`, and 5 of the 6 distinct values seen resolve to a rollout
+  file on disk (the sixth was presumably pruned), so
+  `agent_thread_id` → `rollout-*-<id>.jsonl` is a working trail — the codex
+  analogue of claude-code's `subagents/` sibling directory. cledger does not
+  walk it: capture only ever reads the transcript it was handed. So a codex
+  sub-agent is captured correctly **if** something hands cledger its rollout,
+  and whether codex fires a hook per child thread is unverified — no codex
+  session has been captured in this repo to check against. Until the walk
+  exists, treat codex sub-agent capture as correct-but-not-guaranteed rather
+  than as parity with the other two adapters.
 - **The tail sweep is a workaround, not a fix** — a session cannot capture its
   own final lines, because the last hook runs before they are written. The
   claude-code hook therefore sweeps other transcripts in the project whose
