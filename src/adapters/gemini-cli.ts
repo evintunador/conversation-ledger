@@ -472,6 +472,7 @@ function recordContext(
   version: string,
   parentId: string | undefined,
   agent: ProducerAgentContext,
+  identity?: GitUserIdentity,
 ): RecordContext {
   const conversation = conversationFor(sessionId, parentId);
   return {
@@ -484,6 +485,9 @@ function recordContext(
     conversationId: conversation.id,
     ...(conversation.parent ? { parentConversationId: conversation.parent } : {}),
     agent,
+    // Only consulted for a `human` actor (see recordDraft), so passing it
+    // costs nothing on the records the harness authored.
+    ...(identity ? { identity } : {}),
   };
 }
 
@@ -579,7 +583,15 @@ function convertMessage(
  */
 function convertMutation(mutation: OrderedMutation, ctx: RecordContext): EventDraft {
   if (mutation.kind === "rewind" || mutation.kind === "snapshot_drop") {
-    return activityDraft(ctx, mutation.kind, mutation.fields, mutation.raw);
+    // The two withdrawals differ in who performed them, and that is the whole
+    // distinction the ledger draws between them: a `$rewindTo` is the person
+    // saying "take that back" (see the module doc above), while a
+    // `snapshot_drop` is Gemini quietly rewriting its own document — the path
+    // that cost a live session its typed prompt. Attributing the first to
+    // `system` filed a deliberate human gesture as machine bookkeeping, and
+    // hid it from `cledger log` along with it.
+    const actorType = mutation.kind === "rewind" ? "human" : "system";
+    return activityDraft(ctx, mutation.kind, mutation.fields, mutation.raw, actorType);
   }
   return sessionStateDraft(ctx, "metadata", liftText(mutation.fields, "summary"), mutation.raw);
 }
@@ -722,9 +734,15 @@ async function captureSessionInto(
 
   for (const mutation of session.mutations) {
     if (mutation.seq < cursor) continue;
-    const ctx = recordContext(baseTime, mutation.seq, sessionId, version, parentId, {
-      ...(sourceVersion ? { source_version: sourceVersion } : {}),
-    });
+    const ctx = recordContext(
+      baseTime,
+      mutation.seq,
+      sessionId,
+      version,
+      parentId,
+      { ...(sourceVersion ? { source_version: sourceVersion } : {}) },
+      identity,
+    );
     drafts.push(convertMutation(mutation, ctx));
   }
 

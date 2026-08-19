@@ -159,23 +159,29 @@ export function activityDraft(
 }
 
 /**
- * Material the harness put into the model's context that nobody typed.
+ * Material that entered the model's context as something other than a turn.
  *
- * The actor is `system` for the same reason `activity`'s is: the harness is
- * the one that spoke. What separates this from `activity` is that the model
- * read it — a consumer reconstructing what the model knew at a point in the
- * conversation needs these, and does not need turn durations.
+ * What separates this from `activity` is that the model read it — a consumer
+ * reconstructing what the model knew at a point in the conversation needs
+ * these, and does not need turn durations.
+ *
+ * The actor defaults to `system` because most of it is the harness stuffing
+ * its own preamble in, but it is a parameter for the same reason
+ * `activityDraft`'s is: an injection can be something a person asked for by
+ * name (Qwen's `@file` command), and filing that as the machine's doing loses
+ * the one fact that distinguishes it from a bootstrap prompt.
  */
 export function contextInjectionDraft(
   ctx: RecordContext,
   injectionType: string,
   injection: Record<string, unknown>,
   raw: unknown,
+  actorType = "system",
 ): EventDraft {
   return recordDraft(
     ctx,
     "context_injection",
-    "system",
+    actorType,
     { ...injection, injection_type: injectionType },
     raw,
   );

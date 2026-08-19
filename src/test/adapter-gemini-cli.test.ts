@@ -133,6 +133,9 @@ test("gemini-cli capture: a snapshot that withdraws a message says so", async ()
     assert.ok(drop, "the withdrawal is an event in its own right");
     assert.equal(drop.kind, "activity");
     assert.deepEqual((drop.content as Record<string, unknown>)["removed_messages"], ["hi"]);
+    // Unlike a `$rewindTo`, nobody asked for this one — Gemini rewrote its own
+    // document, which is exactly what made the live incident invisible.
+    assert.equal(drop.actor.type, "system", "the harness dropped it, not the user");
     assert.ok(
       drop.conversation!.seq > kept.conversation!.seq,
       "the withdrawal is ordered after the message it withdrew",
@@ -311,6 +314,10 @@ test("gemini-cli capture: turns, notices, metadata and rewinds all become events
     const rewindContent = rewind.content as Record<string, unknown>;
     assert.equal(rewindContent["activity_type"], "rewind");
     assert.deepEqual(rewindContent["removed_messages"], ["turn"]);
+    // An explicit `$rewindTo` is the person saying "take that back", which is
+    // the whole distinction the ledger draws between it and a snapshot drop.
+    assert.equal(rewind.actor.type, "human", "the user rewound");
+    assert.equal(rewind.actor.id, "test@example.com", "and the ledger says which user");
   } finally {
     await cleanupRepo(repo);
   }

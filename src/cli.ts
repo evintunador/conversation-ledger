@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import { stdin as input } from "node:process";
 import { findRepo, type RepoInfo } from "./git.js";
@@ -67,8 +68,12 @@ Usage:
                                            by default on log/show; --with-reasoning reveals them.
                                            So are the session-machinery kinds (session_state,
                                            activity, context_injection, file_snapshot), which a
-                                           session emits far more often than turns; --with-state
-                                           reveals those. Both are always captured and exported —
+                                           session emits far more often than turns — except the
+                                           ones the source attributes to a human (a slash command,
+                                           an @-command, an explicit rewind), which show by
+                                           default; --with-state reveals the harness's and the
+                                           agent's bookkeeping too.
+                                           Both are always captured and exported —
                                            these flags only affect what is displayed
   cledger conversations [--rev R] [--with-reasoning] [--with-state]
                                            list conversations on current branch (--all for every branch),
@@ -224,7 +229,46 @@ function snippet(event: EvidenceEvent): string {
   return text.length > 100 ? text.slice(0, 97) + "..." : text;
 }
 
-function printHuman(events: EvidenceEvent[]): void {
+/**
+ * Exit quietly when the reader closes the pipe.
+ *
+ * `cledger export | head -1` is ordinary usage, and without this handler it
+ * printed a stack trace instead of output: `process.stdout` had no `error`
+ * listener, so the EPIPE Node raises once the reader is gone surfaced as an
+ * unhandled `error` event. Small ledgers hide it, because the whole payload
+ * fits the 64KB pipe buffer before `head` exits and the write never fails;
+ * anything larger throws every time.
+ *
+ * A reader that stopped reading is not a failure of ours, so EPIPE exits 0 —
+ * the convention every `head`-friendly CLI follows. Any other stdout error is
+ * real and still reported, but as a message rather than a stack trace.
+ */
+function guardStdout(): void {
+  process.stdout.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EPIPE") process.exit(0);
+    process.stderr.write(`cledger: stdout: ${err.message}\n`);
+    process.exit(1);
+  });
+}
+
+/**
+ * Write one line, pausing whenever the consumer falls behind.
+ *
+ * Two reasons this is not a bare `process.stdout.write`. Ignoring
+ * backpressure buffers an entire ledger in memory before a slow reader sees
+ * any of it. And `write()` reports EPIPE *asynchronously*, so a synchronous
+ * loop runs to completion after the reader has already gone — awaiting
+ * `drain` is what gives the handler above a chance to fire, making the exit
+ * prompt rather than merely quiet.
+ *
+ * Waiting cannot hang on a closed stream: a destroyed stdout emits `error`,
+ * and `guardStdout`'s listener is registered first and exits the process.
+ */
+async function writeOut(text: string): Promise<void> {
+  if (!process.stdout.write(text)) await once(process.stdout, "drain");
+}
+
+async function printHuman(events: EvidenceEvent[]): Promise<void> {
   for (const e of events) {
     const conv = e.conversation ? `${e.conversation.id.slice(0, 28)}#${e.conversation.seq}` : "-";
     const role =
@@ -232,9 +276,7 @@ function printHuman(events: EvidenceEvent[]): void {
       typeof e.content === "object"
         ? String((e.content as Record<string, unknown>)["role"] ?? e.actor.type)
         : e.actor.type;
-    process.stdout.write(
-      `${e.occurred_at}  ${e.kind}  ${role.padEnd(9)}  ${conv}  ${snippet(e)}\n`,
-    );
+    await writeOut(`${e.occurred_at}  ${e.kind}  ${role.padEnd(9)}  ${conv}  ${snippet(e)}\n`);
   }
 }
 
@@ -248,6 +290,16 @@ function printHuman(events: EvidenceEvent[]): void {
  * more often than anyone speaks — showing them by default would bury the
  * conversation in its own bookkeeping.
  *
+ * **The machinery half is filtered by actor, not by kind.** Hiding the whole
+ * kind was drawing the line in the wrong place: it earns its keep against
+ * telemetry — one real Qwen session emitted 57 `ui_telemetry` records against
+ * 45 events of actual content — but a slash command the human typed is not
+ * telemetry, and was being hidden by the same rule as a token-count ping. What
+ * makes a record noise is *whose* action it was, so a machinery event with a
+ * human actor shows by default and the harness's and the agent's bookkeeping
+ * stays behind `--with-state`. Nothing about capture changes: every record is
+ * still stored and `cledger export` is still lossless.
+ *
  * `--with-reasoning` / `--with-state` opt in, as does asking for the kind
  * explicitly via `--kind` (hiding it there would just return nothing).
  * `export`'s job is a lossless dump, so it never filters and needs no
@@ -259,15 +311,16 @@ function displayFilter(flags: Flags, opts: ReadOptions): (event: EvidenceEvent) 
     flags["with-state"] === true || (opts.kind !== undefined && SESSION_MACHINERY_KINDS.has(opts.kind));
   return (event) => {
     if (!reasoning && event.kind === "reasoning") return false;
-    if (!state && SESSION_MACHINERY_KINDS.has(event.kind)) return false;
+    if (!state && SESSION_MACHINERY_KINDS.has(event.kind) && event.actor.type !== "human")
+      return false;
     return true;
   };
 }
 
-function printJsonl(events: EvidenceEvent[], includeRaw: boolean): void {
+async function printJsonl(events: EvidenceEvent[], includeRaw: boolean): Promise<void> {
   for (const e of events) {
     const out = includeRaw ? e : { ...e, raw: undefined };
-    process.stdout.write(JSON.stringify(out) + "\n");
+    await writeOut(JSON.stringify(out) + "\n");
   }
 }
 
@@ -295,8 +348,8 @@ async function cmdLog(flags: Flags): Promise<void> {
   const opts = readOptionsFrom(flags);
   let events = await readEvents(repo, opts);
   events = events.filter(displayFilter(flags, opts));
-  if (flags["json"]) printJsonl(events, false);
-  else printHuman(events);
+  if (flags["json"]) await printJsonl(events, false);
+  else await printHuman(events);
 }
 
 async function cmdShow(positional: string[], flags: Flags): Promise<void> {
@@ -313,7 +366,7 @@ async function cmdShow(positional: string[], flags: Flags): Promise<void> {
     process.exit(1);
   }
   if (flags["json"]) {
-    printJsonl(events, true);
+    await printJsonl(events, true);
     return;
   }
   for (const e of sortEvents(events)) {
@@ -323,8 +376,8 @@ async function cmdShow(positional: string[], flags: Flags): Promise<void> {
       typeof c === "object" && c && typeof c["text"] === "string"
         ? (c["text"] as string)
         : JSON.stringify(e.content, null, 2);
-    process.stdout.write(`\n[${e.occurred_at}] ${role} (${e.kind}, ${e.id.slice(0, 16)})\n`);
-    process.stdout.write(text.trimEnd() + "\n");
+    await writeOut(`\n[${e.occurred_at}] ${role} (${e.kind}, ${e.id.slice(0, 16)})\n`);
+    await writeOut(text.trimEnd() + "\n");
   }
 }
 
@@ -357,9 +410,7 @@ async function cmdConversations(flags: Flags): Promise<void> {
   }
   for (const [id, s] of [...byConv.entries()].sort((a, b) => a[1].last.localeCompare(b[1].last))) {
     const models = s.models.size > 0 ? [...s.models].sort().join(",") : "-";
-    process.stdout.write(
-      `${id}  ${s.source}  ${models}  ${s.count} events  ${s.first} .. ${s.last}\n`,
-    );
+    await writeOut(`${id}  ${s.source}  ${models}  ${s.count} events  ${s.first} .. ${s.last}\n`);
   }
 }
 
@@ -368,7 +419,7 @@ async function cmdExport(flags: Flags): Promise<void> {
   const opts: ReadOptions = {};
   if (typeof flags["rev"] === "string") opts.reachableFrom = flags["rev"];
   const events = await readEvents(repo, opts);
-  printJsonl(events, true);
+  await printJsonl(events, true);
 }
 
 async function cmdSync(flags: Flags): Promise<void> {
@@ -761,6 +812,7 @@ async function cmdRenormalize(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  guardStdout();
   const [, , command, ...rest] = process.argv;
   const { positional, flags } = parseArgs(rest);
 
