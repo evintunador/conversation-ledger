@@ -114,3 +114,86 @@ test("export stays lossless regardless of actor", async () => {
     await cleanupRepo(repo);
   }
 });
+
+/**
+ * `log`'s human format prints a position within the conversation, not the
+ * stored `seq`.
+ *
+ * `seq` is an ordering key, and adapters derive it from whatever the source
+ * makes stable — the opencode adapter takes it from the part id, a 48-bit
+ * timestamp, which printed raw turns every row into `opencode:9f2a#67580218395`.
+ * These seqs are the same shape.
+ */
+const BIG = [67580218395, 67580218396, 67580218400];
+
+async function seededWithBigSeqs(): Promise<RepoInfo> {
+  const repo = await makeTempRepo("cledger-ordinal-");
+  await makeCommit(repo);
+  await appendEvents(repo, [
+    draft({
+      kind: "conversation_turn",
+      actor: { type: "human" },
+      content: { role: "human", text: "first" },
+      conversation: { id: "opencode:big", seq: BIG[0]! },
+    }),
+    // Harness bookkeeping, hidden by default — it must not consume a position.
+    draft({
+      kind: "activity",
+      actor: { type: "system" },
+      content: { role: "system", text: "telemetry" },
+      conversation: { id: "opencode:big", seq: BIG[1]! },
+    }),
+    draft({
+      kind: "conversation_turn",
+      actor: { type: "agent" },
+      content: { role: "agent", text: "second" },
+      conversation: { id: "opencode:big", seq: BIG[2]! },
+    }),
+  ]);
+  return repo;
+}
+
+async function logLines(repo: RepoInfo, args: string[] = []): Promise<string[]> {
+  const { stdout } = await execFileP(process.execPath, [CLI, "log", ...args], {
+    cwd: repo.root,
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  return stdout.split("\n").filter(Boolean);
+}
+
+test("log: a conversation position is printed, not a 48-bit ordering key", async () => {
+  const repo = await seededWithBigSeqs();
+  try {
+    const lines = await logLines(repo);
+    assert.equal(lines.length, 2, "only the two turns are shown by default");
+    assert.ok(
+      lines.every((l) => !l.includes(String(BIG[0]!))),
+      `the raw seq must not appear:\n${lines.join("\n")}`,
+    );
+    assert.match(lines[0]!, /opencode:big#1\b/);
+    assert.match(
+      lines[1]!,
+      /opencode:big#3\b/,
+      "positions come from the full read, so hiding the telemetry between them does not renumber",
+    );
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("log --json keeps the stored seq, because a machine wants the ordering key", async () => {
+  const repo = await seededWithBigSeqs();
+  try {
+    const { stdout } = await execFileP(process.execPath, [CLI, "log", "--json"], {
+      cwd: repo.root,
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    const seqs = stdout
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => (JSON.parse(l) as EvidenceEvent).conversation!.seq);
+    assert.deepEqual(seqs.sort((a, b) => a - b), [BIG[0]!, BIG[2]!]);
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
