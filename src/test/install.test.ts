@@ -92,6 +92,90 @@ test("install: re-running repairs a hook left with the wrong timeout", async () 
   });
 });
 
+async function hookCommandFor(path: string, event: string): Promise<string | undefined> {
+  const settings = JSON.parse(await readFile(path, "utf8")) as {
+    hooks: Record<string, { hooks: { command?: string; timeout?: number }[] }[]>;
+  };
+  for (const entry of settings.hooks[event] ?? []) {
+    const hook = entry.hooks.find((h) => h.command?.includes("hook "));
+    if (hook) return hook.command;
+  }
+  return undefined;
+}
+
+test("install: a hook command no longer discards the capture's output", async () => {
+  // Gemini and Qwen hooks used to get ` >/dev/null 2>&1` appended, on the
+  // theory that it detached the work from the CLI's teardown. It never did —
+  // both CLIs run a hook as `bash -c`, which execs a single simple command
+  // rather than forking. The hooks were dying of the timeout unit instead. All
+  // the redirect achieved was hiding format-drift warnings.
+  await withTempHome(async (home) => {
+    await installGeminiCli();
+    await installQwenCode();
+    for (const [dir, event] of [
+      [".gemini", "AfterAgent"],
+      [".gemini", "SessionEnd"],
+      [".qwen", "Stop"],
+      [".qwen", "SessionEnd"],
+    ] as const) {
+      const command = await hookCommandFor(join(home, dir, "settings.json"), event);
+      assert.ok(command, `${dir} ${event} has a cledger hook`);
+      assert.doesNotMatch(command, /\/dev\/null/, `${dir} ${event} keeps its output`);
+    }
+  });
+});
+
+test("install: re-running strips the stale output redirect from an existing hook", async () => {
+  // Same contract as the timeout repair: a setting cledger itself got wrong is
+  // fixable by re-running install, not by hand-editing JSON.
+  await withTempHome(async (home) => {
+    const path = join(home, ".qwen", "settings.json");
+    await mkdir(join(home, ".qwen"), { recursive: true });
+    const stale = "cledger hook qwen-code >/dev/null 2>&1";
+    await writeFile(
+      path,
+      JSON.stringify({
+        hooks: {
+          Stop: [{ hooks: [{ type: "command", command: stale, timeout: 120_000 }] }],
+          SessionEnd: [{ hooks: [{ type: "command", command: stale, timeout: 120_000 }] }],
+        },
+      }) + "\n",
+    );
+
+    const message = await installQwenCode();
+    assert.match(message, /output no longer discarded/, "it reports what it repaired");
+    assert.equal(await hookCommandFor(path, "Stop"), "cledger hook qwen-code");
+    assert.equal(await hookCommandFor(path, "SessionEnd"), "cledger hook qwen-code");
+    assert.equal(await hookTimeout(path, "Stop"), 120_000, "a correct timeout is not disturbed");
+
+    const second = await installQwenCode();
+    assert.match(second, /already installed/, "and is idempotent once repaired");
+  });
+});
+
+test("install: a redirect that is not cledger's own is left as written", async () => {
+  // The repair matches one exact trailing string, so a user who routes the
+  // hook's output somewhere deliberately keeps it.
+  await withTempHome(async (home) => {
+    const path = join(home, ".qwen", "settings.json");
+    await mkdir(join(home, ".qwen"), { recursive: true });
+    const mine = "cledger hook qwen-code >>/tmp/cledger.log 2>&1";
+    await writeFile(
+      path,
+      JSON.stringify({
+        hooks: {
+          Stop: [{ hooks: [{ type: "command", command: mine, timeout: 120_000 }] }],
+          SessionEnd: [{ hooks: [{ type: "command", command: mine, timeout: 120_000 }] }],
+        },
+      }) + "\n",
+    );
+
+    const message = await installQwenCode();
+    assert.match(message, /already installed/, "nothing to repair");
+    assert.equal(await hookCommandFor(path, "Stop"), mine);
+  });
+});
+
 test("install: an unrelated hook in the same event is left alone", async () => {
   await withTempHome(async (home) => {
     const path = join(home, ".gemini", "settings.json");

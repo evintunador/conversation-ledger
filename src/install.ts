@@ -83,9 +83,10 @@ const HOOK_TIMEOUT_SECONDS = 120;
 const HOOK_TIMEOUT_MILLISECONDS = 120_000;
 
 /**
- * Appended to a hook command for the two Gemini-derived CLIs.
+ * A redirect this used to append to the two Gemini-derived CLIs' hook
+ * commands, now only recognized so it can be taken back off.
  *
- * **Its original rationale was wrong, and is kept here as a warning.** It was
+ * **Its rationale was wrong, and the constant survives as the repair.** It was
  * introduced after `qwen -p "..."` failed to capture: the CLI fires its `Stop`
  * hook and exits, and a hook doing a git-notes append was seen to die partway.
  * The explanation recorded at the time -- that the redirection "routes the
@@ -97,16 +98,23 @@ const HOOK_TIMEOUT_MILLISECONDS = 120_000;
  * was hide the capture's own output.
  *
  * The real cause of hooks dying was the timeout unit (see
- * HOOK_TIMEOUT_MILLISECONDS): every hook was being SIGTERMed after 120ms.
+ * HOOK_TIMEOUT_MILLISECONDS): every hook was being SIGTERMed after 120ms. With
+ * that fixed, the redirect has no job left and one standing cost -- a capture
+ * cannot print a format-drift warning anywhere the user would see it, leaving
+ * `cledger capture <source> --all` as the only way to watch one.
  *
- * It is left in place only because removing it is a separate, untested change
- * -- the headless `qwen -p` case has not been re-run since the timeout was
- * fixed, and it may well no longer need this. Until then it keeps costing what
- * it always cost: `cledger capture <source> --all` is the only way to see a
- * capture's output, format-drift warnings included. Removing it is the first
- * thing to try if a hook failure ever needs diagnosing again.
+ * New installs no longer write it. An existing hook that still carries it is
+ * repaired in place, for the same reason the timeout is (see below): a setting
+ * cledger got wrong should be fixable by re-running `cledger install`, not by
+ * hand-editing JSON.
+ *
+ * The repair only ever touches cledger's own hook, and only when the command
+ * ends in this exact string -- any other redirect a user wrote is left as
+ * written. The one case it cannot tell apart is a user who appended precisely
+ * this suffix to the cledger hook on purpose; they get it removed, and can put
+ * it back. Silencing a capture is not worth a config key to preserve.
  */
-const DETACH_SUFFIX = " >/dev/null 2>&1";
+const STALE_DETACH_SUFFIX = " >/dev/null 2>&1";
 
 /**
  * Install command hooks into a Claude-Code-shaped `settings.json`.
@@ -123,15 +131,15 @@ async function installJsonHooks(
   source: string,
   settingsPath: string,
   events: string[],
-  options: { detach?: boolean; timeout: number } = { timeout: HOOK_TIMEOUT_SECONDS },
+  options: { timeout: number } = { timeout: HOOK_TIMEOUT_SECONDS },
 ): Promise<string> {
   const settings: Record<string, unknown> = existsSync(settingsPath)
     ? (JSON.parse(await readFile(settingsPath, "utf8")) as Record<string, unknown>)
     : {};
-  const command = (await hookCommand(source)) + (options.detach ? DETACH_SUFFIX : "");
+  const command = await hookCommand(source);
   const hooks = (settings["hooks"] ?? {}) as Record<string, ClaudeHookEntry[]>;
   let changed = false;
-  let repaired = false;
+  const repairs = new Set<string>();
   for (const event of events) {
     const existing = findCledgerHook(hooks[event], `hook ${source}`);
     if (!existing) {
@@ -142,23 +150,29 @@ async function installJsonHooks(
       changed = true;
       continue;
     }
-    // An install already here is still repaired in place, because the timeout
-    // this writes has been wrong before (see HOOK_TIMEOUT_MILLISECONDS) and a
-    // user whose capture is being killed mid-write should be able to fix it by
-    // re-running install rather than hand-editing JSON.
+    // An install already here is still repaired in place, because both of
+    // these settings have been wrong before (see HOOK_TIMEOUT_MILLISECONDS and
+    // STALE_DETACH_SUFFIX) and a user whose capture is being killed mid-write,
+    // or silenced, should be able to fix it by re-running install rather than
+    // hand-editing JSON.
     if (existing.timeout !== options.timeout) {
       existing.timeout = options.timeout;
       changed = true;
-      repaired = true;
+      repairs.add(`timeout corrected to ${options.timeout}`);
+    }
+    if (existing.command?.endsWith(STALE_DETACH_SUFFIX)) {
+      existing.command = existing.command.slice(0, -STALE_DETACH_SUFFIX.length);
+      changed = true;
+      repairs.add("output no longer discarded");
     }
   }
   if (!changed) return `${source}: already installed (${settingsPath})`;
-  if (repaired) {
+  if (repairs.size > 0) {
     settings["hooks"] = hooks;
     await backup(settingsPath);
     await mkdir(dirname(settingsPath), { recursive: true });
     await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-    return `${source}: hook timeout corrected to ${options.timeout} in ${settingsPath}`;
+    return `${source}: hook repaired (${[...repairs].join("; ")}) in ${settingsPath}`;
   }
   settings["hooks"] = hooks;
   await backup(settingsPath);
@@ -188,7 +202,7 @@ export async function installGeminiCli(): Promise<string> {
     "gemini-cli",
     join(homedir(), ".gemini", "settings.json"),
     ["AfterAgent", "SessionEnd"],
-    { detach: true, timeout: HOOK_TIMEOUT_MILLISECONDS },
+    { timeout: HOOK_TIMEOUT_MILLISECONDS },
   );
 }
 
@@ -198,7 +212,7 @@ export async function installQwenCode(): Promise<string> {
     "qwen-code",
     join(homedir(), ".qwen", "settings.json"),
     ["Stop", "SessionEnd"],
-    { detach: true, timeout: HOOK_TIMEOUT_MILLISECONDS },
+    { timeout: HOOK_TIMEOUT_MILLISECONDS },
   );
 }
 

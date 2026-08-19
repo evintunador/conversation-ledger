@@ -61,7 +61,7 @@ there's nothing to record and nothing to disable.
 cledger log                     # events on the current branch (via commit reachability)
 cledger log --all --json        # every event, as JSONL for jq & friends
 cledger log --model gpt-5.6-sol # only turns a given model served
-cledger log --with-state        # include session state, activity, injections, file snapshots
+cledger log --with-state        # also the harness's own state, activity, injections, snapshots
 cledger conversations           # sessions touching this branch, with the models they used
 cledger show claude-code:3f9a   # replay one conversation in order (matches subagents too)
 cledger export > ledger.jsonl   # lossless dump, incl. source-native payloads
@@ -147,15 +147,18 @@ Every event carries a `kind`:
 | `reasoning` | Provider-encrypted thinking, preserved opaquely and never interpreted | Codex `reasoning` items |
 | `session_state` | A declaration that holds until restated | mode, permission mode, sandbox and approval policy, model settings, session title, worktree relocation, Codex `turn_context` / `session_meta` / `world_state` |
 | `activity` | A point-in-time occurrence that is not a turn | hook runs, turn durations, token counts, task lifecycle, queue operations, context compaction, aborts, opencode step boundaries |
-| `context_injection` | Material the harness put into the model's context that nobody typed | Claude Code `attachment` lines — task reminders, skill listings, diagnostics, pasted files |
+| `context_injection` | Material that entered the model's context as something other than a turn — usually the harness's doing, sometimes named by the human | Claude Code `attachment` lines — task reminders, skill listings, diagnostics, pasted files; Qwen `at_command` (`@file`), which carries a human actor |
 | `file_snapshot` | Intermediate file state: the versions a file passed through between commits | Claude Code `file-history-snapshot` / `file-history-delta` |
 | `unrecognized` | A line type no adapter knows yet — preserved raw, warned about, upgradeable by `cledger renormalize` | anything upstream adds |
 
 The last four are *session machinery*: `log`, `show` and `conversations` hide
 them unless you pass `--with-state` or name the kind with `--kind`, because a
 session restates its mode and its tracked-file set far more often than anyone
-speaks. They are always captured, always exported, always synced — the flag
-only changes what is displayed.
+speaks. The exception is **whose action a record was** — a machinery event
+attributed to a human (a slash command, an `@`-command, an explicit rewind)
+shows by default, because what makes the rest noise is that the harness or the
+agent generated it, not the kind it landed in. They are always captured,
+always exported, always synced — the flag only changes what is displayed.
 
 ### Sub-conversations
 
@@ -312,32 +315,68 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   `conversation.seq` and a real layout pass. Deferred until the per-span
   flow proves insufficient; most verdicts so far need only the surrounding
   string.
-- **The `>/dev/null 2>&1` on the Gemini and Qwen hooks is probably now
-  pointless, and costs visibility** — it was added after `qwen -p "..."` failed
+- **The `>/dev/null 2>&1` on the Gemini and Qwen hooks was pointless, and cost
+  visibility** *(shipped, 0.22.0)* — it was added after `qwen -p "..."` failed
   to capture, on the theory that the redirect "routes the command through a
   shell so the work outlives the teardown". That theory is wrong: both CLIs
   *always* invoke a hook as `bash -c "<command>"`, and `bash -c` `exec`s a
   single simple command rather than forking, so nothing was ever detached. The
-  actual cause of hooks dying was the timeout unit below. The suffix survives
-  only because removing it is an untested change — headless `qwen -p` has not
-  been re-run without it since the timeout was fixed — and until then it keeps
-  costing what it always cost: the capture cannot print drift warnings where
-  you would see them, so `cledger capture <source> --all` is the only way to
-  watch one. Removing it is the first thing to try; it is also what made the
-  timeout bug take a full debugging session to find.
-- **`cledger log` hides human-driven records by default** — the
-  session-machinery kinds (`session_state`, `activity`, `context_injection`,
-  `file_snapshot`) are hidden unless you pass `--with-state`. That default
-  earns its keep against telemetry: one real Qwen session emitted 57
-  `ui_telemetry` records against 45 events of actual content, and an unfiltered
-  default would bury the conversation. But it does not distinguish *whose*
-  action a record was, so a slash command the human typed is hidden by the same
-  rule as a token-count ping. Capture is unaffected — everything is recorded
-  and `cledger export` is lossless, these flags only change what is displayed —
-  but the display default is arguably drawing the line in the wrong place. The
-  fix worth trying is to key the default on the actor rather than the kind:
-  show human-driven records, keep harness and agent bookkeeping behind the
-  flag. `activity` already carries a real actor for exactly this reason.
+  actual cause of hooks dying was the timeout unit below. All the redirect ever
+  did was hide the capture's own output, so a format-drift warning had nowhere
+  to print and `cledger capture <source> --all` was the only way to watch one.
+  New installs no longer write it, and `cledger install` **strips it from an
+  existing hook in place** — the same contract the timeout repair established:
+  a setting cledger itself got wrong should be fixable by re-running install,
+  not by hand-editing JSON. Only cledger's own hook is touched, and only when
+  the command ends in that exact string, so any other redirect a user wrote
+  survives. *Still unverified:* the original headless `qwen -p` case has not
+  been re-run, because that needs a live Qwen session; the reasoning above
+  says it was never the redirect that saved it, but nobody has watched it
+  since.
+- **`cledger log` hid human-driven records by default** *(shipped, 0.22.0)* —
+  the session-machinery kinds (`session_state`, `activity`,
+  `context_injection`, `file_snapshot`) were hidden unless you passed
+  `--with-state`. That default earns its keep against telemetry: one real Qwen
+  session emitted 57 `ui_telemetry` records against 45 events of actual
+  content, and an unfiltered default would bury the conversation. But it did
+  not distinguish *whose* action a record was, so a slash command the human
+  typed was hidden by the same rule as a token-count ping.
+  The display default is now keyed on the **actor**: a machinery event whose
+  actor is `human` shows, the harness's and the agent's bookkeeping stays
+  behind `--with-state`, and the flag's meaning is unchanged (show everything).
+  Capture is untouched and `cledger export` is still lossless — this only ever
+  changed what is displayed.
+  *The premise needed repair before the fix meant anything.* "`activity`
+  already carries a real actor" was half true: `activityDraft` was the only one
+  of the four builders that even took an actor, and exactly one call site in
+  the whole codebase passed `human` (Qwen's `slash_command`). Shipping only the
+  display change would have surfaced that one record and nothing else. Two
+  attributions were corrected alongside it, both where the source *states* who
+  acted: Gemini's `$rewindTo` is the person saying "take that back" (its
+  sibling `snapshot_drop` — Gemini quietly rewriting its own document — stays
+  `system`, and that difference is the entire reason the ledger records them as
+  two things), and Qwen's `at_command` is a person naming a file, which was
+  landing in `context_injection` with the identical `system` actor as
+  `agent_bootstrap`, the harness's own preamble that nobody typed.
+  `contextInjectionDraft` grew an actor parameter for that, matching
+  `activityDraft`.
+  *Deliberately not corrected: claude-code's `queue-operation`.* It looked like
+  the same fix — a queued message is something a human typed mid-turn — but the
+  source does not say so. Measured across 40 local transcripts: `enqueue`
+  splits 126 harness-generated to 43 human-typed, and `remove` 70 to 16. The
+  only available discriminator is a content-shape heuristic (harness ones
+  arrive wrapped in a `task-notification` envelope), which is a convention that
+  can change, and getting it wrong files machine-authored text under a named
+  person's git identity — the failure this whole entry is about, in the
+  direction that actually does damage. Attribution follows what the source
+  states; where it must be guessed from content, it stays `system`. Revisit if
+  claude-code ever labels the queue entry's origin.
+  *Forward-only, like every attribution change here.* `actor.type` and
+  `actor.id` are part of event identity, so a re-capture of an
+  already-captured session mints new ids for the re-attributed records rather
+  than deduping. That is id churn in one adapter's machinery records, not lost
+  content, and there is no backfill — rewriting stored events would put two
+  copies of each through `cat_sort_uniq` on the next merge with any peer.
 - **Gemini CLI's version is not in its session file** — claude-code and
   qwen-code stamp the CLI version onto every line, so `producer.source_version`
   comes for free. Gemini stamps none, and neither the hook payload nor the
@@ -383,17 +422,28 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   lost or mangled content, but a subtype that turns out to be state while
   sitting in `activity` would be invisible to a consumer filtering on
   `session_state`.
-- **`cledger export | head` dies with an unhandled EPIPE** — `printJsonl`
-  writes to `process.stdout` with no `error` handler, so when the reader goes
-  away mid-write Node throws and prints a stack trace instead of exiting
-  quietly. Affects `log --json`, `show --json` and `export`, all three of
-  which go through it. Not exotic: piping any ledger larger than the 64KB pipe
-  buffer into `head`, or into a command that fails at startup, reproduces it —
-  `cledger export | head -1` against a 23MB ledger throws every time. Small
-  ledgers hide it, because the whole payload fits the buffer before the reader
-  exits. Fix is an `EPIPE` handler that exits 0, the convention every
-  `head`-friendly CLI follows. Kept out of the opencode adapter branch on
-  purpose; wants its own change.
+- **`cledger export | head` died with an unhandled EPIPE** *(shipped, 0.22.0)*
+  — `printJsonl` wrote to `process.stdout` with no `error` handler, so when the
+  reader went away mid-write Node threw and printed a stack trace instead of
+  exiting quietly. Not exotic: piping any ledger larger than the 64KB pipe
+  buffer into `head`, or into a command that fails at startup, reproduced it —
+  `cledger export | head -1` against a 23MB ledger threw every time. Small
+  ledgers hid it, because the whole payload fits the buffer before the reader
+  exits and no write ever fails.
+  Fixed with an `EPIPE` handler that exits 0, the convention every
+  `head`-friendly CLI follows; any other stdout error still reports and exits
+  1. The handler is installed for the whole CLI rather than around the three
+  JSON printers, since `log`'s human format and `conversations` write to the
+  same stdout and broke the same way.
+  *The second half was less obvious.* `write()` reports EPIPE
+  **asynchronously**, so a synchronous print loop runs to completion after the
+  reader is already gone — the handler fires, but only once the work is
+  finished and the whole ledger has been buffered in memory. The bulk printers
+  therefore honour backpressure (`await once(stdout, "drain")` when `write()`
+  returns false), which is what makes the exit prompt rather than merely quiet.
+  Regression-tested by spawning the real binary and closing the pipe after the
+  first chunk: an in-process call has no pipe to break, and a fixture under
+  64KB passes without the fix.
 - **opencode capture is positional over a mutable store** — the other two
   adapters read append-only transcript files, so `conversation.seq` (the
   source line index) is stable forever and event ids never churn. opencode

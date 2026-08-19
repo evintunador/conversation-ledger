@@ -97,18 +97,26 @@ const FILE_SNAPSHOT_SUBTYPES = new Set(["attribution_snapshot", "file_history_sn
 /**
  * `system` subtypes the person at the keyboard drove, rather than the harness.
  *
- * They stay `activity` — Qwen records `sentToModel: false` on them, so they
- * are not turns in the conversation the model saw — but the actor is the human,
- * because a human typed them. Verified on a live session: a `slash_command`
- * record carries the literal `rawCommand` ("/chat save smoke-test"), which is
- * keystrokes, not harness bookkeeping. Filing that under `system` would be the
- * ledger recording a person's action as the machine's.
+ * The kind each one lands in is unchanged — `slash_command` is still
+ * `activity` (Qwen records `sentToModel: false`, so it is not a turn the model
+ * saw) and `at_command` is still `context_injection` (the model did read the
+ * file it pulled in). Only the actor differs: a human typed them. Verified on
+ * a live session: a `slash_command` record carries the literal `rawCommand`
+ * ("/chat save smoke-test"), which is keystrokes, not harness bookkeeping.
+ * Filing that under `system` would be the ledger recording a person's action
+ * as the machine's.
+ *
+ * `at_command` belongs here for the same reason and was the clearer miss: an
+ * `@src/foo.ts` is a person naming a file, and it was landing in
+ * `context_injection` with the identical `system` actor as
+ * `agent_bootstrap` — the harness's own preamble, which nobody typed. The
+ * two are not the same event, and the actor is what tells them apart.
  *
  * This matches the rule the gemini-cli adapter already states for the same
- * class of thing: harness-authored preambles are `system`, slash commands are
- * the human's.
+ * class of thing: harness-authored preambles are `system`, gestures the
+ * person made are the human's.
  */
-const HUMAN_DRIVEN_SUBTYPES = new Set(["slash_command"]);
+const HUMAN_DRIVEN_SUBTYPES = new Set(["slash_command", "at_command"]);
 
 /**
  * Envelope fields every Qwen Code line carries. Dropped from the structured
@@ -340,7 +348,13 @@ function convertRecordLine(line: QwenTranscriptLine, ctx: RecordContext): EventD
     return sessionStateDraft(ctx, subtype, fields, line);
   }
   if (CONTEXT_INJECTION_SUBTYPES.has(subtype)) {
-    return contextInjectionDraft(ctx, subtype, fields, line);
+    return contextInjectionDraft(
+      ctx,
+      subtype,
+      fields,
+      line,
+      HUMAN_DRIVEN_SUBTYPES.has(subtype) ? "human" : "system",
+    );
   }
   // `content` is where a text-bearing system record (a notification, a queued
   // mid-turn message) puts its prose; lifting it gives `blocks` for free and

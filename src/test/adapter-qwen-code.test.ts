@@ -432,6 +432,56 @@ test("qwen-code capture: a slash command is the human's, not the harness's", asy
   }
 });
 
+test("qwen-code capture: an @-command is the human's, a bootstrap is the harness's", async () => {
+  // Both land in `context_injection` — the model read each of them — so the
+  // kind cannot tell them apart. The actor is the only thing that can: an
+  // `@src/calc.py` is a person naming a file, while `agent_bootstrap` is the
+  // harness stuffing in its own preamble that nobody typed.
+  const repo = await makeTempRepo();
+  const { dir, path } = await writeTranscript([
+    {
+      sessionId: SESSION_ID,
+      uuid: "s-0",
+      timestamp: "2026-08-04T03:48:56.660Z",
+      type: "system",
+      subtype: "at_command",
+      version: QWEN_VERSION,
+      systemPayload: { rawCommand: "@calc.py explain this", sentToModel: true },
+    },
+    {
+      sessionId: SESSION_ID,
+      uuid: "s-1",
+      timestamp: "2026-08-04T03:48:56.700Z",
+      type: "system",
+      subtype: "agent_bootstrap",
+      version: QWEN_VERSION,
+      systemPayload: { agent: "general" },
+    },
+  ]);
+  try {
+    await makeCommit(repo);
+    await captureQwenTranscript(path, repo.root);
+    const events = await readEvents(repo);
+
+    const byInjection = new Map(
+      events
+        .filter((e) => e.kind === "context_injection")
+        .map((e) => [(e.content as Record<string, unknown>)["injection_type"], e]),
+    );
+
+    const at = byInjection.get("at_command")!;
+    assert.equal(at.actor.type, "human", "a person typed the @-command");
+    assert.equal(at.actor.id, "test@example.com", "and the ledger says which person");
+
+    const bootstrap = byInjection.get("agent_bootstrap")!;
+    assert.equal(bootstrap.actor.type, "system", "the preamble is the harness's");
+    assert.equal(bootstrap.actor.id, undefined, "and names no person");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+    await cleanupRepo(repo);
+  }
+});
+
 test("qwen-code capture: empty-part turns produce no event", async () => {
   const repo = await makeTempRepo();
   const { dir, path } = await writeTranscript([
