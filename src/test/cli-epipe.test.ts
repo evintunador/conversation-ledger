@@ -79,8 +79,11 @@ for (const args of [["export"], ["log", "--json"], ["log"]]) {
     try {
       const { code, stderr } = await runAndHangUp(args, repo.root);
       assert.equal(code, 0, `expected a clean exit, got ${code} with stderr:\n${stderr}`);
-      assert.doesNotMatch(stderr, /EPIPE/, "EPIPE must not be reported to the user");
-      assert.doesNotMatch(stderr, /at .*\(.*:\d+:\d+\)/, "a stack trace must never be printed");
+      // Deliberately "nothing at all" rather than "no EPIPE". The first cut of
+      // this guard matched only `EPIPE` and still exited 1 on macOS, where a
+      // socket-backed stdout reports `ENOTCONN` instead; an assertion naming
+      // one errno would have passed while the command was still broken.
+      assert.equal(stderr, "", "a closed reader is not an error worth printing");
     } finally {
       await cleanupRepo(repo);
     }

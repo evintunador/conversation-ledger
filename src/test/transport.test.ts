@@ -120,9 +120,18 @@ test("absorbIncoming: a staged fetch is folded into the local ref at read time",
     await makeCommit(b, "init b");
     await git(["fetch", "origin", `+${NOTES_REF}:${INCOMING_REF}`], { cwd: b.root });
 
-    const events = await readEvents(b);
+    // What this test is about is transport: did the staged ref get folded in.
+    // B's history is deliberately unrelated to A's, so the event's anchor is
+    // unreachable from B's HEAD and the default read scope correctly hides it
+    // — asking for the whole local ledger is how you ask "did it arrive".
+    const events = await readEvents(b, { reachableFrom: null });
     assert.strictEqual(events.length, 1);
     assert.deepStrictEqual(events[0]?.content, { text: "staged-event" });
+    assert.deepStrictEqual(
+      await readEvents(b),
+      [],
+      "and the default scope still answers the other question: none of it is reachable from here",
+    );
 
     const incoming = (await git(["rev-parse", "--verify", "--quiet", INCOMING_REF], {
       cwd: b.root,

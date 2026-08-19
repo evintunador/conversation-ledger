@@ -78,7 +78,9 @@ Usage:
   cledger conversations [--rev R] [--with-reasoning] [--with-state]
                                            list conversations on current branch (--all for every branch),
                                            one line each: id, source, model(s), count, time span
-  cledger export [--rev R]                lossless JSONL dump (default: everything, incl. reasoning)
+  cledger export [--all|--rev R]          lossless JSONL dump of every field, incl. reasoning;
+                                           scoped to the current branch like log, --all for the
+                                           whole local ledger
   cledger sync [--remote R] [--push|--fetch] [--no-scan] [--paranoid] [--all|--rev R]
                                            fetch/merge/push of the ledger ref;
                                            push is gated by a secret scan unless --no-scan.
@@ -197,7 +199,13 @@ async function readStdin(): Promise<string> {
 
 function readOptionsFrom(flags: Flags): ReadOptions {
   const opts: ReadOptions = {};
-  if (!flags["all"]) opts.reachableFrom = typeof flags["rev"] === "string" ? flags["rev"] : "HEAD";
+  // `null` is the opt-out now that `undefined` means HEAD; leaving it unset
+  // under --all would ask for exactly the scope the flag exists to escape.
+  opts.reachableFrom = flags["all"]
+    ? null
+    : typeof flags["rev"] === "string"
+      ? flags["rev"]
+      : "HEAD";
   if (typeof flags["kind"] === "string") opts.kind = flags["kind"];
   if (typeof flags["source"] === "string") opts.source = flags["source"];
   if (typeof flags["model"] === "string") opts.model = flags["model"];
@@ -230,22 +238,39 @@ function snippet(event: EvidenceEvent): string {
 }
 
 /**
+ * Errno codes that all mean the same thing: whoever was reading our stdout is
+ * gone.
+ *
+ * `EPIPE` is the textbook one and the only one worth expecting on Linux. macOS
+ * produces the other two as well, because Node does not always back stdio with
+ * a pipe there — when it is a socket, a write after the peer has closed
+ * reports `ENOTCONN` (observed: `cledger log --json | head -1` exiting 1 with
+ * `write ENOTCONN` on macOS, but only under enough concurrent load to change
+ * how far the teardown had progressed) and a half-closed one can report
+ * `ECONNRESET`. Matching only `EPIPE` therefore fixed the stack trace but left
+ * a nonzero exit on the same command, on the platform this is developed on.
+ * The distinction is an accident of what kind of file descriptor Node handed
+ * us, never of what the user did.
+ */
+const READER_GONE = new Set(["EPIPE", "ENOTCONN", "ECONNRESET"]);
+
+/**
  * Exit quietly when the reader closes the pipe.
  *
  * `cledger export | head -1` is ordinary usage, and without this handler it
  * printed a stack trace instead of output: `process.stdout` had no `error`
- * listener, so the EPIPE Node raises once the reader is gone surfaced as an
+ * listener, so the error Node raises once the reader is gone surfaced as an
  * unhandled `error` event. Small ledgers hide it, because the whole payload
  * fits the 64KB pipe buffer before `head` exits and the write never fails;
  * anything larger throws every time.
  *
- * A reader that stopped reading is not a failure of ours, so EPIPE exits 0 —
- * the convention every `head`-friendly CLI follows. Any other stdout error is
- * real and still reported, but as a message rather than a stack trace.
+ * A reader that stopped reading is not a failure of ours, so it exits 0 — the
+ * convention every `head`-friendly CLI follows. Any other stdout error is real
+ * and still reported, but as a message rather than a stack trace.
  */
 function guardStdout(): void {
   process.stdout.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code === "EPIPE") process.exit(0);
+    if (err.code && READER_GONE.has(err.code)) process.exit(0);
     process.stderr.write(`cledger: stdout: ${err.message}\n`);
     process.exit(1);
   });
@@ -359,7 +384,10 @@ async function cmdShow(positional: string[], flags: Flags): Promise<void> {
     process.exit(2);
   }
   const repo = await requireRepo();
-  let events = await readEvents(repo, { conversation: prefix });
+  // Deliberately the whole local ledger: you named one conversation, so
+  // reachability is not the question you asked, and scoping would answer "no
+  // such conversation" for one captured on a branch you are not standing on.
+  let events = await readEvents(repo, { conversation: prefix, reachableFrom: null });
   events = events.filter(displayFilter(flags, {}));
   if (events.length === 0) {
     process.stderr.write(`no events for conversation ${prefix}\n`);
@@ -414,10 +442,19 @@ async function cmdConversations(flags: Flags): Promise<void> {
   }
 }
 
+/**
+ * `export` is lossless about each event — every field, `raw` and `reasoning`
+ * included — but that is a statement about *what* it prints, not about *how
+ * much*. It now scopes to the current branch like `log` does, because a dump
+ * that silently carries conversations from branches that were abandoned and
+ * never merged is not a neutral default for the consumers reading it. `--all`
+ * restores the whole local ledger.
+ */
 async function cmdExport(flags: Flags): Promise<void> {
   const repo = await requireRepo();
-  const opts: ReadOptions = {};
-  if (typeof flags["rev"] === "string") opts.reachableFrom = flags["rev"];
+  const opts: ReadOptions = {
+    reachableFrom: flags["all"] ? null : typeof flags["rev"] === "string" ? flags["rev"] : "HEAD",
+  };
   const events = await readEvents(repo, opts);
   await printJsonl(events, true);
 }
@@ -482,8 +519,13 @@ async function cmdTransportPush(positional: string[]): Promise<void> {
 async function cmdScan(flags: Flags): Promise<void> {
   const repo = await requireRepo();
   const tier: "standard" | "paranoid" = flags["paranoid"] ? "paranoid" : "standard";
-  const opts: ReadOptions = {};
-  if (typeof flags["rev"] === "string") opts.reachableFrom = flags["rev"];
+  // Every local event unless --rev narrows it: a standalone scan is a safety
+  // pass, and a secret on a branch you are not standing on is still a secret
+  // you want told about. (The *push* gate scopes to what the push carries —
+  // that is a different question, asked in transportPush.)
+  const opts: ReadOptions = {
+    reachableFrom: typeof flags["rev"] === "string" ? flags["rev"] : null,
+  };
   const events = await readEvents(repo, opts);
   const config = await loadConfig(repo.root);
   const findings = filterFindings(scanEvents(events, tier), await loadAllowlist(repo, config));
@@ -591,7 +633,9 @@ async function cmdInspect(positional: string[], flags: Flags): Promise<void> {
   }
   const reveal = Boolean(flags["reveal"]);
 
-  const events = await readEvents(repo);
+  // Whole local ledger: an event id is a global handle, and a finding you were
+  // told to inspect must be inspectable from wherever you are standing.
+  const events = await readEvents(repo, { reachableFrom: null });
   const matched = events.filter((e) => e.id.startsWith(prefix));
   if (matched.length === 0) {
     process.stderr.write(`cledger inspect: no event matching id prefix ${prefix}\n`);
