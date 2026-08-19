@@ -194,6 +194,62 @@ function sessionIdFromFilename(transcriptPath: string): string {
   return match?.[1] ?? name;
 }
 
+/**
+ * Which conversation a rollout file *is*, and whose child it is.
+ *
+ * Codex writes one rollout per thread, sub-agents included — they sit in the
+ * same flat `YYYY/MM/DD/` tree with no distinguishing name — and a child is
+ * told apart by the shape of `session_meta.payload.source`: a plain string for
+ * a top-level session (`cli`, `exec`, `vscode`), an object carrying a
+ * `subagent` key for a child.
+ *
+ * **`payload.id` is the thread's own id; `payload.session_id` is not.** On a
+ * child rollout `session_id` holds the *parent's* id, which is what this used
+ * to key on. Two things followed, both silent: a child's turns were filed into
+ * the parent's conversation and numbered by the child's own line index, so
+ * they interleaved nonsense into the parent's `seq` ordering; and the capture
+ * cursor, keyed on the same id, was shared between parent and child, each
+ * repeatedly dragging the other back into a full rescan.
+ *
+ * Measured on 40 local rollouts before changing this: `payload.id` equals the
+ * filename's uuid for all 40, while `session_id` does so for only the 29
+ * top-level ones — the 11 that disagree are exactly the 11 with an object
+ * `source`, and all 11 carry `parent_thread_id`. So preferring `id` leaves
+ * every top-level event id untouched (no churn) and only re-files the children,
+ * which were mis-filed to begin with.
+ */
+function sessionIdentity(
+  transcriptPath: string,
+  firstLine: string | undefined,
+): { sessionId: string; parentSessionId?: string } {
+  const fromName = sessionIdFromFilename(transcriptPath);
+  if (!firstLine) return { sessionId: fromName };
+  let first: CodexRolloutLine;
+  try {
+    first = JSON.parse(firstLine) as CodexRolloutLine;
+  } catch {
+    return { sessionId: fromName }; // malformed first line — filename wins
+  }
+  if (first.type !== "session_meta") return { sessionId: fromName };
+  const payload = first.payload ?? {};
+  const own = payload["id"];
+  const legacy = payload["session_id"];
+  // `id` first, `session_id` only as a fallback for a codex old enough not to
+  // write one, and the filename last.
+  const sessionId =
+    typeof own === "string" ? own : typeof legacy === "string" ? legacy : fromName;
+  const source = payload["source"];
+  const isSubagent =
+    typeof source === "object" && source !== null && "subagent" in (source as object);
+  const parent = payload["parent_thread_id"];
+  // A parent that names this same thread would make the conversation its own
+  // ancestor; refuse it rather than record a cycle.
+  if (isSubagent && typeof parent === "string" && parent && parent !== sessionId) {
+    return { sessionId, parentSessionId: parent };
+  }
+  return { sessionId };
+}
+
 /** `rollout-YYYY-MM-DDThh-mm-ss-*.jsonl` timestamp, else file mtime, else now. */
 async function sessionBaseTime(transcriptPath: string): Promise<string> {
   const match = basename(transcriptPath).match(/rollout-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})/);
@@ -546,16 +602,7 @@ export async function captureCodexTranscript(
   const lines = raw.split("\n");
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
 
-  let sessionId = sessionIdFromFilename(transcriptPath);
-  if (lines[0]) {
-    try {
-      const first = JSON.parse(lines[0]) as CodexRolloutLine;
-      const metaId = first.payload?.["session_id"];
-      if (first.type === "session_meta" && typeof metaId === "string") sessionId = metaId;
-    } catch {
-      // malformed first line — filename-derived id already set
-    }
-  }
+  const { sessionId, parentSessionId } = sessionIdentity(transcriptPath, lines[0]);
 
   let cursor = (await readCursor(repo, sessionId, CURSOR_FIELD))?.count ?? 0;
   if (cursor > lines.length) cursor = 0; // transcript is shorter than expected — rescan from the start
@@ -674,6 +721,19 @@ export async function captureCodexTranscript(
           }),
         );
       }
+    }
+  }
+
+  // Applied here, in one exhaustive pass, rather than threaded through the
+  // half-dozen places above that build a draft: the parent is a property of
+  // the *file*, identical for every event in it, and a single loop over the
+  // finished list cannot miss a construction site the way six separate
+  // arguments could. `conversation.parent` is part of event identity, so this
+  // must run before the append, never as a later rewrite.
+  if (parentSessionId) {
+    const parent = `codex:${parentSessionId}`;
+    for (const d of drafts) {
+      if (d.conversation) d.conversation = { ...d.conversation, parent };
     }
   }
 

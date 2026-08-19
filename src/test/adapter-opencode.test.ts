@@ -261,3 +261,170 @@ test("an errored tool call is captured with is_error", async () => {
     await cleanupRepo(repo);
   }
 });
+
+/**
+ * Real opencode part ids, and what makes them useful here.
+ *
+ * opencode mints `prt_` + 12 hex + 14 random base62, where the hex is a 48-bit
+ * `Date.now() * 4096 + counter`. The ids below are the genuine shape (checked
+ * against a live opencode 1.18.10 store, 859 parts, zero ordering violations
+ * within a session); only the random tails are invented.
+ */
+const P = [
+  "prt_fbc184c1b000aaaaaaaaaaaaaa",
+  "prt_fbc184c1b001bbbbbbbbbbbbbb",
+  "prt_fbc184c1b002cccccccccccccc",
+  "prt_fbc184c1b003dddddddddddddd",
+];
+const SEQ = P.map((id) => parseInt(id.slice(4, 16), 16));
+
+/** A session of plain text parts, from whichever of the ids above are named. */
+function textSession(ids: string[]): OpencodeExport {
+  return {
+    info: {
+      id: SESSION_ID,
+      directory: "/tmp/whatever",
+      version: "1.18.10",
+      time: { created: SESSION_CREATED, updated: SESSION_CREATED + 9000 },
+    },
+    messages: [
+      {
+        info: {
+          id: "msg_asst",
+          sessionID: SESSION_ID,
+          role: "assistant",
+          time: { created: SESSION_CREATED + 1 },
+        },
+        parts: ids.map((id, i) => ({
+          id,
+          type: "text",
+          text: `part ${id.slice(4, 16)}`,
+          time: { start: SESSION_CREATED + 10 + i },
+        })),
+      },
+    ],
+  };
+}
+
+const seqsOf = async (repo: Parameters<typeof readEvents>[0]): Promise<number[]> =>
+  (await readEvents(repo, { reachableFrom: null }))
+    .filter((e) => e.kind === "conversation_turn")
+    .map((e) => e.conversation!.seq)
+    .sort((a, b) => a - b);
+
+test("seq comes from the part id, so it is a property of the part and not of its neighbours", async () => {
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "initial");
+    await captureOpencodeExport(textSession(P), repo.root);
+    assert.deepEqual(await seqsOf(repo), SEQ, "each part is numbered by its own id");
+    assert.ok(SEQ[0]! < SEQ[1]! && SEQ[1]! < SEQ[2]!, "and the ids sort in creation order");
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("deleting a part out of the middle does not renumber the survivors", async () => {
+  // The bug this exists to fix. opencode's store is mutable: `session revert`
+  // and `part.removed` delete parts from the middle, and under a positional
+  // index every part after the hole shifted down — re-capturing them under new
+  // ids, because `seq` is part of event identity. Duplicates in the ledger for
+  // content that never changed.
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "initial");
+    await captureOpencodeExport(textSession(P), repo.root);
+    const before = await readEvents(repo, { reachableFrom: null });
+    const idsBefore = new Set(before.map((e) => e.id));
+
+    // The user reverts: the second part is gone, the rest survive unchanged.
+    const reverted = textSession([P[0]!, P[2]!, P[3]!]);
+    await captureOpencodeExport(reverted, repo.root);
+
+    const after = await readEvents(repo, { reachableFrom: null });
+    assert.deepEqual(
+      await seqsOf(repo),
+      SEQ,
+      "the withdrawn part stays in the ledger; the ledger is append-only",
+    );
+    assert.deepEqual(
+      after.map((e) => e.id).filter((id) => !idsBefore.has(id)),
+      [],
+      "and the survivors re-capture under the ids they already had, rather than duplicating",
+    );
+    assert.equal(after.length, before.length, "so the event count does not grow");
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("the cursor is a high-water mark over ids, not a count that a deletion can offset", async () => {
+  // A count only notices parts going away when the session gets *shorter*, so
+  // a deletion offset by an addition left it looking healthy while pointing at
+  // the wrong place. This is exactly that shape: one part removed, one added.
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "initial");
+    await captureOpencodeExport(textSession([P[0]!, P[1]!, P[2]!]), repo.root);
+
+    const swapped = await captureOpencodeExport(textSession([P[0]!, P[2]!, P[3]!]), repo.root);
+    assert.equal(swapped.appended, 1, "only the genuinely new part is appended");
+    assert.deepEqual(await seqsOf(repo), SEQ, "and nothing already captured was missed");
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("an unsettled tool still holds the cursor back under id-derived seqs", async () => {
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "initial");
+    const running: OpencodeExport = {
+      info: { id: SESSION_ID, directory: "/tmp/whatever", time: { created: SESSION_CREATED } },
+      messages: [
+        {
+          info: { id: "msg_asst", sessionID: SESSION_ID, role: "assistant", time: { created: SESSION_CREATED } },
+          parts: [
+            { id: P[0]!, type: "text", text: "starting", time: { start: SESSION_CREATED + 1 } },
+            {
+              id: P[1]!,
+              type: "tool",
+              tool: "bash",
+              callID: "call_running",
+              state: { status: "running", input: { command: "sleep 1" } },
+            },
+          ],
+        },
+      ],
+    };
+    const first = await captureOpencodeExport(running, repo.root);
+    assert.equal(first.appended, 1, "the running tool is not captured yet");
+
+    const settled = JSON.parse(JSON.stringify(running)) as OpencodeExport;
+    settled.messages![0]!.parts![1]!.state = {
+      status: "completed",
+      input: { command: "sleep 1" },
+      output: "done",
+      time: { start: SESSION_CREATED + 2 },
+    };
+    const second = await captureOpencodeExport(settled, repo.root);
+    assert.equal(second.appended, 1, "and is picked up once it settles, exactly once");
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("a session whose ids opencode did not mint keeps the positional numbering", async () => {
+  // Ids from other tooling exist in the wild. Mixing a 48-bit timestamp with a
+  // small integer inside one session would sort into nonsense, so the scheme is
+  // chosen per session: unless every part parses, the whole session stays
+  // positional and behaves exactly as it did before ids were used at all.
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "initial");
+    await captureOpencodeExport(textSession([P[0]!, "prt_handwritten", P[2]!]), repo.root);
+    assert.deepEqual(await seqsOf(repo), [0, 1, 2], "one odd id demotes the whole session");
+  } finally {
+    await cleanupRepo(repo);
+  }
+});

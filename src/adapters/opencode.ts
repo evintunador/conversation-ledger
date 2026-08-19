@@ -287,18 +287,77 @@ function partTime(info: OpencodeMessageInfo, part: OpencodePart, baseTime: strin
   );
 }
 
-/** Flatten messages into parts, numbering every part in export order. */
-function flattenParts(data: OpencodeExport): FlatPart[] {
-  const flat: FlatPart[] = [];
+/**
+ * The timestamp opencode buries in a part id, or null if this id is not one of
+ * opencode's own.
+ *
+ * opencode mints ids as `prt_` + 12 hex + 14 random base62, where the hex is a
+ * 48-bit `Date.now() * 4096 + per-millisecond counter` (its `Identifier`
+ * scheme — ULID-shaped, though not a ULID). That prefix is monotonic in
+ * creation order, which is the property this adapter needs and the positional
+ * index does not have. Verified against a live opencode 1.18.10 store: 859
+ * parts, zero ordering violations within any session.
+ *
+ * The 48-bit field wraps every 2^36 ms (~2.18 years), so lexicographic order
+ * is guaranteed only within an epoch. A single session never spans a wrap, and
+ * `seq` is only ever compared within one conversation, so that bound does not
+ * bite. The value is ~6.7e10 — comfortably inside a safe integer, which
+ * matters because `seq` is hashed into event identity and must round-trip
+ * exactly.
+ */
+function idTime(id: unknown): number | null {
+  if (typeof id !== "string") return null;
+  const match = id.match(/^prt_([0-9a-f]{12})/);
+  if (!match) return null;
+  const value = parseInt(match[1]!, 16);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+/**
+ * Flatten messages into parts, numbering each one.
+ *
+ * **`seq` comes from the part's own id when it can, and from export order when
+ * it cannot** — and the choice is made once for the whole session, never per
+ * part, so one session's numbers are always on one scale.
+ *
+ * The positional index was the original scheme and is wrong for a *mutable*
+ * store. opencode keeps sessions in SQLite, where `session revert`,
+ * `message.removed` and `part.removed` delete parts out of the middle. Every
+ * part after the hole then shifts down, and because `seq` is part of event
+ * identity, the shifted parts re-capture under new ids — duplicates in the
+ * ledger for content that never changed. Deriving `seq` from the id makes it a
+ * property of the part rather than of its neighbours, so a deletion renumbers
+ * nothing and a rescan dedups.
+ *
+ * The fallback is not hypothetical: ids not minted by opencode exist in the
+ * wild (test harnesses and other tooling write their own), and a session
+ * mixing a 48-bit timestamp with a small integer would sort into nonsense.
+ * Requiring *every* part to parse before switching keeps each session
+ * internally consistent, and leaves such a session behaving exactly as it did
+ * before this change.
+ */
+function flattenParts(data: OpencodeExport): { flat: FlatPart[]; derived: boolean } {
+  const positional: FlatPart[] = [];
   let seq = 0;
   for (const message of data.messages ?? []) {
     const info = message.info ?? {};
     for (const part of message.parts ?? []) {
-      flat.push({ info, part, seq });
+      positional.push({ info, part, seq });
       seq++;
     }
   }
-  return flat;
+
+  const times = positional.map((f) => idTime(f.part.id));
+  // Distinct as well as present: two parts sharing a seq would collide in the
+  // identity hash, which is worse than numbering by position.
+  const usable =
+    times.every((t): t is number => t !== null) && new Set(times).size === times.length;
+  if (!usable) return { flat: positional, derived: false };
+
+  return {
+    flat: positional.map((f, i) => ({ ...f, seq: times[i]! })),
+    derived: true,
+  };
 }
 
 /**
@@ -563,11 +622,15 @@ export async function captureOpencodeExport(
   const parentId =
     typeof data.info?.parentID === "string" && data.info.parentID ? data.info.parentID : undefined;
 
-  const flat = flattenParts(data);
+  const { flat, derived } = flattenParts(data);
   let cursor = (await readCursor(repo, sessionId, CURSOR_FIELD))?.count ?? 0;
-  // A session shorter than the cursor means parts were removed (a revert, or
-  // a deleted message). Rescan from the start; identical events dedup.
-  if (cursor > flat.length) cursor = 0;
+  // Under the positional scheme the cursor is a part *count*, so a session
+  // shorter than it means parts were removed (a revert, a deleted message):
+  // rescan from the start and let identical events dedup. Under the derived
+  // scheme the cursor is the highest `seq` already captured, and a deletion
+  // renumbers nothing, so there is no shrink to detect and nothing to reset —
+  // the surviving parts simply keep the seqs they always had.
+  if (!derived && cursor > flat.length) cursor = 0;
 
   const baseTime =
     isoFromMs(data.info?.time?.created) ?? isoFromMs(data.info?.time?.updated) ?? new Date().toISOString();
@@ -575,14 +638,29 @@ export async function captureOpencodeExport(
   const identity = await gitUserIdentity(repo);
   const sessionVersion = typeof data.info?.version === "string" ? data.info.version : undefined;
 
-  // Where the cursor stops. An unsettled tool call holds it back so the
-  // finished part is seen again next time; parts after it still convert now
-  // and simply dedup on the rescan.
-  let nextCursor = flat.length;
+  /**
+   * Where the cursor stops, in whichever unit this session is using: a count
+   * of parts consumed under the positional scheme, the highest `seq` captured
+   * under the derived one. An unsettled tool call holds it back so the
+   * finished part is seen again next time; parts after it still convert now
+   * and simply dedup on the rescan.
+   *
+   * The derived form is what makes the cursor survive a mid-session deletion.
+   * A count only notices parts going away when the session gets *shorter*, so
+   * a revert offset by new parts left the count looking healthy while pointing
+   * at the wrong place. A high-water mark over ids has nothing to be offset
+   * by.
+   */
+  let nextCursor = derived ? cursor : flat.length;
+  let hold: number | null = null;
 
   const drafts: EventDraft[] = [];
-  for (let i = cursor; i < flat.length; i++) {
+  for (let i = 0; i < flat.length; i++) {
     const { info, part, seq } = flat[i]!;
+    // Both schemes ask the same question — "is this past where I stopped?" —
+    // of the number the scheme uses.
+    if (derived ? seq <= cursor : i < cursor) continue;
+    if (derived) nextCursor = Math.max(nextCursor, seq);
     const type = typeof part.type === "string" ? part.type : "(untyped)";
     const agent = agentContext(info, sessionVersion);
 
@@ -600,7 +678,13 @@ export async function captureOpencodeExport(
     }
 
     if (type === "tool" && !isSettledTool(part)) {
-      nextCursor = Math.min(nextCursor, i);
+      // Hold at the earliest unsettled part. Under the derived scheme the
+      // cursor is an exclusive lower bound, so it must land strictly below
+      // this part's seq for the next capture to see it again; seqs are not
+      // contiguous, which is exactly why `seq - 1` is safe to use as that
+      // bound rather than as a neighbour's number.
+      hold = hold === null ? seq : Math.min(hold, seq);
+      if (!derived) nextCursor = Math.min(nextCursor, i);
       continue;
     }
 
@@ -613,6 +697,7 @@ export async function captureOpencodeExport(
     result.appended = appendResult.appended.length;
     result.deduped = appendResult.deduped;
   }
+  if (derived && hold !== null) nextCursor = Math.min(nextCursor, hold - 1);
   await writeCursor(repo, sessionId, CURSOR_FIELD, nextCursor);
   process.stderr.write(`cledger: opencode +${result.appended} events (${result.deduped} deduped)\n`);
   warnUnrecognized("opencode", result.unrecognized);
