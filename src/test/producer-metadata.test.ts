@@ -63,7 +63,7 @@ test("claude-code: producer records the CLI version on every line and the model 
     ]);
 
     await captureClaudeTranscript(path, repo.root);
-    const bySeq = new Map((await readEvents(repo)).map((e) => [e.conversation!.seq, e]));
+    const bySeq = new Map((await readEvents(repo)).map((e) => [e.stream!.seq, e]));
 
     for (const e of bySeq.values()) {
       assert.strictEqual(e.producer.source_version, "2.1.220", "every line carries the CLI version");
@@ -129,7 +129,7 @@ test("codex: producer picks up model/provider/version from session_meta and turn
     ]);
 
     await captureCodexTranscript(path, repo.root);
-    const bySeq = new Map((await readEvents(repo)).map((e) => [e.conversation!.seq, e]));
+    const bySeq = new Map((await readEvents(repo)).map((e) => [e.stream!.seq, e]));
 
     for (const e of bySeq.values()) {
       assert.strictEqual(e.producer.source_version, "0.145.0");
@@ -199,7 +199,7 @@ test("codex: a turn_context that trails the turn's opening message still labels 
     ]);
 
     await captureCodexTranscript(path, repo.root);
-    const bySeq = new Map((await readEvents(repo)).map((e) => [e.conversation!.seq, e]));
+    const bySeq = new Map((await readEvents(repo)).map((e) => [e.stream!.seq, e]));
     assert.strictEqual(
       bySeq.get(1)!.producer.model,
       "gpt-5.6-sol",
@@ -254,7 +254,7 @@ test("codex: a cursor-resumed capture still labels events from context lines it 
     );
     await captureCodexTranscript(path, repo.root);
 
-    const bySeq = new Map((await readEvents(repo)).map((e) => [e.conversation!.seq, e]));
+    const bySeq = new Map((await readEvents(repo)).map((e) => [e.stream!.seq, e]));
     // session_meta (0) and turn_context (1) are state records of their own, so
     // the ledger holds four events: two state, two turns.
     assert.strictEqual(bySeq.size, 4, "the resumed capture appended exactly one new event");
@@ -355,7 +355,7 @@ test("readEvents --model selects only turns the source labelled with that model"
       (e) => e.kind === "conversation_turn",
     );
     assert.strictEqual(sol.length, 1);
-    assert.strictEqual(sol[0]!.conversation!.seq, 2);
+    assert.strictEqual(sol[0]!.stream!.seq, 2);
     assert.strictEqual(
       (await readEvents(repo, { model: "gpt-5.6-pro" })).filter((e) => e.kind === "conversation_turn")
         .length,

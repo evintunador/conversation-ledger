@@ -45,7 +45,7 @@ async function seeded(): Promise<RepoInfo> {
         actor: { type: f.actor },
         occurred_at: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
         content: { role: f.actor, text: f.label },
-        conversation: { id: "display-fixture", seq: i },
+        stream: { id: "display-fixture", seq: i },
       }),
     ),
   );
@@ -134,20 +134,20 @@ async function seededWithBigSeqs(): Promise<RepoInfo> {
       kind: "conversation_turn",
       actor: { type: "human" },
       content: { role: "human", text: "first" },
-      conversation: { id: "opencode:big", seq: BIG[0]! },
+      stream: { id: "opencode:big", seq: BIG[0]! },
     }),
     // Harness bookkeeping, hidden by default — it must not consume a position.
     draft({
       kind: "activity",
       actor: { type: "system" },
       content: { role: "system", text: "telemetry" },
-      conversation: { id: "opencode:big", seq: BIG[1]! },
+      stream: { id: "opencode:big", seq: BIG[1]! },
     }),
     draft({
       kind: "conversation_turn",
       actor: { type: "agent" },
       content: { role: "agent", text: "second" },
-      conversation: { id: "opencode:big", seq: BIG[2]! },
+      stream: { id: "opencode:big", seq: BIG[2]! },
     }),
   ]);
   return repo;
@@ -191,7 +191,7 @@ test("log --json keeps the stored seq, because a machine wants the ordering key"
     const seqs = stdout
       .split("\n")
       .filter(Boolean)
-      .map((l) => (JSON.parse(l) as EvidenceEvent).conversation!.seq);
+      .map((l) => (JSON.parse(l) as EvidenceEvent).stream!.seq);
     assert.deepEqual(seqs.sort((a, b) => a - b), [BIG[0]!, BIG[2]!]);
   } finally {
     await cleanupRepo(repo);

@@ -452,7 +452,7 @@ function convertPart(
     occurred_at: partTime(info, part, baseTime),
     actor,
     producer: { tool: "cledger", version, source: "opencode", session_id: sessionId, ...agent },
-    conversation: {
+    stream: {
       id: conversation.id,
       seq,
       ...(conversation.parent ? { parent: conversation.parent } : {}),
@@ -561,7 +561,7 @@ export function renormalizeUnrecognized(
   event: EvidenceEvent,
   identity: GitUserIdentity,
 ): EventDraft | null {
-  if (!event.raw || event.conversation === undefined) return null;
+  if (!event.raw || event.stream === undefined) return null;
   const stored = event.raw.data as { info?: OpencodeMessageInfo; part?: OpencodePart } | null;
   if (!stored || !stored.part) return null;
   const info = stored.info ?? {};
@@ -576,11 +576,11 @@ export function renormalizeUnrecognized(
   // event's own `conversation.parent`, where the capture that preserved the
   // part recorded it, and stripped of its `opencode:` namespace so
   // `conversationFor` re-derives the identical ref.
-  const parentId = event.conversation.parent?.replace(/^opencode:/, "");
+  const parentId = event.stream.parent?.replace(/^opencode:/, "");
   const turn = convertPart(
     info,
     stored.part,
-    event.conversation.seq,
+    event.stream.seq,
     sessionId,
     event.occurred_at,
     version,
@@ -591,7 +591,7 @@ export function renormalizeUnrecognized(
   if (turn) return turn;
   return convertRecordPart(
     stored.part,
-    recordContext(event.occurred_at, event.conversation.seq, sessionId, parentId, version, agent),
+    recordContext(event.occurred_at, event.stream.seq, sessionId, parentId, version, agent),
     info,
   );
 }

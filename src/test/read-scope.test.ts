@@ -36,12 +36,12 @@ async function twoBranches(): Promise<RepoInfo> {
   const repo = await makeTempRepo("cledger-scope-");
   await makeCommit(repo, "on main");
   await appendEvents(repo, [
-    draft({ content: { role: "human", text: "main-turn" }, conversation: { id: "conv-main", seq: 0 } }),
+    draft({ content: { role: "human", text: "main-turn" }, stream: { id: "conv-main", seq: 0 } }),
   ]);
   await git(["checkout", "-q", "-b", "side"], { cwd: repo.root });
   await makeCommit(repo, "on side");
   await appendEvents(repo, [
-    draft({ content: { role: "human", text: "side-turn" }, conversation: { id: "conv-side", seq: 0 } }),
+    draft({ content: { role: "human", text: "side-turn" }, stream: { id: "conv-side", seq: 0 } }),
   ]);
   await git(["checkout", "-q", "main"], { cwd: repo.root });
   return repo;

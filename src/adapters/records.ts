@@ -80,7 +80,7 @@ export function recordDraft(
       session_id: ctx.sessionId,
       ...ctx.agent,
     },
-    conversation: {
+    stream: {
       id: ctx.conversationId,
       seq: ctx.seq,
       ...(ctx.parentConversationId ? { parent: ctx.parentConversationId } : {}),

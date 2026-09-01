@@ -143,8 +143,8 @@ test("renormalize: id fidelity across a blind→renorm→seeing capture (codex)"
     assert.strictEqual(r.supersessionsAppended, 1);
 
     const turn = (await readEvents(repo)).find((e) => e.kind === "conversation_turn")!;
-    assert.strictEqual(turn.conversation?.id, `codex:${CX_SESSION}`);
-    assert.strictEqual(turn.conversation?.seq, 1);
+    assert.strictEqual(turn.stream?.id, `codex:${CX_SESSION}`);
+    assert.strictEqual(turn.stream?.seq, 1);
     assert.deepStrictEqual(turn.content, {
       role: "user",
       blocks: [{ type: "text", text: "codex hello" }],

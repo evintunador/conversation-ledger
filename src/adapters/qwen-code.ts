@@ -415,7 +415,7 @@ function convertLine(
       session_id: sessionId,
       ...agentContext(line),
     },
-    conversation: {
+    stream: {
       id: conversation.id,
       seq,
       ...(conversation.parent ? { parent: conversation.parent } : {}),
@@ -466,18 +466,18 @@ export function renormalizeUnrecognized(
   event: EvidenceEvent,
   identity: GitUserIdentity,
 ): EventDraft | null {
-  if (!event.raw || event.conversation === undefined) return null;
+  if (!event.raw || event.stream === undefined) return null;
   const line = event.raw.data as QwenTranscriptLine;
   const sessionId = event.producer.session_id ?? "";
-  const parentId = event.conversation.parent?.replace(/^qwen-code:/, "");
+  const parentId = event.stream.parent?.replace(/^qwen-code:/, "");
   const version = packageVersion();
-  const turn = convertLine(line, event.conversation.seq, version, identity, sessionId, parentId);
+  const turn = convertLine(line, event.stream.seq, version, identity, sessionId, parentId);
   if (turn) return turn;
   if (line?.type !== "system") return null;
   const ctx = recordContext(
     line,
     event.occurred_at,
-    event.conversation.seq,
+    event.stream.seq,
     sessionId,
     version,
     parentId,

@@ -1,6 +1,6 @@
 {
   "name": "conversation-ledger",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "description": "Durable, attributable records of visible coding-agent conversations, stored as git notes.",
   "type": "module",
   "license": "MIT",
@@ -48,5 +48,8 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "annals": "file:../annals"
   }
 }

@@ -13,7 +13,8 @@ export {
   manualReAnchor,
 } from "./store.js";
 export type { AppendResult, ReadOptions, ReAnchorRunResult, TransportPushResult } from "./store.js";
-export { absorbIncoming, ensureTransport, INCOMING_REF, NOTES_NAME, NOTES_REF } from "./transport.js";
+export { absorbIncoming, ensureTransport } from "./transport.js";
+export { INCOMING_REF, NOTES_NAME, NOTES_REF } from "./store.js";
 export type { TransportSetup } from "./transport.js";
 export type { CaptureResult } from "./adapters/drift.js";
 export {

@@ -37,7 +37,7 @@ async function repoWithBigLedger(): Promise<RepoInfo> {
       draft({
         occurred_at: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
         content: { role: "human", text: `turn ${i} ${PADDING}` },
-        conversation: { id: "epipe-fixture", seq: i },
+        stream: { id: "epipe-fixture", seq: i },
       }),
     ),
   );

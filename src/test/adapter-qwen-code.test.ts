@@ -153,7 +153,7 @@ test("qwen-code capture: every line becomes an event, in the kind it deserves", 
     assert.deepEqual(result.unrecognized, { artifact: 1 });
 
     const events = await readEvents(repo);
-    const bySeq = new Map(events.map((e) => [e.conversation!.seq, e]));
+    const bySeq = new Map(events.map((e) => [e.stream!.seq, e]));
     assert.ok(events.every((e) => e.producer.source === "qwen-code"));
     assert.ok(events.every((e) => e.producer.source_version === QWEN_VERSION));
     assert.deepEqual(
@@ -267,9 +267,9 @@ test("qwen-code capture: a subagent transcript points back at its parent", async
     const events = await readEvents(repo);
     assert.equal(events.length, 2);
     for (const event of events) {
-      assert.equal(event.conversation!.id, `qwen-code:${child}`);
+      assert.equal(event.stream!.id, `qwen-code:${child}`);
       assert.equal(
-        event.conversation!.parent,
+        event.stream!.parent,
         `qwen-code:${SESSION_ID}`,
         "the parent link is read once from the parent_session record and applied to every event",
       );
@@ -353,7 +353,7 @@ test("qwen-code renormalize: a preserved line becomes the event a live capture w
     };
     const turn = renormalizeUnrecognized(asTurn, identity)!;
     assert.equal(turn.kind, "conversation_turn");
-    assert.equal(turn.conversation!.seq, stored.conversation!.seq);
+    assert.equal(turn.stream!.seq, stored.stream!.seq);
     assert.equal(turn.producer.model, "deepseek-v4-flash");
 
     // Record kinds renormalize too, not just turns.

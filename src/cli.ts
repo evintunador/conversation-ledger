@@ -209,7 +209,7 @@ function readOptionsFrom(flags: Flags): ReadOptions {
   if (typeof flags["kind"] === "string") opts.kind = flags["kind"];
   if (typeof flags["source"] === "string") opts.source = flags["source"];
   if (typeof flags["model"] === "string") opts.model = flags["model"];
-  if (typeof flags["conversation"] === "string") opts.conversation = flags["conversation"];
+  if (typeof flags["conversation"] === "string") opts.stream = flags["conversation"];
   return opts;
 }
 
@@ -314,22 +314,22 @@ async function writeOut(text: string): Promise<void> {
 function ordinals(events: EvidenceEvent[]): Map<string, number> {
   const byConversation = new Map<string, EvidenceEvent[]>();
   for (const e of events) {
-    if (!e.conversation) continue;
-    const bucket = byConversation.get(e.conversation.id);
+    if (!e.stream) continue;
+    const bucket = byConversation.get(e.stream.id);
     if (bucket) bucket.push(e);
-    else byConversation.set(e.conversation.id, [e]);
+    else byConversation.set(e.stream.id, [e]);
   }
   const rank = new Map<string, number>();
   for (const bucket of byConversation.values()) {
-    bucket.sort((a, b) => a.conversation!.seq - b.conversation!.seq);
+    bucket.sort((a, b) => a.stream!.seq - b.stream!.seq);
     // Ties share a rank: a reasoning blob and the turn it belongs to are
     // deliberately written at the same seq, and numbering one of them second
     // would invent an ordering the adapter went out of its way not to assert.
     let position = 0;
     let previousSeq: number | null = null;
     for (const e of bucket) {
-      if (previousSeq === null || e.conversation!.seq !== previousSeq) position++;
-      previousSeq = e.conversation!.seq;
+      if (previousSeq === null || e.stream!.seq !== previousSeq) position++;
+      previousSeq = e.stream!.seq;
       rank.set(e.id, position);
     }
   }
@@ -338,8 +338,8 @@ function ordinals(events: EvidenceEvent[]): Map<string, number> {
 
 async function printHuman(events: EvidenceEvent[], rank?: Map<string, number>): Promise<void> {
   for (const e of events) {
-    const position = rank?.get(e.id) ?? e.conversation?.seq;
-    const conv = e.conversation ? `${e.conversation.id.slice(0, 28)}#${position}` : "-";
+    const position = rank?.get(e.id) ?? e.stream?.seq;
+    const conv = e.stream ? `${e.stream.id.slice(0, 28)}#${position}` : "-";
     const role =
       (e.content as Record<string, unknown> | null | undefined) &&
       typeof e.content === "object"
@@ -377,7 +377,7 @@ async function printHuman(events: EvidenceEvent[], rank?: Map<string, number>): 
 function displayFilter(flags: Flags, opts: ReadOptions): (event: EvidenceEvent) => boolean {
   const reasoning = flags["with-reasoning"] === true || opts.kind === "reasoning";
   const state =
-    flags["with-state"] === true || (opts.kind !== undefined && SESSION_MACHINERY_KINDS.has(opts.kind));
+    flags["with-state"] === true || (typeof opts.kind === "string" && SESSION_MACHINERY_KINDS.has(opts.kind));
   return (event) => {
     if (!reasoning && event.kind === "reasoning") return false;
     if (!state && SESSION_MACHINERY_KINDS.has(event.kind) && event.actor.type !== "human")
@@ -435,7 +435,7 @@ async function cmdShow(positional: string[], flags: Flags): Promise<void> {
   // Deliberately the whole local ledger: you named one conversation, so
   // reachability is not the question you asked, and scoping would answer "no
   // such conversation" for one captured on a branch you are not standing on.
-  let events = await readEvents(repo, { conversation: prefix, reachableFrom: null });
+  let events = await readEvents(repo, { stream: prefix, reachableFrom: null });
   events = events.filter(displayFilter(flags, {}));
   if (events.length === 0) {
     process.stderr.write(`no events for conversation ${prefix}\n`);
@@ -467,7 +467,7 @@ async function cmdConversations(flags: Flags): Promise<void> {
     { count: number; first: string; last: string; source: string; models: Set<string> }
   >();
   for (const e of events) {
-    const id = e.conversation?.id ?? "(none)";
+    const id = e.stream?.id ?? "(none)";
     const entry = byConv.get(id) ?? {
       count: 0,
       first: e.occurred_at,
@@ -575,7 +575,7 @@ async function cmdScan(flags: Flags): Promise<void> {
     reachableFrom: typeof flags["rev"] === "string" ? flags["rev"] : null,
   };
   const events = await readEvents(repo, opts);
-  const config = await loadConfig(repo.root);
+  const config = await loadConfig(repo);
   const findings = filterFindings(scanEvents(events, tier), await loadAllowlist(repo, config));
   if (findings.length === 0) {
     process.stderr.write("cledger scan: no findings\n");
@@ -839,7 +839,7 @@ async function cmdReAnchor(positional: string[], flags: Flags): Promise<void> {
   }
 
   if (result.unmatched.length > 0) {
-    const config = await loadConfig(repo.root);
+    const config = await loadConfig(repo);
     let forge = null;
     if (flags["no-forge"] === true || config.reanchor?.forge === false) {
       process.stderr.write("  (forge lookups disabled — offline evidence only)\n");
