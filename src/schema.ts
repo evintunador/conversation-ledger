@@ -84,23 +84,122 @@ export const SESSION_MACHINERY_KINDS = new Set<string>([
   "file_snapshot",
 ]);
 
-export {
-  eventId,
-  finalizeEvent,
-  parseEventLine,
-  serializeEvent,
-  validateEvent,
-  SCHEMA_VERSION,
-} from "annals";
+import * as A from "annals";
+
+export { parseEventLine as parseAnnalsEventLine, SCHEMA_VERSION } from "annals";
 export type {
-  Actor,
-  EventDraft,
   EventLink,
-  EvidenceEvent,
-  Producer,
-  ProducerAgentContext,
   RepoContext,
   StreamRef,
 } from "annals";
 /** Pre-extraction name for StreamRef: for cledger a stream is a conversation. */
 export type { StreamRef as ConversationRef } from "annals";
+
+/** Who a record is about/by: "human" | "agent" | "system". cledger
+ * vocabulary — the annals envelope has no actor; it rides in `meta`. */
+export interface Actor {
+  type: string;
+  /** Stable identity when known, e.g. git author email or model id. */
+  id?: string;
+  display?: string;
+}
+
+/**
+ * cledger's producer view. Only `tool`/`version` live on the annals
+ * envelope; the rest is cledger vocabulary carried in `meta` — the
+ * translation in this module folds it back and forth so adapters and
+ * consumers keep one flat shape.
+ */
+export interface Producer {
+  tool: string;
+  version?: string;
+  /** Source system the content came from, e.g. "claude-code", "codex". */
+  source?: string;
+  /** The source system's own version, e.g. the coding CLI's. */
+  source_version?: string;
+  /** Model that served this turn, verbatim, only when the source states it. */
+  model?: string;
+  /** Inference provider serving `model`, verbatim, never inferred. */
+  provider?: string;
+  /** Source system's native session identifier. */
+  session_id?: string;
+}
+
+export type ProducerAgentContext = Pick<Producer, "source_version" | "model" | "provider">;
+
+export interface EvidenceEvent extends Omit<A.EvidenceEvent, "producer"> {
+  actor: Actor;
+  producer: Producer;
+}
+
+/** Fields an adapter supplies; id/schema/recorded_at are filled at append. */
+export type EventDraft = Omit<EvidenceEvent, "id" | "schema" | "recorded_at" | "actor"> &
+  Partial<Pick<EvidenceEvent, "id" | "schema" | "recorded_at" | "actor">>;
+
+const META_PRODUCER_KEYS = ["source", "source_version", "model", "provider", "session_id"] as const;
+
+/** Fold cledger vocabulary (actor, producer extras) into the annals meta. */
+export function toAnnals(draft: EventDraft): A.EventDraft {
+  const { actor, producer, meta, ...rest } = draft;
+  const outMeta: Record<string, unknown> = { ...(meta ?? {}) };
+  if (actor && outMeta["actor"] === undefined) outMeta["actor"] = actor;
+  for (const key of META_PRODUCER_KEYS) {
+    const value = producer[key];
+    if (value !== undefined && outMeta[key] === undefined) outMeta[key] = value;
+  }
+  const outProducer: A.Producer = { tool: producer.tool };
+  if (producer.version !== undefined) outProducer.version = producer.version;
+  return {
+    ...rest,
+    producer: outProducer,
+    ...(Object.keys(outMeta).length > 0 ? { meta: outMeta } : {}),
+  } as A.EventDraft;
+}
+
+/**
+ * Lift the flat cledger shape back out of an annals event. Tolerant of
+ * pre-extraction (ev1) lines, which carried `actor` and the full producer
+ * at the top level rather than in `meta`.
+ */
+export function fromAnnals(event: A.EvidenceEvent): EvidenceEvent {
+  const legacy = event as A.EvidenceEvent & { actor?: Actor; producer: Producer };
+  const meta = { ...(event.meta ?? {}) };
+  const actor = (meta["actor"] as Actor | undefined) ?? legacy.actor ?? { type: "unknown" };
+  delete meta["actor"];
+  const producer: Producer = { tool: event.producer.tool };
+  if (event.producer.version !== undefined) producer.version = event.producer.version;
+  for (const key of META_PRODUCER_KEYS) {
+    const value = (meta[key] as string | undefined) ?? legacy.producer[key];
+    if (value !== undefined) producer[key] = value;
+    delete meta[key];
+  }
+  const out = { ...event, actor, producer } as EvidenceEvent;
+  if (Object.keys(meta).length > 0) out.meta = meta;
+  else delete out.meta;
+  return out;
+}
+
+export function eventId(draft: EventDraft): string {
+  return A.eventId(toAnnals(draft));
+}
+
+export function finalizeEvent(draft: EventDraft, now?: Date): EvidenceEvent {
+  return fromAnnals(A.finalizeEvent(toAnnals(draft), now));
+}
+
+export function validateEvent(event: EvidenceEvent): string[] {
+  const { id, schema, recorded_at, ...rest } = event;
+  const annalsEvent = { ...toAnnals(rest as EventDraft), id, schema, recorded_at } as A.EvidenceEvent;
+  return A.validateEvent(annalsEvent);
+}
+
+/** Canonical stored bytes — the annals shape, vocabulary folded into meta. */
+export function serializeEvent(event: EvidenceEvent): string {
+  const { id, schema, recorded_at, ...rest } = event;
+  return A.serializeEvent({ ...toAnnals(rest as EventDraft), id, schema, recorded_at } as A.EvidenceEvent);
+}
+
+/** Parse a stored note line into the flat cledger shape. */
+export function parseEventLine(line: string): EvidenceEvent {
+  return fromAnnals(A.parseEventLine(line));
+}
