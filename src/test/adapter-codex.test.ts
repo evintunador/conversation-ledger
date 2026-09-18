@@ -78,7 +78,7 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
 
     for (const e of events) {
       assert.strictEqual(e.raw?.format, "codex-rollout-jsonl/2");
-      assert.strictEqual(e.conversation?.id, `codex:${SESSION_ID}`);
+      assert.strictEqual(e.stream?.id, `codex:${SESSION_ID}`);
       assert.strictEqual(e.producer.source, "codex");
       assert.strictEqual(
         e.producer.session_id,
@@ -88,7 +88,7 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
     }
 
     // seq must equal the original line index (session_meta occupies index 0).
-    const bySeq = new Map(events.map((e) => [e.conversation!.seq, e]));
+    const bySeq = new Map(events.map((e) => [e.stream!.seq, e]));
     assert.deepStrictEqual([...bySeq.keys()].sort((a, b) => a - b), [0, 1, 2, 3, 4, 5]);
 
     // session_meta is what states the CLI version and provider for the whole
@@ -216,7 +216,7 @@ test("captureCodexTranscript: a populated reasoning summary becomes a visible co
     const opaque = events.find((e) => e.kind === "reasoning")!;
     assert.ok(visible, "the summary must surface as an ordinary conversation_turn");
     assert.ok(opaque);
-    assert.strictEqual(visible.conversation?.seq, opaque.conversation?.seq, "same source line, same seq");
+    assert.strictEqual(visible.stream?.seq, opaque.stream?.seq, "same source line, same seq");
     assert.deepStrictEqual(visible.content, {
       role: "reasoning_summary",
       blocks: [{ type: "text", text: "Considering the test suite.\n\nDeciding to run pytest." }],
@@ -297,7 +297,7 @@ test("captureCodexTranscript: unrecognized line and payload types are counted fo
     const events = await readEvents(repo);
     const preserved = events
       .filter((e) => e.kind === "unrecognized")
-      .sort((a, b) => (a.conversation!.seq - b.conversation!.seq));
+      .sort((a, b) => (a.stream!.seq - b.stream!.seq));
     assert.strictEqual(preserved.length, 2);
 
     const holo = preserved[0]!;
@@ -407,7 +407,7 @@ test("captureCodexTranscript: agent_message keeps visible text, drops encrypted 
     // encrypted it. This is the half that used to be discarded outright.
     const sealed = events.find((ev) => ev.kind === "reasoning")!;
     assert.ok(sealed, "the encrypted blocks are preserved as a reasoning event");
-    assert.strictEqual(sealed.conversation?.seq, e.conversation?.seq, "same source line, same seq");
+    assert.strictEqual(sealed.stream?.seq, e.stream?.seq, "same source line, same seq");
     assert.deepStrictEqual(sealed.content, { opaque: true }, "content carries only the opacity marker");
     const sealedBlocks = (sealed.raw?.data as { payload?: { content?: unknown[] } }).payload?.content ?? [];
     assert.strictEqual(sealedBlocks.length, 1, "only the encrypted blocks, not the visible text");
@@ -471,7 +471,7 @@ test("captureCodexTranscript: event_msg splits into duplicates (dropped) and eve
     assert.deepStrictEqual(result.unrecognized, {}, "event_msg is a known line type, never drift");
 
     const events = await readEvents(repo);
-    const bySeq = new Map(events.map((e) => [e.conversation!.seq, e]));
+    const bySeq = new Map(events.map((e) => [e.stream!.seq, e]));
     assert.deepStrictEqual(
       [...bySeq.keys()].sort((a, b) => a - b),
       [0, 3, 4, 5],
@@ -546,12 +546,12 @@ test("captureCodexTranscript: a sub-agent rollout is its own conversation, under
     const events = await readEvents(repo);
     const turn = events.find((e) => e.kind === "conversation_turn")!;
     assert.strictEqual(
-      turn.conversation!.id,
+      turn.stream!.id,
       `codex:${CHILD_UUID}`,
       "the child's turns belong to the child, not to whatever session_id claimed",
     );
     assert.strictEqual(
-      turn.conversation!.parent,
+      turn.stream!.parent,
       `codex:${PARENT_UUID}`,
       "and the trail back to the parent is recorded",
     );
@@ -559,7 +559,7 @@ test("captureCodexTranscript: a sub-agent rollout is its own conversation, under
     // Every event in the file gets the link, not just the turns — the parent
     // is a property of the rollout.
     assert.ok(
-      events.every((e) => e.conversation?.parent === `codex:${PARENT_UUID}`),
+      events.every((e) => e.stream?.parent === `codex:${PARENT_UUID}`),
       "session_meta and turns alike carry the parent",
     );
   } finally {
@@ -585,11 +585,11 @@ test("captureCodexTranscript: a top-level rollout keeps its id and gains no pare
     const events = await readEvents(repo);
     assert.ok(events.length > 0);
     assert.ok(
-      events.every((e) => e.conversation?.id === `codex:${CHILD_UUID}`),
+      events.every((e) => e.stream?.id === `codex:${CHILD_UUID}`),
       "a string `source` is a top-level session",
     );
     assert.ok(
-      events.every((e) => e.conversation?.parent === undefined),
+      events.every((e) => e.stream?.parent === undefined),
       "and it is nobody's child",
     );
   } finally {

@@ -82,7 +82,7 @@ export function unrecognizedDraft(params: {
       session_id: params.sessionId,
       ...params.agent,
     },
-    conversation: {
+    stream: {
       id: params.conversationId,
       seq: params.seq,
       ...(params.parentConversationId ? { parent: params.parentConversationId } : {}),
@@ -129,7 +129,7 @@ export function reasoningDraft(params: {
       session_id: params.sessionId,
       ...params.agent,
     },
-    conversation: { id: params.conversationId, seq: params.seq },
+    stream: { id: params.conversationId, seq: params.seq },
     content: { opaque: true },
     raw: { format: params.rawFormat, data: params.line },
   };

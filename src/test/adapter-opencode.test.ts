@@ -105,7 +105,7 @@ test("captures visible parts, records step boundaries, preserves unknown part ty
     assert.deepEqual(result.unrecognized, { "some-future-part": 1 });
 
     const events = await readEvents(repo);
-    const bySeq = new Map(events.map((e) => [e.conversation?.seq, e]));
+    const bySeq = new Map(events.map((e) => [e.stream?.seq, e]));
 
     // Only the empty and unsettled parts produce nothing.
     for (const seq of [4, 6]) {
@@ -132,7 +132,7 @@ test("captures visible parts, records step boundaries, preserves unknown part ty
     assert.equal(user.actor.type, "human");
     assert.equal(user.actor.id, "test@example.com");
     assert.equal(user.producer.source, "opencode");
-    assert.equal(user.conversation?.id, `opencode:${SESSION_ID}`);
+    assert.equal(user.stream?.id, `opencode:${SESSION_ID}`);
     // opencode states the model even on user messages, unlike claude-code.
     assert.equal(user.producer.model, "deepseek-v4-flash");
     assert.equal(user.producer.provider, "ds4");
@@ -186,7 +186,7 @@ test("occurred_at falls back from part to message to session time", async () => 
     await makeCommit(repo, "initial");
     await captureOpencodeExport(sessionExport(), repo.root);
     const events = await readEvents(repo);
-    const bySeq = new Map(events.map((e) => [e.conversation?.seq, e]));
+    const bySeq = new Map(events.map((e) => [e.stream?.seq, e]));
     // seq 0's part has no time of its own, so it takes the message's.
     assert.equal(bySeq.get(0)!.occurred_at, new Date(SESSION_CREATED + 1).toISOString());
     // seq 2's part states its own start time.
@@ -217,7 +217,7 @@ test("re-capturing is idempotent, and an unsettled tool call is picked up once i
     assert.equal(third.appended, 1);
 
     const events = await readEvents(repo);
-    const seqs = events.map((e) => e.conversation?.seq).sort((a, b) => (a ?? 0) - (b ?? 0));
+    const seqs = events.map((e) => e.stream?.seq).sort((a, b) => (a ?? 0) - (b ?? 0));
     assert.deepEqual(seqs, [0, 1, 2, 3, 4, 5, 7, 8]);
   } finally {
     await cleanupRepo(repo);
@@ -236,8 +236,8 @@ test("subagent sessions are captured as their own conversation, pointing at the 
 
     const events = await readEvents(repo);
     for (const e of events) {
-      assert.equal(e.conversation?.id, `opencode:${SESSION_ID}`);
-      assert.equal(e.conversation?.parent, `opencode:${parentId}`);
+      assert.equal(e.stream?.id, `opencode:${SESSION_ID}`);
+      assert.equal(e.stream?.parent, `opencode:${parentId}`);
     }
   } finally {
     await cleanupRepo(repo);
@@ -253,7 +253,7 @@ test("an errored tool call is captured with is_error", async () => {
     tool.state = { status: "error", input: { filePath: "/nope" }, error: "ENOENT" };
     await captureOpencodeExport(data, repo.root);
     const events = await readEvents(repo);
-    const failed = events.find((e) => e.conversation?.seq === 3)!;
+    const failed = events.find((e) => e.stream?.seq === 3)!;
     const blocks = (failed.content as { blocks: Record<string, unknown>[] }).blocks;
     assert.equal(blocks[1]!["is_error"], true);
     assert.equal(blocks[1]!["content"], "ENOENT");
@@ -309,7 +309,7 @@ function textSession(ids: string[]): OpencodeExport {
 const seqsOf = async (repo: Parameters<typeof readEvents>[0]): Promise<number[]> =>
   (await readEvents(repo, { reachableFrom: null }))
     .filter((e) => e.kind === "conversation_turn")
-    .map((e) => e.conversation!.seq)
+    .map((e) => e.stream!.seq)
     .sort((a, b) => a - b);
 
 test("seq comes from the part id, so it is a property of the part and not of its neighbours", async () => {

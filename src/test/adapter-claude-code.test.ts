@@ -104,10 +104,10 @@ test("captureClaudeTranscript: converts a synthetic transcript end to end", asyn
     }
 
     // seq must equal the original line index in the transcript file.
-    const bySeq = new Map(events.map((e) => [e.conversation!.seq, e]));
+    const bySeq = new Map(events.map((e) => [e.stream!.seq, e]));
     assert.deepStrictEqual([...bySeq.keys()].sort((a, b) => a - b), [0, 1, 2, 3, 4, 5]);
     for (const seq of [0, 1, 2, 3]) {
-      assert.strictEqual(bySeq.get(seq)!.conversation?.id, `claude-code:${SESSION_ID}`);
+      assert.strictEqual(bySeq.get(seq)!.stream?.id, `claude-code:${SESSION_ID}`);
     }
 
     const line0 = bySeq.get(0)!;
@@ -154,8 +154,8 @@ test("captureClaudeTranscript: converts a synthetic transcript end to end", asyn
     // attributed to the subagent type rather than to the person.
     const sidechain = bySeq.get(4)!;
     assert.strictEqual(sidechain.kind, "conversation_turn");
-    assert.strictEqual(sidechain.conversation?.id, `claude-code:${SESSION_ID}#agent:agent-7`);
-    assert.strictEqual(sidechain.conversation?.parent, `claude-code:${SESSION_ID}`);
+    assert.strictEqual(sidechain.stream?.id, `claude-code:${SESSION_ID}#agent:agent-7`);
+    assert.strictEqual(sidechain.stream?.parent, `claude-code:${SESSION_ID}`);
     assert.strictEqual((sidechain.content as Record<string, unknown>)["agent"], "Explore");
 
     // Line 5: a system line with no visible text — recorded, but as machinery.
@@ -208,7 +208,7 @@ test("captureClaudeTranscript: unrecognized line types are counted, known ones s
     // The unrecognized lines are preserved raw-only, not dropped.
     const preserved = (await readEvents(repo)).filter((e) => e.kind === "unrecognized");
     assert.strictEqual(preserved.length, 2);
-    const first = preserved.sort((a, b) => a.conversation!.seq - b.conversation!.seq)[0]!;
+    const first = preserved.sort((a, b) => a.stream!.seq - b.stream!.seq)[0]!;
     assert.strictEqual(first.actor.type, "system");
     assert.deepStrictEqual(first.content, { unrecognized_type: "holo-message" });
     assert.strictEqual(first.raw!.format, "claude-code-jsonl/1");
@@ -327,7 +327,7 @@ test("captureClaudeTranscript: formerly-skipped line types map to their record k
     assert.deepStrictEqual(result.unrecognized, {}, "known types must not trip the drift warning");
 
     const events = await readEvents(repo);
-    const bySeq = new Map(events.map((e) => [e.conversation!.seq, e]));
+    const bySeq = new Map(events.map((e) => [e.stream!.seq, e]));
     assert.strictEqual(events.length, 7, "every line is recorded");
 
     assert.deepStrictEqual(bySeq.get(0)!.content, { state_type: "mode", mode: "normal" });
@@ -428,7 +428,7 @@ test("captureClaudeTranscript: file-history lines resolve backup digests into `r
 
     await captureClaudeTranscript(path, repo.root);
     const events = await readEvents(repo);
-    const bySeq = new Map(events.map((e) => [e.conversation!.seq, e]));
+    const bySeq = new Map(events.map((e) => [e.stream!.seq, e]));
 
     const snapshot = bySeq.get(0)!;
     assert.strictEqual(snapshot.kind, "file_snapshot");
@@ -521,10 +521,10 @@ test("captureClaudeTranscript: subagent transcripts beside a session are capture
     assert.strictEqual(result.appended, 3, "one parent turn plus the subagent's two");
 
     const events = await readEvents(repo);
-    const sub = events.filter((e) => e.conversation?.id.includes("#agent:abc"));
+    const sub = events.filter((e) => e.stream?.id.includes("#agent:abc"));
     assert.strictEqual(sub.length, 2, "the subagent's turns are captured");
     for (const e of sub) {
-      assert.strictEqual(e.conversation?.parent, `claude-code:${SESSION_ID}`);
+      assert.strictEqual(e.stream?.parent, `claude-code:${SESSION_ID}`);
     }
     // A sidechain user line is the harness prompting the subagent, not the
     // person typing — it must not be attributed to the git identity.
@@ -587,7 +587,7 @@ test("runClaudeCodeHook: a later session sweeps up the tail an earlier one could
 
     const events = await readEvents(repo);
     const tail = events.find(
-      (e) => e.conversation?.id === "claude-code:sess-earlier" && e.conversation.seq === 1,
+      (e) => e.stream?.id === "claude-code:sess-earlier" && e.stream.seq === 1,
     );
     assert.ok(tail, "the earlier session's stranded tail was swept up");
     assert.strictEqual(events.length, 3, "the tail and the new session's turn, nothing duplicated");
@@ -638,7 +638,7 @@ test("runClaudeCodeHook: the sweep leaves never-captured transcripts alone", asy
 
     const events = await readEvents(repo);
     assert.strictEqual(events.length, 1, "only the session whose hook fired was captured");
-    assert.strictEqual(events[0]!.conversation?.id, "claude-code:sess-current");
+    assert.strictEqual(events[0]!.stream?.id, "claude-code:sess-current");
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(transcriptDir);
@@ -681,7 +681,7 @@ test("captureClaudeTranscript: a torn final line is captured once it is complete
 
     const events = await readEvents(repo);
     assert.strictEqual(events.length, 2, "the completed line is picked up, not skipped");
-    const finished = events.find((e) => e.conversation?.seq === 1);
+    const finished = events.find((e) => e.stream?.seq === 1);
     assert.ok(finished, "the once-torn line landed at its own seq");
     assert.match(JSON.stringify(finished!.content), /the rest of the story/);
   } finally {

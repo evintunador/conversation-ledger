@@ -507,7 +507,7 @@ function convertLine(
       session_id: sessionId,
       ...agentContext(line),
     },
-    conversation: { id: conversation.id, seq, ...(conversation.parent ? { parent: conversation.parent } : {}) },
+    stream: { id: conversation.id, seq, ...(conversation.parent ? { parent: conversation.parent } : {}) },
     content: {
       role: line.message.role,
       ...(typeof line.attributionAgent === "string" && line.attributionAgent
@@ -554,16 +554,16 @@ export function renormalizeUnrecognized(
   event: EvidenceEvent,
   identity: GitUserIdentity,
 ): EventDraft | null {
-  if (!event.raw || event.conversation === undefined) return null;
+  if (!event.raw || event.stream === undefined) return null;
   const line = event.raw.data as ClaudeTranscriptLine;
   const version = packageVersion();
   const fileSessionId = event.producer.session_id ?? "";
-  const turn = convertLine(line, event.conversation.seq, version, identity, fileSessionId);
+  const turn = convertLine(line, event.stream.seq, version, identity, fileSessionId);
   if (turn) return turn;
   if (typeof line.type === "string" && FILE_HISTORY_LINE_TYPES.has(line.type)) return null;
   return convertRecordLine(
     line,
-    recordContext(line, event.occurred_at, event.conversation.seq, fileSessionId, version),
+    recordContext(line, event.occurred_at, event.stream.seq, fileSessionId, version),
   );
 }
 

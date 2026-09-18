@@ -147,7 +147,7 @@ export async function renormalize(repo: RepoInfo): Promise<RenormalizeResult> {
       },
       links: [link],
     };
-    if (event.conversation) supersessionDraft.conversation = event.conversation;
+    if (event.stream) supersessionDraft.stream = event.stream;
     drafts.push(supersessionDraft);
   }
 

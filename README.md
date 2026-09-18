@@ -12,6 +12,18 @@ squash commit — never touch your working tree or `git status`, and
 ride your normal `git push`/`git fetch` via an auto-installed, scan-gated
 pre-push hook and fetch refspec (or explicitly, via `cledger sync`).
 
+As of 0.26.0 the storage machinery — identity, dedup, anchoring,
+re-anchoring, redaction-on-write, the pre-push secret scan, and transport —
+lives in [annals](../annals), a content-agnostic library for append-only
+records in git notes. cledger is annals' first vocabulary: it owns what a
+conversation *is* (the event kinds below, the capture adapters, the CLI
+views) and binds annals to its namespace (`refs/notes/conversation-ledger`,
+`.cledger.json`, `.git/conversation-ledger/`). Events use the annals
+envelope: ids are `ev2-…`, the schema line is `annals/v1`, and the grouping
+field is `stream` (a stream is a conversation here). Other tools write their
+own kinds through `appendEvents`, identified by `(producer.tool, kind)` —
+never by `kind` alone — or open their own annals namespace entirely.
+
 Conversation Ledger is the neutral foundation of a small ecosystem:
 
 - `conversation-ledger` stores normalized, provenance-preserving conversation evidence.

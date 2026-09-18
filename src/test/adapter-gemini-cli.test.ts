@@ -137,7 +137,7 @@ test("gemini-cli capture: a snapshot that withdraws a message says so", async ()
     // document, which is exactly what made the live incident invisible.
     assert.equal(drop.actor.type, "system", "the harness dropped it, not the user");
     assert.ok(
-      drop.conversation!.seq > kept.conversation!.seq,
+      drop.stream!.seq > kept.stream!.seq,
       "the withdrawal is ordered after the message it withdrew",
     );
 
@@ -422,7 +422,7 @@ test("gemini-cli capture: an unknown message type is preserved raw-only and reno
     };
     const draft = renormalizeUnrecognized(upgraded, identity)!;
     assert.equal(draft.kind, "conversation_turn");
-    assert.equal(draft.conversation!.seq, preserved.conversation!.seq);
+    assert.equal(draft.stream!.seq, preserved.stream!.seq);
     assert.equal(draft.producer.source_version, "0.53.1", "provenance survives renormalization");
   } finally {
     await cleanupRepo(repo);
@@ -529,14 +529,14 @@ test("gemini-cli capture: a subagent session is captured and points at its paren
 
     await captureGeminiTranscript(parentPath, repo.root);
     const events = await readEvents(repo);
-    const child = events.filter((e) => e.conversation!.id === "gemini-cli:child-1");
+    const child = events.filter((e) => e.stream!.id === "gemini-cli:child-1");
     assert.ok(child.length > 0, "the subagent session was found and captured");
     assert.ok(
-      child.every((e) => e.conversation!.parent === `gemini-cli:${SESSION_ID}`),
+      child.every((e) => e.stream!.parent === `gemini-cli:${SESSION_ID}`),
       "every subagent event points back at the session that spawned it",
     );
     assert.ok(
-      events.some((e) => e.conversation!.id === `gemini-cli:${SESSION_ID}` && !e.conversation!.parent),
+      events.some((e) => e.stream!.id === `gemini-cli:${SESSION_ID}` && !e.stream!.parent),
       "the parent session keeps its own conversation, unparented",
     );
   } finally {

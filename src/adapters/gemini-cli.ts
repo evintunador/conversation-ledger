@@ -556,7 +556,7 @@ function convertMessage(
       session_id: sessionId,
       ...agent,
     },
-    conversation: {
+    stream: {
       id: conversation.id,
       seq,
       ...(conversation.parent ? { parent: conversation.parent } : {}),
@@ -636,18 +636,18 @@ export function renormalizeUnrecognized(
   event: EvidenceEvent,
   identity: GitUserIdentity,
 ): EventDraft | null {
-  if (!event.raw || event.conversation === undefined) return null;
+  if (!event.raw || event.stream === undefined) return null;
   const message = event.raw.data as GeminiMessage | null;
   if (!message || typeof message !== "object") return null;
   return convertMessage(
     message,
-    event.conversation.seq,
+    event.stream.seq,
     event.producer.session_id ?? "",
     event.occurred_at,
     packageVersion(),
     identity,
     event.producer.source_version,
-    event.conversation.parent?.replace(/^gemini-cli:/, ""),
+    event.stream.parent?.replace(/^gemini-cli:/, ""),
   );
 }
 

@@ -505,7 +505,7 @@ function convertLine(
     occurred_at: occurredAt,
     actor,
     producer: { tool: "cledger", version, source: "codex", session_id: sessionId, ...agent },
-    conversation: { id: `codex:${sessionId}`, seq },
+    stream: { id: `codex:${sessionId}`, seq },
     content,
     // /2: agent_message payloads convert (encrypted blocks omitted) — /1 dropped them.
     raw: {
@@ -539,7 +539,7 @@ export function renormalizeUnrecognized(
   event: EvidenceEvent,
   identity: GitUserIdentity,
 ): EventDraft | null {
-  if (!event.raw || event.conversation === undefined) return null;
+  if (!event.raw || event.stream === undefined) return null;
   const line = event.raw.data as CodexRolloutLine;
   const sessionId = event.producer.session_id ?? "";
   const agent: CodexAgentState = {};
@@ -549,7 +549,7 @@ export function renormalizeUnrecognized(
   const version = packageVersion();
   const turn = convertLine(
     line,
-    event.conversation.seq,
+    event.stream.seq,
     sessionId,
     event.occurred_at,
     version,
@@ -562,7 +562,7 @@ export function renormalizeUnrecognized(
   // ledger before it was captured) re-normalize into their record kind.
   return convertRecordLine(
     line,
-    recordContext(event.occurred_at, event.conversation.seq, sessionId, version, agent),
+    recordContext(event.occurred_at, event.stream.seq, sessionId, version, agent),
   );
 }
 
@@ -658,7 +658,7 @@ export async function captureCodexTranscript(
               session_id: sessionId,
               ...agent,
             },
-            conversation: { id: `codex:${sessionId}`, seq: i },
+            stream: { id: `codex:${sessionId}`, seq: i },
             content: { role: "reasoning_summary", blocks: [{ type: "text", text: summaryText }] },
           });
         }
@@ -733,7 +733,7 @@ export async function captureCodexTranscript(
   if (parentSessionId) {
     const parent = `codex:${parentSessionId}`;
     for (const d of drafts) {
-      if (d.conversation) d.conversation = { ...d.conversation, parent };
+      if (d.stream) d.stream = { ...d.stream, parent };
     }
   }
 
