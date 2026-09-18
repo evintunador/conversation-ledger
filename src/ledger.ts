@@ -10,6 +10,7 @@ import { openLedger, type Ledger, type NamespaceConfig, type RepoInfo } from "an
 export const CLEDGER_NAMESPACE: NamespaceConfig = {
   name: "conversation-ledger",
   incomingName: "cledger-incoming",
+  internalEnvName: "CLEDGER_INTERNAL",
   stateDirName: "conversation-ledger",
   configFile: ".cledger.json",
   userConfigDir: "cledger",
