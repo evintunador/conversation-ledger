@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { captureQwenTranscript, renormalizeUnrecognized } from "../adapters/qwen-code.js";
 import { readEvents } from "../store.js";
-import { gitUserIdentity } from "../git.js";
+import { gitUserIdentity } from "annals";
 import { cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
 
 const SESSION_ID = "93335a04-fdc7-4462-b333-16b7f64290b9";

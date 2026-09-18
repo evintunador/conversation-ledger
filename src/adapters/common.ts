@@ -33,7 +33,7 @@
 import { readFileSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { RepoInfo } from "../git.js";
+import type { RepoInfo } from "annals";
 
 export function packageVersion(): string {
   try {

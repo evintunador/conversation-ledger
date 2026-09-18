@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { sha256Hex } from "../canonical.js";
-import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
+import { sha256Hex } from "annals";
+import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "annals";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import { packageVersion, readCursor, writeCursor } from "./common.js";

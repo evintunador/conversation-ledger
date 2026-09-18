@@ -24,7 +24,7 @@
  */
 
 import type { Actor, EventDraft, ProducerAgentContext } from "../schema.js";
-import type { GitUserIdentity } from "../git.js";
+import type { GitUserIdentity } from "annals";
 
 /** What every record shares: where it came from and where it sits. */
 export interface RecordContext {

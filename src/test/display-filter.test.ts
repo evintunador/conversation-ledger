@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { appendEvents } from "../store.js";
 import { cleanupRepo, draft, makeCommit, makeTempRepo } from "./helpers.js";
-import type { RepoInfo } from "../git.js";
+import type { RepoInfo } from "annals";
 import type { EvidenceEvent } from "../schema.js";
 
 const execFileP = promisify(execFile);

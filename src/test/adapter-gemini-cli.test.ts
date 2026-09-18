@@ -10,7 +10,7 @@ import {
   replaySession,
 } from "../adapters/gemini-cli.js";
 import { readEvents } from "../store.js";
-import { gitUserIdentity } from "../git.js";
+import { gitUserIdentity } from "annals";
 import { cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
 
 const SESSION_ID = "63ca4425-bedf-43dc-8d39-a82310277fe9";
