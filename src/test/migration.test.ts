@@ -51,7 +51,21 @@ test("ev1 migration is additive, remaps event links, dedups converged identities
       conversation: { id: "claude-code:old", seq: 0 },
       links: [{ rel: "redacts", target: "ev1-first" }],
     };
-    const body = [first, second, redaction].map((e) => JSON.stringify(e)).sort().join("\n") + "\n";
+    // Some ev2 records were written before the final producer-blind identity
+    // rules settled. The migration normalizes those IDs too.
+    const earlyEv2 = {
+      id: "ev2-stale",
+      schema: "annals/v1",
+      kind: "conversation_turn",
+      occurred_at: "2026-01-01T00:00:04.000Z",
+      recorded_at: "2026-01-01T00:00:05.000Z",
+      producer: { tool: "cledger" },
+      meta: { actor: { type: "agent" }, source: "codex" },
+      stream: { id: "codex:early", seq: 0 },
+      content: { text: "early ev2" },
+    };
+    const body = [first, second, redaction, earlyEv2]
+      .map((e) => JSON.stringify(e)).sort().join("\n") + "\n";
     await git(["notes", "--ref", "conversation-ledger", "add", "-F", "-", anchor], {
       cwd: repo.root,
       input: body,
@@ -81,10 +95,11 @@ test("ev1 migration is additive, remaps event links, dedups converged identities
       stream?: { id: string };
       links?: Array<{ rel: string; target: string }>;
     });
-    assert.equal(events.length, 2, "two old identities converge to one ev2 record");
+    assert.equal(events.length, 3, "two old identities converge; early ev2 remains distinct");
     assert.ok(events.every((e) => e.schema === "annals/v1" && e.id.startsWith("ev2-")));
     assert.ok(events.every((e) => e.actor === undefined && e.conversation === undefined));
-    assert.ok(events.every((e) => e.stream?.id === "claude-code:old"));
+    assert.equal(events.filter((e) => e.stream?.id === "claude-code:old").length, 2);
+    assert.equal(events.filter((e) => e.stream?.id === "codex:early").length, 1);
     const companion = events.find((e) => e.links?.[0]?.rel === "redacts");
     assert.ok(companion);
     assert.ok(companion.links![0]!.target.startsWith("ev2-"), "event link target was remapped");
@@ -93,6 +108,8 @@ test("ev1 migration is additive, remaps event links, dedups converged identities
     const manifest = join(repo.commonDir, "conversation-ledger", "migrations", "ev1-to-ev2.json");
     const parsed = JSON.parse(await readFile(manifest, "utf8")) as { mapping: Record<string, string> };
     assert.equal(parsed.mapping["ev1-first"], parsed.mapping["ev1-second"]);
+    assert.match(parsed.mapping["ev2-stale"]!, /^ev2-/);
+    assert.notEqual(parsed.mapping["ev2-stale"], "ev2-stale");
     assert.equal((await stat(manifest)).mode & 0o777, 0o600);
 
     const rerun = await execFileP(process.execPath, [SCRIPT, "--repo", repo.root, "--execute"]);
