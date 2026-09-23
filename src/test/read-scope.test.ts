@@ -18,9 +18,9 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { appendEvents, readEvents } from "../store.js";
-import { git } from "../git.js";
+import { git } from "annals";
 import { cleanupRepo, draft, makeCommit, makeTempRepo } from "./helpers.js";
-import type { RepoInfo } from "../git.js";
+import type { RepoInfo } from "annals";
 import type { EvidenceEvent } from "../schema.js";
 
 const execFileP = promisify(execFile);

@@ -54,7 +54,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
-import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "../git.js";
+import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "annals";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import { packageVersion, readCursor, writeCursor } from "./common.js";

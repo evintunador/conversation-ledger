@@ -25,7 +25,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, open, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findRepo, gitUserIdentity, type GitUserIdentity } from "../git.js";
+import { findRepo, gitUserIdentity, type GitUserIdentity } from "annals";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import { packageVersion, readCursor, writeCursor } from "./common.js";

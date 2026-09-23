@@ -20,7 +20,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { appendEvents } from "../store.js";
 import { cleanupRepo, draft, makeCommit, makeTempRepo } from "./helpers.js";
-import type { RepoInfo } from "../git.js";
+import type { RepoInfo } from "annals";
 
 const CLI = fileURLToPath(new URL("../cli.js", import.meta.url));
 

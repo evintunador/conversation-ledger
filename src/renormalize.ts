@@ -28,8 +28,8 @@
  * auto-triggered on capture. Auto-detecting "the adapter changed" and running
  * this after a version bump is a deferred follow-up (see the roadmap).
  */
-import type { RepoInfo } from "./git.js";
-import { gitUserIdentity } from "./git.js";
+import type { RepoInfo } from "annals";
+import { gitUserIdentity } from "annals";
 import { appendEvents, readEvents } from "./store.js";
 import { eventId, type EventDraft, type EventLink, type EvidenceEvent } from "./schema.js";
 import { renormalizeUnrecognized as renormalizeClaude } from "./adapters/claude-code.js";

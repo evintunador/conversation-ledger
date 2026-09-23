@@ -23,11 +23,11 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findRepo, git, type RepoInfo } from "../git.js";
+import { findRepo, git, type RepoInfo } from "annals";
 import { appendEvents, readEvents } from "../store.js";
 import { captureClaudeTranscript } from "../adapters/claude-code.js";
-import { addToAllowlist, filterFindings, loadAllowlist, scanEvents } from "../redact/scan.js";
-import { addKnownSecrets } from "../redact/known-secrets.js";
+import { addToAllowlist, filterFindings, loadAllowlist, scanEvents } from "../redact.js";
+import { addKnownSecrets } from "../redact.js";
 import { finalizeEvent } from "../schema.js";
 import {
   cleanupDir,

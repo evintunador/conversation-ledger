@@ -2,7 +2,7 @@
 import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import { stdin as input } from "node:process";
-import { findRepo, type RepoInfo } from "./git.js";
+import { findRepo, type RepoInfo } from "annals";
 import {
   appendEvents,
   manualReAnchor,
@@ -40,9 +40,9 @@ import {
 import { runQwenHook, captureQwenAll, captureQwenTranscript } from "./adapters/qwen-code.js";
 import { renormalize } from "./renormalize.js";
 import { installAdapters } from "./install.js";
-import { forgeForRepo } from "./forge/forge.js";
-import { suggestMappings } from "./reanchor-suggest.js";
-import { loadConfig } from "./redact/config.js";
+import { forgeForRepo } from "annals";
+import { suggestMappings } from "annals";
+import { loadConfig } from "./redact.js";
 import {
   addToAllowlist,
   filterFindings,
@@ -53,7 +53,7 @@ import {
   loadAllowlist,
   renderFinding,
   scanEvents,
-} from "./redact/scan.js";
+} from "./redact.js";
 import { runReview } from "./review.js";
 
 const USAGE = `conversation-ledger — durable records of coding-agent conversations, in git notes

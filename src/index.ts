@@ -33,8 +33,8 @@ export {
   gitUserIdentity,
   git,
   GitError,
-} from "./git.js";
-export type { GitUserIdentity, RepoInfo } from "./git.js";
+} from "annals";
+export type { GitUserIdentity, RepoInfo } from "annals";
 export { captureClaudeTranscript, runClaudeCodeHook } from "./adapters/claude-code.js";
 export { captureCodexTranscript, runCodexHook } from "./adapters/codex.js";
 export {
@@ -49,15 +49,15 @@ export {
 export type { OpencodeExport } from "./adapters/opencode.js";
 export { renormalize } from "./renormalize.js";
 export type { RenormalizeResult } from "./renormalize.js";
-export { defaultRewriteTarget, detectRewrites, parseReAnchor, reAnchorDraft } from "./reanchor.js";
+export { defaultRewriteTarget, detectRewrites, parseReAnchor, reAnchorDraft } from "annals";
 export type {
   DetectedRewrite,
   DetectRewritesResult,
   ReAnchorMapping,
   ReAnchorDraftOptions,
   UnmatchedBranch,
-} from "./reanchor.js";
-export { suggestMappings } from "./reanchor-suggest.js";
-export type { BranchSuggestions, Suggestion } from "./reanchor-suggest.js";
-export { forgeForRepo } from "./forge/forge.js";
-export type { ForgeDriver, ForgePullRequest } from "./forge/forge.js";
+} from "annals";
+export { suggestMappings } from "annals";
+export type { BranchSuggestions, Suggestion } from "annals";
+export { forgeForRepo } from "annals";
+export type { ForgeDriver, ForgePullRequest } from "annals";

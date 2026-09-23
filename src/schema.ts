@@ -86,7 +86,7 @@ export const SESSION_MACHINERY_KINDS = new Set<string>([
 
 import * as A from "annals";
 
-export { parseEventLine as parseAnnalsEventLine, SCHEMA_VERSION } from "annals";
+export { SCHEMA_VERSION } from "annals";
 export type {
   EventLink,
   RepoContext,

@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { git, findRepo, type RepoInfo } from "../git.js";
+import { git, findRepo, type RepoInfo } from "annals";
 import { finalizeEvent, type EventDraft, type EvidenceEvent } from "../schema.js";
 
 /**
