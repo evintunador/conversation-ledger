@@ -27,21 +27,6 @@ writing their own kinds through `appendEvents` — identified by
 `(producer.tool, kind)`, never by `kind` alone — or open their own annals
 namespace entirely.
 
-### One-time ev1 history migration
-
-Repositories captured before 0.26 can be migrated without deleting their
-original notes. `scripts/migrate-ev1-history.mjs` is dry-run by default;
-after `npm run build`, pass `--repo <path> --execute` to create three refs:
-
-- `refs/notes/conversation-ledger-ev1` — byte-exact, immutable source;
-- `refs/notes/conversation-ledger-migration` — verified ev2 candidate;
-- `refs/notes/conversation-ledger` — atomically promoted live ref.
-
-The migration normalizes both ev1 records and early ev2 records written
-before the producer-blind identity rules settled, remaps event-id links, and
-writes a 0600 old→new mapping manifest under the repository's common git
-directory. It never prints event bodies and is safe to rerun.
-
 Conversation Ledger is the neutral foundation of a small ecosystem:
 
 - `conversation-ledger` stores normalized, provenance-preserving conversation evidence.
