@@ -941,14 +941,8 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   provider-side. Capture previously dropped these outright, which conflicted
   with the record-everything-just-in-case posture: we discarded them because
   *we* can't read them, yet the one party who can (the provider) already saw
-  the plaintext. Realization (2026-07-21, turnbridge): dropping them
-  permanently forecloses restoring reasoning when a Codex-origin
-  conversation is fabricated back into Codex on another machine (or after a
-  codex→claude→codex round trip). Empirically verified same-account and
-  cross-account (turnbridge `scripts/probe-encrypted-reasoning.mjs`): a real
-  blob replayed in a fabricated session is accepted across sessions, CLI
-  versions, and even a different paid ChatGPT account with identical token
-  accounting — the ciphertext is not keyed per-account. Shipped shape: a new
+  the plaintext. Preserving them keeps replay possible without making replay
+  behavior part of cledger's contract. Shipped shape: a new
   `reasoning` kind, provider-agnostic (not Codex-specific), raw-only —
   `content` carries only an opacity marker, the blob lives solely in `raw`.
   Rides the ledger's normal default-on sync like every other kind (no special
@@ -964,9 +958,10 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   it byte-exact — a coincidental rule match would silently corrupt it); every
   other field, including `summary`, is scanned exactly like any other stored
   content. Forward-only: sessions captured before 0.10.0 already had their
-  reasoning dropped and it's not recovered from what's on disk. *Remaining
-  open questions, mostly turnbridge's to answer at replay time:* blob TTL and
-  API-platform-org auth parity. *Deliberately out of scope here:* inter-agent
+  reasoning dropped and it's not recovered from what's on disk. Replay
+  behavior, validation, and open questions are owned by
+  [Turnbridge's technical design](https://github.com/evintunador/turnbridge/blob/main/docs/WIP_TECHNICAL_DESIGN.md#encrypted-reasoning-replay).
+  *Deliberately out of scope here:* inter-agent
   `agent_message` payloads still drop their embedded `encrypted_content`
   blocks outright (same as before) rather than preserving them via this new
   `reasoning` kind — same provider-withheld material, but embedded mid-line

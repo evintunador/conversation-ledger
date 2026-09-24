@@ -4,9 +4,10 @@
 
 ## Scope
 
-Conversation Ledger defines a canonical append-only event format plus a local,
-git-backed storage protocol. It preserves exact visible content while staying
-out of the working tree. Transport is on by default and rides normal git use:
+Conversation Ledger defines conversation-specific vocabulary over Annals'
+canonical append-only event format and git-backed storage protocol. It preserves
+exact visible content while staying out of the working tree. Transport is on by
+default and rides normal git use:
 a pre-push hook pushes the ledger ref alongside `git push` (scan-gated), and
 a fetch refspec stages the remote's ref for lazy merge at read time (see
 "Transport"); `cledger sync` remains the explicit path and the fallback when
@@ -14,28 +15,30 @@ hooks are declined.
 
 ## Canonical objects
 
-An `EvidenceEvent` is immutable and has:
+An Annals `EvidenceEvent` is immutable. Cledger presents a conversation-oriented
+view over it; `toAnnals` and `fromAnnals` translate between that public
+view and the stored envelope. The stored envelope has:
 
-- `id`: `ev1-` + sha256 of the event's *identity subset* — the durable,
-  source-determined fields (`kind`, `occurred_at`, `actor.type/id`,
-  `producer.source/session_id`, `conversation`, `media_type`, `content`,
-  `links`). Volatile provenance (`recorded_at`, `context`, `raw`,
-  `producer.tool/version`) is excluded, as is agent provenance
-  (`producer.model/provider/source_version`, for the reason given under
-  "Agent provenance"), so re-scanning the same source
-  material always yields the same id: capture is idempotent by construction,
-  and the id doubles as the content hash that makes mutation detectable.
-- `schema` version (`conversation-ledger/v1`);
+- `id`: `ev2-` + sha256 of the event's *identity subset*: `schema`, `kind`,
+  `occurred_at`, `stream`, `media_type`, `content`, and `links`. Operational and
+  provenance fields (`recorded_at`, `producer`, `meta`, `context`, `raw`,
+  `resolved`, and `redactions`) are excluded, so adding or correcting metadata
+  does not change which source event this is;
+- `schema` version (`annals/v1`);
 - `kind`: `conversation_turn`, `decision`, `document`, `annotation`,
   `redaction`, `supersession`, `re_anchor`, `unrecognized`, `reasoning`, or
   one of the four session-machinery kinds `session_state` / `activity` /
   `context_injection` / `file_snapshot` — an open string; unknown kinds are
   stored verbatim so downstream tools can extend without a schema release;
 - `occurred_at` (from the source) and `recorded_at` (at append) timestamps;
-- `actor` (human/agent/system + identity) and `producer` (capture tool,
-  source system, native session id, and the agent that served the turn —
-  `model`, `provider`, `source_version`; see "Agent provenance" below)
-  provenance; adapters stamp human turns
+- `producer` (`tool` plus optional `version`), identifying the software that
+  wrote the event;
+- optional `meta`, for cledger's conversation-specific provenance: actor,
+  source system, native session id, model, provider, and source version. Annals
+  treats `meta` as arbitrary downstream-owned metadata: it is outside event
+  identity and its secret scanner deliberately does not interpret it, so
+  downstream producers must not place secrets there;
+- cledger adapters stamp human actors
   with the identity a commit made right now would be authored under,
   resolved by git itself (`git -c user.useConfigOnly=true var
   GIT_AUTHOR_IDENT`) in git's own precedence: `GIT_AUTHOR_EMAIL` env, then
@@ -44,15 +47,12 @@ An `EvidenceEvent` is immutable and has:
   event ids. Explicit config is the fallback when strict resolution
   refuses over one missing field (email set, no name anywhere). When git
   would have to guess the email too, turns stay unattributed;
-  `cledger install` warns. Because `actor.id` is part of the event identity subset, sessions
-  captured before this stamping existed will produce new event ids if fully
-  re-scanned — the per-session cursor normally prevents that, but a forced
-  rescan can duplicate pre-identity turns;
+  `cledger install` warns;
 - `content`, stored inline, with an optional `media_type`
   (default `application/json`);
 - `context`: repository identity, branch, `HEAD` SHA, cwd, and a
   dirty-worktree fingerprint (sha256 of `git status --porcelain`);
-- `conversation`: namespaced id (`claude-code:<session>`) plus a stable
+- `stream`: a namespaced conversation id (`claude-code:<session>`) plus a stable
   `seq` (source line index) providing conversation ordering — the manifest is
   currently implicit in these fields rather than a separate object;
 - optional `links` (`redacts`, `supersedes`, `annotates`, ...).
@@ -63,8 +63,9 @@ under `raw` as an opaque, versioned attachment for lossless export.
 
 ### Agent provenance
 
-`producer.source` says which capture path recorded an event; it does not say
-what *produced* it. Three optional `producer` fields close that gap (0.12.0+):
+In cledger's public view, `producer.source` says which capture path recorded an
+event; it does not say what *produced* it. Three optional `producer` fields close
+that gap (0.12.0+):
 `model` (verbatim as the source names it, e.g. `gpt-5.6-sol`,
 `claude-opus-5`), `provider` (the inference provider, e.g. `openai`), and
 `source_version` (the coding CLI's own version — distinct from `version`,
@@ -101,7 +102,8 @@ items preceding it belong to that same turn. Seeding fills gaps only, so a
 genuine mid-session model switch still applies forward and never
 retroactively.
 
-These fields are deliberately **excluded from the event identity subset**,
+These fields are stored under Annals' identity-excluded `meta` field and are
+deliberately **excluded from the event identity subset**,
 even though they are source-determined and stable per line. They were added
 after events had already been captured without them, so folding them into
 the id would give the very same transcript line a different id before and
@@ -110,8 +112,8 @@ rather than dedup it. Identity answers "which piece of source material is
 this"; the model that served it is provenance about that material, not a
 second copy of it.
 
-Population is forward-only, and there is no backfill command. Editing
-`producer` on stored events would not change their ids (it is outside the
+Population is forward-only, and there is no backfill command. Editing this
+metadata on stored events would not change their ids (it is outside the
 identity subset), but it would change their serialized note lines — and
 under `cat_sort_uniq` the rewritten line and the original would both survive
 any merge with a peer that still holds the old one, leaving two copies of
@@ -140,7 +142,7 @@ hidden from `cledger log`/`show`/`conversations` by default
 everything else, and ride the ledger's normal sync — no special carve-out.
 A `reasoning` item's `summary` field, when the provider populates it (real,
 already-decrypted plaintext, distinct from `encrypted_content`), is split
-out into an ordinary visible `conversation_turn` at the same `conversation.seq`
+out into an ordinary visible `conversation_turn` at the same `stream.seq`
 rather than swept into the opaque event, so it is captured and redacted
 exactly like any other visible content. Capture-tier redaction and
 `cledger scan` both carry a narrow, field-specific exemption
@@ -580,8 +582,7 @@ rather than running a repo-wide destructive `gc` on the user's behalf.
 
 Three layers exist today:
 
-1. `schema` on every event (`conversation-ledger/v1`) versions the ledger's
-   own envelope.
+1. `schema` on every event (`annals/v1`) versions Annals' shared envelope.
 2. `raw.format` (`claude-code-jsonl/1`, `codex-rollout-jsonl/2`) versions
    each adapter's interpretation of its native format; it must be bumped
    whenever the mapping changes, allowing later reprocessing to know which
@@ -606,7 +607,7 @@ whose `content` is only a `{unrecognized_type}` label and whose `raw.data`
 holds the full source line, versioned by the adapter's native `raw.format`,
 so a later adapter version can re-normalize (and supersede) it. Because
 `raw` is outside the identity subset, distinctness and idempotency come from
-`conversation.seq` (the source line index) exactly as for interpreted turns,
+`stream.seq` (the source line index) exactly as for interpreted turns,
 and format-version bumps never churn ids. Crucially these events ride the
 normal `appendEvents` path, so the capture-tier redaction stack walks their
 `raw.data` — an unrecognized line is not a bypass around secret redaction.
@@ -636,12 +637,12 @@ unless `--with-state` or an explicit `--kind` asks for them, because sources
 restate this material far more often than anyone speaks; capture, export and
 sync are unaffected.
 
-Two structural consequences. First, `ConversationRef.parent` makes a
+Two structural consequences. First, `StreamRef.parent` makes a
 sub-conversation expressible: a Claude Code sidechain or an opencode subagent
 session becomes its own conversation pointing back at the session that spawned
 it, rather than being dropped (opencode child sessions are discoverable only
 via the parent's `task` tool part metadata, which is why capture walks them).
-It is inside the identity subset like the rest of `ConversationRef`. Second,
+It is inside the identity subset like the rest of `StreamRef`. Second,
 `EvidenceEvent.resolved` holds what the ledger read at capture time from
 pointers the source only names — currently the sha256 and size of a Claude Code
 file-history backup. It is deliberately *outside* the identity subset: the
@@ -657,7 +658,7 @@ adapter can now interpret into the `conversation_turn` it should have been.
 For each `unrecognized` event it routes by `producer.source` to that adapter's
 `renormalizeUnrecognized`, which re-feeds the stored `raw.data` through the
 *same* `convertLine` the live capture loop uses, with the same identity-
-determining inputs recovered from the preserved event: `conversation.seq`,
+determining inputs recovered from the preserved event: `stream.seq`,
 the session id (in `raw.data` for Claude Code, in `producer.session_id` for
 Codex), and — for a Codex line with no timestamp of its own — `occurred_at` as
 the `baseTime` fallback (which is exactly the `sessionBaseTime` value a live
@@ -712,7 +713,7 @@ for now (see the format-drift roadmap item).
   codex's `session_meta`/`turn_context` lines carry (sandbox/approval policy,
   reasoning effort, workspace roots) — is answered by `session_state`: those
   lines are now recorded whole, in addition to being read for `producer`.
-- Whether an explicit `Conversation` manifest object earns its keep once
+- Whether an explicit stream/conversation manifest object earns its keep once
   multiple producers exist.
 - Reads deliberately do *not* walk the notes ref's history; only the tip tree
   is authoritative. Unioning across history was proposed and set aside because
