@@ -507,7 +507,9 @@ function convertLine(
     producer: { tool: "cledger", version, source: "codex", session_id: sessionId, ...agent },
     stream: { id: `codex:${sessionId}`, seq },
     content,
-    // /2: agent_message payloads convert (encrypted blocks omitted) — /1 dropped them.
+    // /2: the visible agent_message omits encrypted blocks and, since 0.19.0,
+    // a sealed sibling preserves them. (The unchanged /2 makes older events
+    // ambiguous on format alone.) /1 dropped agent_message lines entirely.
     raw: {
       format: RAW_FORMAT,
       data: payloadType === "agent_message" ? sanitizeAgentMessageRaw(line) : line,

@@ -150,10 +150,11 @@ exactly like any other visible content. Capture-tier redaction and
 matching never mangles the ciphertext — every other field, including
 `summary`, is scanned normally. The same non-reconstruction rule applies to
 other otherwise-visible content: Codex `agent_message` items (inter-agent
-messages) convert with their visible text blocks kept and their
-`encrypted_content` blocks dropped from both `content` and `raw` (not yet
-preserved opaquely the way standalone `reasoning` items are — a deferred
-follow-up), leaving a bare type marker so the omission is visible.
+messages) convert into two events at the same sequence. The visible turn keeps
+the plaintext blocks and replaces each encrypted block in `raw` with a bare
+type marker; a `reasoning`-kind sibling carries the encrypted blocks intact.
+This preserves the opaque state without mixing ciphertext into the visible
+record.
 
 ## Storage
 
@@ -586,8 +587,12 @@ Three layers exist today:
 2. `raw.format` (`claude-code-jsonl/1`, `codex-rollout-jsonl/2`) versions
    each adapter's interpretation of its native format; it must be bumped
    whenever the mapping changes, allowing later reprocessing to know which
-   parser produced an event. (codex `/2`: `agent_message` payloads convert,
-   encrypted blocks omitted — `/1` dropped those lines entirely.)
+   parser produced an event. One known violation remains: 0.19.0 kept codex
+   `/2` when `agent_message` ciphertext changed from being omitted to being
+   preserved in a sealed sibling event. A stored `/2` visible turn therefore
+   does not identify that mapping by itself; the sibling's presence is the
+   evidence that capture preserved the encrypted blocks. Codex `/1` dropped
+   `agent_message` lines entirely. Future mapping changes must bump the format.
 3. The native payload inside `raw.data` retains the harness's own version
    markers (Claude Code lines carry `version`; Codex `session_meta` carries
    `cli_version`), so captured content can always be re-normalized under a
@@ -699,7 +704,7 @@ for now (see the format-drift roadmap item).
   tier in 0.9.0 (see "Squash merges and history rewrites"): unmatched
   branches get evidence-ranked candidates — the forge's own merge-commit
   record for the branch's PR (GitHub driver over the user's `gh` session in
-  `src/forge/`, degrading to offline evidence without it), `(#N)` subject
+  Annals' `src/forge/`, degrading to offline evidence without it), `(#N)` subject
   and squash-message corroboration, per-file patch-id overlap — printed
   with the conversation-carrying commits named and a ready-to-run `--onto`
   command; confirm-only, and forge lookups never run in the auto read path.
