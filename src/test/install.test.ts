@@ -3,7 +3,12 @@ import assert from "node:assert";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { installClaudeCode, installGeminiCli, installQwenCode } from "../install.js";
+import {
+  installClaudeCode,
+  installGeminiCli,
+  installOpencode,
+  installQwenCode,
+} from "../install.js";
 
 /**
  * `os.homedir()` reads $HOME on POSIX, which is the only seam these functions
@@ -199,5 +204,55 @@ test("install: an unrelated hook in the same event is left alone", async () => {
       "someone else's hook keeps its own command and timeout",
     );
     assert.ok(commands.some((h) => h.command?.includes("hook gemini-cli")));
+  });
+});
+
+test("install: the opencode plugin visibly warns only when it must discover a session", async () => {
+  await withTempHome(async (home) => {
+    const originalConfigHome = process.env["XDG_CONFIG_HOME"];
+    const originalPath = process.env.PATH;
+    const originalWarn = console.warn;
+    const warnings: string[] = [];
+    try {
+      process.env["XDG_CONFIG_HOME"] = home;
+      const bin = join(home, "bin");
+      await mkdir(bin);
+      await writeFile(join(bin, "cledger"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      process.env.PATH = `${bin}:${originalPath ?? ""}`;
+      console.warn = (...args: unknown[]): void => {
+        warnings.push(args.map(String).join(" "));
+      };
+
+      await installOpencode();
+      const pluginPath = join(home, "opencode", "plugin", "cledger.js");
+      const pluginSource = await readFile(pluginPath, "utf8");
+      const pluginUrl = `data:text/javascript;base64,${Buffer.from(pluginSource).toString("base64")}`;
+      const plugin = (await import(pluginUrl)) as {
+        server(context: { directory: string; worktree: string }): Promise<{
+          event(input: { event: unknown }): Promise<void>;
+        }>;
+      };
+      const hooks = await plugin.server({ directory: home, worktree: home });
+
+      await hooks.event({
+        event: { type: "session.idle", properties: { renamedID: "TOP-SECRET" } },
+      });
+      assert.deepEqual(warnings, [
+        "cledger: opencode plugin warning: session.idle provided no session id; " +
+          "falling back to the project's most recently updated session",
+      ]);
+      assert.doesNotMatch(warnings[0]!, /TOP-SECRET/, "the warning must not echo event content");
+
+      await hooks.event({
+        event: { type: "session.idle", properties: { sessionID: "ses_normal" } },
+      });
+      assert.equal(warnings.length, 1, "the normal hook path stays quiet");
+    } finally {
+      console.warn = originalWarn;
+      if (originalConfigHome === undefined) delete process.env["XDG_CONFIG_HOME"];
+      else process.env["XDG_CONFIG_HOME"] = originalConfigHome;
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+    }
   });
 });

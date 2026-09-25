@@ -804,6 +804,10 @@ export async function runOpencodeHook(stdinJson: string): Promise<void> {
       await captureOpencodeSession(payload.session_id, cwd);
       return;
     }
+    process.stderr.write(
+      "cledger: opencode hook warning: session.idle provided no session id; " +
+        "falling back to the project's most recently updated session\n",
+    );
     await captureOpencodeAll(cwd, 1);
   } catch (err) {
     process.stderr.write(
