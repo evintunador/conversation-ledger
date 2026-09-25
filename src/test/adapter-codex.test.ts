@@ -535,6 +535,7 @@ async function writeThreadRollout(
   id: string,
   meta: Record<string, unknown>,
   childIds: string[] = [],
+  childShape: "legacy" | "current" = "legacy",
 ): Promise<string> {
   await mkdir(dir, { recursive: true });
   const path = join(dir, `rollout-2026-01-01T00-00-00-${id}.jsonl`);
@@ -543,7 +544,13 @@ async function writeThreadRollout(
     ...childIds.map((agent_thread_id) => ({
       type: "event_msg",
       timestamp: "2026-01-01T00:00:01.000Z",
-      payload: { type: "sub_agent_activity", agent_thread_id, status: "spawned" },
+      payload:
+        childShape === "current"
+          ? {
+              type: "item_completed",
+              item: { type: "SubAgentActivity", agent_thread_id, status: "completed" },
+            }
+          : { type: "sub_agent_activity", agent_thread_id, status: "spawned" },
     })),
     {
       type: "response_item",
@@ -559,7 +566,7 @@ async function writeThreadRollout(
   return path;
 }
 
-test("captureCodexTranscript: discovers a child rollout across the sessions date tree", async () => {
+test("captureCodexTranscript: discovers current item_completed/SubAgentActivity across the date tree", async () => {
   const repo = await makeTempRepo("cledger-codex-discovery-");
   const root = await mkdtemp(join(tmpdir(), "cledger-codex-sessions-"));
   try {
@@ -569,6 +576,7 @@ test("captureCodexTranscript: discovers a child rollout across the sessions date
       PARENT_UUID,
       { id: PARENT_UUID, session_id: PARENT_UUID, source: "cli" },
       [CHILD_UUID],
+      "current",
     );
     await writeThreadRollout(join(root, "sessions", "2026", "01", "02"), CHILD_UUID, {
       id: CHILD_UUID,
@@ -592,7 +600,7 @@ test("captureCodexTranscript: discovers a child rollout across the sessions date
   }
 });
 
-test("captureCodexTranscript: a missing child is picked up later even when the parent is at EOF", async () => {
+test("captureCodexTranscript: legacy sub_agent_activity is retried when its child appears later", async () => {
   const repo = await makeTempRepo("cledger-codex-missing-child-");
   const dir = await mkdtemp(join(tmpdir(), "cledger-codex-missing-child-"));
   try {

@@ -252,21 +252,40 @@ function sessionIdentity(
   return { sessionId };
 }
 
+/**
+ * A child thread id from either Codex sub-agent activity envelope observed on
+ * disk. Older rollouts used a direct lowercase payload; current Codex wraps a
+ * capitalized item in `item_completed`. These exact shape checks deliberately
+ * do not treat an arbitrary mention of either discriminator as discovery.
+ */
+function childThreadId(line: CodexRolloutLine): string | null {
+  if (line.type !== "event_msg" || !line.payload) return null;
+  if (line.payload["type"] === "sub_agent_activity") {
+    const id = line.payload["agent_thread_id"];
+    return typeof id === "string" && id ? id : null;
+  }
+  if (line.payload["type"] !== "item_completed") return null;
+  const item = line.payload["item"];
+  if (typeof item !== "object" || item === null) return null;
+  const record = item as Record<string, unknown>;
+  if (record["type"] !== "SubAgentActivity") return null;
+  const id = record["agent_thread_id"];
+  return typeof id === "string" && id ? id : null;
+}
+
 /** Child thread ids named by the sub-agent activity stream, in first-seen order. */
 function childThreadIds(lines: string[]): string[] {
   const ids: string[] = [];
   const seen = new Set<string>();
   for (const text of lines) {
-    if (!text.includes('"sub_agent_activity"') || !text.includes('"agent_thread_id"')) continue;
     let line: CodexRolloutLine;
     try {
       line = JSON.parse(text) as CodexRolloutLine;
     } catch {
       continue;
     }
-    if (line.type !== "event_msg" || line.payload?.["type"] !== "sub_agent_activity") continue;
-    const id = line.payload["agent_thread_id"];
-    if (typeof id !== "string" || !id || seen.has(id)) continue;
+    const id = childThreadId(line);
+    if (id === null || seen.has(id)) continue;
     seen.add(id);
     ids.push(id);
   }
