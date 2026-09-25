@@ -137,11 +137,14 @@ the default branch's view. cledger repairs this automatically:
   never moved or rewritten; the mapping is an ordinary append-only event,
   and the original anchor stays in the record as provenance.
 - Only exact matches auto-apply. If a maintainer edited during the merge or
-  the change matches two commits, nothing is guessed. `cledger records reanchor`
-  reports exact, ambiguous, and unmatched mappings (dry run by default;
-  `--apply` records exact matches). A human can assert an inexact mapping with
-  `cledger records reanchor manual OLD_REV... --onto NEW_REV`. Old SHAs remain
-  valid even after their commits are garbage collected.
+  the change matches two commits, nothing is guessed. `cledger re-anchor`
+  (dry run by default, `--apply` to act) presents evidence-ranked candidates:
+  forge PR metadata when available, commit-message corroboration, and per-file
+  content matches. It prints the commits carrying conversations and a manual
+  `cledger re-anchor OLD_REV... --onto NEW_REV` command for a human to confirm.
+  `--no-forge` keeps the search offline. Old SHAs remain valid after their
+  commits are garbage collected. `cledger records reanchor` keeps the shared
+  annals summary interface.
 - Opt out with `{"reanchor": {"auto": false}}`; the explicit command keeps
   working either way.
 
@@ -298,9 +301,10 @@ The local, git-invisible store at `.git/conversation-ledger/known-secrets.json` 
 
 ### Commands
 
-The canonical maintenance interface is `cledger records <command>`. These
-shortcuts use the same dispatcher: `cledger sync`, `review`, `inspect`,
-`redact`, `allow`, and `re-anchor`. The installed hook continues to call
+The canonical shared maintenance interface is `cledger records <command>`.
+The original top-level `cledger sync`, `review`, `inspect`, `redact`, `allow`,
+and `re-anchor` commands retain cledger's existing options and output. The
+installed hook continues to call
 top-level `cledger transport-push`; `cledger records transport-push` is also
 available. `cledger scan` remains cledger's standalone check.
 
@@ -321,6 +325,22 @@ push; fetch-only use has no sharing gate. Review, inspect, redact, allow, and
 manual reanchoring refuse coding-agent sessions. The pre-push hook lets the
 code push continue after ordinary ledger errors; only a scan block with
 `transport.strict` enabled aborts the code push.
+
+The original commands remain useful when you need cledger's own behavior:
+
+| Command | Cledger-specific behavior |
+| --- | --- |
+| `cledger sync [--remote R] [--push\|--fetch] [--all\|--rev R] [--no-scan] [--paranoid] [--report]` | Choose a remote and a particular branch or commit for transport. |
+| `cledger review [--paranoid] [--context N]` | Interactive per-span review with a 600-character default context. Human only. |
+| `cledger inspect EVENT_ID [--context N] [--reveal] [--stdout]` | Inspect one event, including allowed findings, in a private temporary file by default. Human only. |
+| `cledger redact EVENT_ID (--pattern REGEX\|--all) [--reason TEXT]` | Retain cledger's redaction outcome and local-history guidance. Human only. |
+| `cledger allow FINGERPRINT... [--global]` | Retain cledger's local or global allowlist command. Human only. |
+| `cledger re-anchor [--target R] [--apply] [--no-forge]` | Show evidence-ranked candidates and a suggested manual command. |
+| `cledger re-anchor OLD_REV... --onto REV` | Confirm an inexact mapping. Human only. |
+
+Both sync forms refuse `--no-scan` in an agent session when they can push.
+The original `inspect --force` spelling remains accepted for compatibility,
+but no longer bypasses the agent-session refusal.
 
 The standalone annals CLI can use this exact namespace through a profile:
 
