@@ -1,4 +1,5 @@
 /** Public library surface for programmatic clients (e.g. turnbridge). */
+export { asLedger, CLEDGER_NAMESPACE } from "./ledger.js";
 export {
   appendEvents,
   readEvents,
