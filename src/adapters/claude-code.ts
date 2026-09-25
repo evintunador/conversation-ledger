@@ -32,6 +32,9 @@ const CURSOR_FIELD = "lines";
 /** Claude Code truncates sanitized project names at this length, then adds a hash. */
 const MAX_SANITIZED_PROJECT_LENGTH = 200;
 
+const CLAUDE_PROJECT_DIR_NAME = /^[A-Za-z0-9_-]{1,64}$/;
+const WINDOWS_DEVICE_PROJECT_DIR_NAME = /^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
+
 // Unchanged at /1: `raw.data` is still one verbatim transcript line, which is
 // all the format marker promises. What changed is which lines get captured
 // and what `content` the ledger derives from them, neither of which affects
@@ -839,6 +842,20 @@ function claudeProjectsDir(): string {
 }
 
 /**
+ * Claude honors this pin only beside an explicit config directory, and only
+ * for its deliberately narrow safe-name grammar. Invalid values — including
+ * Windows device names — fall back to cwd-derived project lookup.
+ */
+function configuredProjectDirName(): string | undefined {
+  if (!process.env["CLAUDE_CONFIG_DIR"]) return undefined;
+  const name = process.env["CLAUDE_CODE_PROJECT_DIR_NAME"];
+  if (!name || !CLAUDE_PROJECT_DIR_NAME.test(name) || WINDOWS_DEVICE_PROJECT_DIR_NAME.test(name)) {
+    return undefined;
+  }
+  return name;
+}
+
+/**
  * Candidate storage directories for one exact cwd, following Claude Code's
  * own lookup convention. Short paths have one exact name. Long paths use a
  * runtime-specific hash suffix (Bun in the CLI, a different hash in the SDK),
@@ -848,6 +865,16 @@ function claudeProjectsDir(): string {
  */
 async function projectDirs(canonicalCwd: string): Promise<string[]> {
   const projects = claudeProjectsDir();
+  const configured = configuredProjectDirName();
+  if (configured) {
+    const exact = join(projects, configured);
+    try {
+      await readdir(exact);
+      return [exact];
+    } catch {
+      return [];
+    }
+  }
   const sanitized = sanitizedProjectPath(canonicalCwd);
   if (sanitized.length <= MAX_SANITIZED_PROJECT_LENGTH) {
     const exact = join(projects, sanitized);

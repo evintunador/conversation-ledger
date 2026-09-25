@@ -63,6 +63,9 @@ codex` command once. Missed turns are never lost either way: `cledger capture
 directory). Claude's project-directory names can collide after sanitization,
 so its backfill also verifies the `cwd` recorded inside each transcript and
 skips cwd-less or mismatched files rather than anchoring another project here.
+When `CLAUDE_CONFIG_DIR` and a valid `CLAUDE_CODE_PROJECT_DIR_NAME` are set,
+backfill uses that pinned project directory just as Claude does; invalid names
+fall back to the cwd-derived directory.
 
 The hooks above are installed once, globally, and fire in every git
 repository you work in. To turn cledger off for one specific repo, add

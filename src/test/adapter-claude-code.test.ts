@@ -862,3 +862,85 @@ test("captureClaudeAll: finds Claude's hash-suffixed directory for a cwd longer 
     await cleanupRepo(repo);
   }
 });
+
+test("captureClaudeAll: mirrors Claude's validated project-directory override and invalid fallback", async () => {
+  const repo = await makeTempRepo("cledger-cc-all-override-");
+  const configDir = await mkdtemp(join(tmpdir(), "cledger-claude-config-"));
+  const previousConfig = process.env["CLAUDE_CONFIG_DIR"];
+  const previousName = process.env["CLAUDE_CODE_PROJECT_DIR_NAME"];
+  try {
+    await makeCommit(repo, "init");
+    process.env["CLAUDE_CONFIG_DIR"] = configDir;
+    process.env["CLAUDE_CODE_PROJECT_DIR_NAME"] = "sdk-project";
+
+    const pinned = join(configDir, "projects", "sdk-project");
+    await mkdir(pinned, { recursive: true });
+    await writeFile(
+      join(pinned, "sess-pinned.jsonl"),
+      sessionLine("sess-pinned", repo.root, "valid pinned session", "2026-01-01T00:00:00Z"),
+    );
+    assert.strictEqual((await captureClaudeAll(repo.root)).appended, 1);
+
+    const derived = join(
+      configDir,
+      "projects",
+      repo.root.replace(/[^a-zA-Z0-9]/g, "-"),
+    );
+    await mkdir(derived, { recursive: true });
+    await writeFile(
+      join(derived, "sess-invalid-fallback.jsonl"),
+      sessionLine(
+        "sess-invalid-fallback",
+        repo.root,
+        "invalid-name fallback",
+        "2026-01-02T00:00:00Z",
+      ),
+    );
+    // A slash is outside Claude's 1-64 [A-Za-z0-9_-] grammar. It must not be
+    // interpreted as a nested path; Claude ignores it and derives from cwd.
+    process.env["CLAUDE_CODE_PROJECT_DIR_NAME"] = "sdk/project";
+    assert.strictEqual((await captureClaudeAll(repo.root)).appended, 1);
+
+    await writeFile(
+      join(derived, "sess-device-fallback.jsonl"),
+      sessionLine(
+        "sess-device-fallback",
+        repo.root,
+        "device-name fallback",
+        "2026-01-03T00:00:00Z",
+      ),
+    );
+    // Claude rejects Windows device names case-insensitively, including COM0.
+    process.env["CLAUDE_CODE_PROJECT_DIR_NAME"] = "COM0";
+    assert.strictEqual((await captureClaudeAll(repo.root)).appended, 1);
+
+    const text = JSON.stringify(await readEvents(repo));
+    assert.match(text, /valid pinned session/);
+    assert.match(text, /invalid-name fallback/);
+    assert.match(text, /device-name fallback/);
+
+    // The name is ignored altogether unless CLAUDE_CONFIG_DIR is explicit.
+    delete process.env["CLAUDE_CONFIG_DIR"];
+    process.env["CLAUDE_CODE_PROJECT_DIR_NAME"] = "ignored-project";
+    const defaultDerived = claudeProjectDir(repo.root);
+    await mkdir(defaultDerived, { recursive: true });
+    await writeFile(
+      join(defaultDerived, "sess-name-alone.jsonl"),
+      sessionLine(
+        "sess-name-alone",
+        repo.root,
+        "name-alone derived fallback",
+        "2026-01-04T00:00:00Z",
+      ),
+    );
+    assert.strictEqual((await captureClaudeAll(repo.root)).appended, 1);
+    assert.match(JSON.stringify(await readEvents(repo)), /name-alone derived fallback/);
+  } finally {
+    if (previousConfig === undefined) delete process.env["CLAUDE_CONFIG_DIR"];
+    else process.env["CLAUDE_CONFIG_DIR"] = previousConfig;
+    if (previousName === undefined) delete process.env["CLAUDE_CODE_PROJECT_DIR_NAME"];
+    else process.env["CLAUDE_CODE_PROJECT_DIR_NAME"] = previousName;
+    await cleanupRepo(repo);
+    await cleanupDir(configDir);
+  }
+});
