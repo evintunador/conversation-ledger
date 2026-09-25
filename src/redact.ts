@@ -29,6 +29,8 @@ export type {
   ExtraValueGroup,
   Finding,
   FingerprintGroup,
+  KnownSecretDigest,
+  KnownSecrets,
   RedactionRecord,
   RenderOptions,
 } from "annals";
@@ -56,7 +58,7 @@ export function addToAllowlist(
   return A.addToAllowlist(asLedger(repo), fingerprints, scope);
 }
 
-export function loadKnownSecrets(repo: RepoInfo): Promise<string[]> {
+export function loadKnownSecrets(repo: RepoInfo): Promise<A.KnownSecrets> {
   return A.loadKnownSecrets(asLedger(repo));
 }
 

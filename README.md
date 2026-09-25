@@ -290,9 +290,11 @@ Repos that test or document secret handling (this one included) constantly mint 
 - Threat addressed: unstructured secrets in local config.
 - Cost of enabling: `.env` plain-config values get masked too; machine-dependent (rescans produce duplicate events with different ids).
 
-**Known-secret learning** (opt-in, default off): Remember the exact values a `cledger redact <event-id> --pattern` scrubbed, then exact-match them out of every future capture (under a `known-secret` rule id). Enable with `{"redact": {"knownSecrets": true}}`. Confirmed values are stored locally under `.git/conversation-ledger/known-secrets.json`, written owner-only (`0600`) — never tracked or pushed by git, the same tier as the allowlist. Only `--pattern` feeds it; values under 8 chars are never remembered.
+**Known-secret learning** (opt-in, default off): Remember the exact values a `cledger redact <event-id> --pattern` scrubbed, then exact-match them out of every future capture (under a `known-secret` rule id). Enable with `{"redact": {"knownSecrets": true}}`. Only `--pattern` feeds it; values under 8 chars are never remembered.
+
+The local, git-invisible store at `.git/conversation-ledger/known-secrets.json` contains a per-store salt and, for each value, a salted SHA-256 digest, its exact JavaScript UTF-16 code-unit length, and a salted four-bit rolling bucket. The length generates candidate windows without changing Unicode or unpaired-surrogate values; the bucket cheaply rejects most windows; the full digest is always authoritative. Writes use an owner-only (`0600`) temporary file and atomic rename. A legacy plaintext `{"values":[...]}` store remains protective when read and is converted to digests on the next write. If the store is corrupt or unreadable, capture warns without echoing its contents and continues with known-secret protection inactive — deliberately fail-open so a background capture hook does not wedge.
 - Threat addressed: the capture/scan feedback loop — a value the broad sync scan catches but the conservative capture tier misses gets re-ingested raw every time you revisit it while fixing it. Once redacted, capture learns it and it can never be re-captured raw again.
-- Cost of enabling: confirmed secret plaintext lives in a new (local, unshared) file; like env masking, capture becomes machine-dependent for those values. Concretely, re-capturing a source line whose value is now remembered yields *scrubbed* content and therefore a different event id, so it no longer dedups against the pre-existing event — you get a second, also-scrubbed copy rather than a resurrected secret. Id churn, not leakage.
+- Cost of enabling: like env masking, capture becomes machine-dependent for remembered values. Re-capturing a source line whose value is now remembered yields *scrubbed* content and therefore a different event id, so it no longer dedups against the pre-existing event — you get a second, also-scrubbed copy rather than a resurrected secret. Id churn, not leakage. The store is not reversible, but exact lengths, four bucket bits, and digests make it a guess-checking oracle: low-entropy human passwords remain dictionary-attackable. Per-store salting prevents reusable cross-store/rainbow-table work; generated high-entropy tokens remain the intended case.
 
 **Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push with a report and remediation instructions; the report prints **coordinates only** — event id, rule, JSON path + offset, fingerprint — and never a character of the flagged text or its surroundings, because the context around a match is itself what tripped the rule, so a printed excerpt re-seeds a finding on the report. The report is **grouped by fingerprint**: the same span recurring across an event's `content` and `raw` mirrors, or across every edit of one file, is one decision, and the report's size tracks decisions rather than match sites (this repo's own dogfood backlog was 153 sites that collapse to 11 spans). Readable content lives behind `cledger review` (interactive, one screen per span) and `cledger inspect <event-id>` (writes a `0600` file outside the repo); both refuse to run inside a coding-agent session. In the pre-push hook, a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
 - Threat addressed: secrets from older capture rules or new tool formats slipping through.
@@ -811,55 +813,35 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   rewrite innocent text, violating the near-zero-false-positive invariant that
   makes capture-time rewriting safe. The value-based learning above is the
   intended narrow form.
-- **Encrypt the known-secrets store at rest** — the opt-in store aggregates
-  confirmed secret plaintext into one predictably-named local file. This does
-  not change the transport threat model (the same values already sit in
-  plaintext transcripts), but the *aggregation* is a distinct accidental-read /
-  disk-snoop / backup-scoop risk — and it means `cledger redact --pattern`
-  currently *increases* the number of plaintext copies of a secret on local
-  disk, which is a surprising thing for a redaction command to do. Owner-only
-  `0600` perms shipped in 0.7.1.
-  **Preferred fix: store hashes, not plaintext** (see the entry below) — it
-  removes the secret rather than protecting it, and needs no key at all.
-  The previously-planned alternative was encryption with an OS-keychain-held
-  key (macOS Keychain / libsecret / DPAPI), which must decrypt
-  *non-interactively* since
-  capture runs silently on every turn.
-- **Store hashes of known secrets, not the secrets** — replace
-  `known-secrets.json`'s plaintext `values` with salted digests plus each
-  value's byte length. Capture-time scrubbing then confirms a candidate span
-  by hashing it, so the store stops being a readable aggregation of every
-  secret you have ever confirmed. Strictly better than encrypting it: an
-  encrypted store is reversible by design (capture must decrypt silently, so
-  the key has to be reachable by anything running as you), whereas a hashed
-  store does not contain the secret at all — not for an attacker, and not for
-  cledger. It also deletes the whole key-management problem, which is the
-  reason the encryption entry above has never been done.
-  *The design question is candidate generation* — you cannot search for a
-  value you cannot reconstruct, so something must propose the spans to hash.
-  Two options, and they compose:
-  (a) **Rule-generated candidates.** Run the broad scan-tier rules purely as
-  candidate *generators* and confirm each match against the stored digests.
-  Cheap — O(matches × stored) — and, importantly, the noise that disqualified
-  those rules from capture-time *rewriting* is harmless here, because the
-  hash comparison is exact: a false-positive candidate simply fails to match
-  and nothing is rewritten. Its limit is recall, and the limit bites exactly
-  where this feature earns its keep: a value the store holds *because no rule
-  recognized it* still generates no candidate, so it is never checked.
-  (b) **Length-indexed rolling scan.** Index the digests by length and sweep
-  each string with a rolling hash (Rabin–Karp), running sha256 only on a
-  window whose rolling hash hits. Linear in text size per distinct stored
-  length, no dependency on any rule matching, and it subsumes (a) entirely.
-  More code; the honest cost.
-  *Accepted limitation either way:* a digest is brute-forceable for
-  low-entropy values, so human-chosen passwords remain dictionary-attackable
-  while random API tokens do not. That trade is deliberate — this tool
-  operates on code repositories, where the realistic secret is a generated
-  token, and a leaked credential's real remedy is rotation regardless. Salt
-  per-store so the file is not rainbow-table-able, and note that storing
-  lengths leaks a little and makes the file a guess-checking oracle, the same
-  property any password-hash file has.
-  *Migration:* hash existing plaintext entries in place on first write.
+- **Encrypt the known-secrets store at rest** *(resolved by non-reversible
+  storage in [Annals #1](https://github.com/evintunador/annals/pull/1))* — the original opt-in store aggregated confirmed
+  secret plaintext into one predictably named local file. This did not change
+  the transport threat model (the same values already sit in plaintext source
+  transcripts), but the aggregation created a distinct accidental-read /
+  disk-snoop / backup-scoop risk. Owner-only `0600` permissions shipped first
+  in 0.7.1. Encryption with an OS-keychain-held key was considered, but a
+  background capture hook would need silent access to a reversible key. The
+  chosen fix below removes the plaintext and the key-management problem.
+- **Store hashes of known secrets, not the secrets** *(shipped in
+  [Annals #1](https://github.com/evintunador/annals/pull/1))*
+  — `known-secrets.json` now stores a per-store salt and salted SHA-256 digest
+  for each value, never the value itself. Exact JavaScript UTF-16 code-unit
+  lengths preserve candidate boundaries losslessly, including unpaired
+  surrogates. Capture performs a length-indexed rolling scan; each entry also
+  stores a salted four-bit rolling bucket to reject most windows cheaply, but
+  a full SHA-256 comparison is always authoritative. The store is written
+  `0600` through a temporary file and atomic rename. The reader accepts the
+  legacy plaintext `{"values":[...]}` shape so protection remains active, and
+  the next write migrates all entries to digests. A corrupt or unreadable
+  store emits a content-free warning and capture continues with remembered-
+  secret protection inactive (fail-open rather than wedging the hook).
+
+  *Accepted limitation:* exact lengths, the four-bit buckets, and the digests
+  leak enough to make the file a guess-checking oracle. A per-store salt
+  prevents reusable cross-store/rainbow-table work, but low-entropy human
+  passwords remain dictionary-attackable; generated high-entropy tokens do
+  not. That trade remains deliberate, and rotation is still the remedy for a
+  leaked credential.
 - **Share local state across worktrees** *(shipped, 0.13.0)* — cledger kept
   its local state under `git rev-parse --absolute-git-dir`, which in a linked
   worktree is that worktree's *private* directory
