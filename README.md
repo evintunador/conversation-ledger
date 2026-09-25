@@ -515,9 +515,12 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   opencode 1.18.5, so the normal path is pinned to the real field. The hook
   still treats the id as optional and falls back to capturing the most
   recently updated session for the directory, so a future opencode that
-  renames the field degrades instead of silently stopping. The fallback emits
-  a warning without echoing the hook payload and has a deterministic regression
-  test that verifies it chooses the most recently updated session. It could
+  renames the field degrades instead of silently stopping. The installed plugin
+  emits a warning before launching the detached capture process, without
+  echoing the hook payload; the capture process's own stderr is intentionally
+  discarded so it cannot disrupt opencode's TUI. A deterministic regression
+  test verifies the fallback chooses the most recently updated session, and an
+  integration test exercises the warning through the generated plugin. It could
   still pick the wrong session if two sessions in one project went idle in the
   same instant; the warning makes that degraded mode visible.
 - **`opencode export` truncates a piped stdout at 64KB** — an upstream Bun

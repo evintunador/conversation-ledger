@@ -274,7 +274,8 @@ export async function installCodex(): Promise<string> {
  *    live `session.idle` from opencode 1.18.5. It is still passed as optional:
  *    the hook falls back to the most recently updated session for the
  *    directory if a future opencode renames the field, which keeps capture
- *    working rather than silently stopping.
+ *    working rather than silently stopping. The plugin itself warns before
+ *    spawning that fallback, because the detached child's stderr is discarded.
  */
 export async function installOpencode(): Promise<string> {
   const configHome = process.env["XDG_CONFIG_HOME"] || join(homedir(), ".config");
@@ -291,6 +292,12 @@ export const server = async ({ directory, worktree }) => {
       if (!event || event.type !== "session.idle") return;
       const sessionID = (event.properties && event.properties.sessionID) || undefined;
       const cwd = worktree || directory || process.cwd();
+      if (!sessionID) {
+        console.warn(
+          "cledger: opencode plugin warning: session.idle provided no session id; " +
+            "falling back to the project's most recently updated session",
+        );
+      }
       let child;
       try {
         child = spawn(COMMAND[0], COMMAND.slice(1), {
