@@ -1,4 +1,5 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { sha256Hex } from "annals";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "annals";
@@ -27,6 +28,9 @@ import {
 const CONVERTIBLE_LINE_TYPES = new Set(["user", "assistant"]);
 
 const CURSOR_FIELD = "lines";
+
+/** Claude Code truncates sanitized project names at this length, then adds a hash. */
+const MAX_SANITIZED_PROJECT_LENGTH = 200;
 
 // Unchanged at /1: `raw.data` is still one verbatim transcript line, which is
 // all the format marker promises. What changed is which lines get captured
@@ -769,6 +773,23 @@ async function subagentTranscripts(transcriptPath: string): Promise<string[]> {
   }
 }
 
+async function captureTranscriptTree(
+  repo: RepoInfo,
+  transcriptPath: string,
+  seen: Set<string>,
+): Promise<CaptureResult> {
+  const total: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
+  const queue = [transcriptPath];
+  while (queue.length > 0) {
+    const path = queue.shift()!;
+    if (seen.has(path)) continue;
+    seen.add(path);
+    mergeCaptureResult(total, await captureTranscriptFile(repo, path));
+    queue.push(...(await subagentTranscripts(path)));
+  }
+  return total;
+}
+
 /**
  * Capture a Claude Code session: the transcript itself, then every subagent
  * transcript beneath it, depth-first.
@@ -784,16 +805,146 @@ export async function captureClaudeTranscript(
   const repo = await findRepo(cwd);
   if (!repo) throw new Error("not inside a git repository");
 
-  const total: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
-  const queue = [transcriptPath];
-  while (queue.length > 0) {
-    const path = queue.shift()!;
-    if (seen.has(path)) continue;
-    seen.add(path);
-    mergeCaptureResult(total, await captureTranscriptFile(repo, path));
-    queue.push(...(await subagentTranscripts(path)));
+  const total = await captureTranscriptTree(repo, transcriptPath, seen);
+
+  process.stderr.write(
+    `cledger: claude-code +${total.appended} events (${total.deduped} deduped)\n`,
+  );
+  warnUnrecognized("claude-code", total.unrecognized);
+  return total;
+}
+
+/**
+ * The path spelling Claude Code uses before deriving a project-directory name:
+ * realpath (so symlink spellings converge), then NFC normalization. A missing
+ * path can only arise in defensive transcript checks; keep its normalized
+ * spelling so a vanished directory fails closed rather than throwing.
+ */
+async function canonicalProjectPath(path: string): Promise<string> {
+  try {
+    return (await realpath(path)).normalize("NFC");
+  } catch {
+    return path.normalize("NFC");
+  }
+}
+
+/** Claude Code's project-name sanitizer, before its long-path hash suffix. */
+function sanitizedProjectPath(path: string): string {
+  return path.replace(/[^a-zA-Z0-9]/g, "-");
+}
+
+function claudeProjectsDir(): string {
+  const configDir = process.env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude");
+  return join(configDir, "projects");
+}
+
+/**
+ * Candidate storage directories for one exact cwd, following Claude Code's
+ * own lookup convention. Short paths have one exact name. Long paths use a
+ * runtime-specific hash suffix (Bun in the CLI, a different hash in the SDK),
+ * so Claude itself discovers them by scanning for the sanitized 200-character
+ * prefix. The transcript-cwd check below is what makes both cases safe despite
+ * sanitizer collisions.
+ */
+async function projectDirs(canonicalCwd: string): Promise<string[]> {
+  const projects = claudeProjectsDir();
+  const sanitized = sanitizedProjectPath(canonicalCwd);
+  if (sanitized.length <= MAX_SANITIZED_PROJECT_LENGTH) {
+    const exact = join(projects, sanitized);
+    try {
+      await readdir(exact);
+      return [exact];
+    } catch {
+      return [];
+    }
   }
 
+  const prefix = `${sanitized.slice(0, MAX_SANITIZED_PROJECT_LENGTH)}-`;
+  try {
+    const entries = await readdir(projects, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix))
+      .map((entry) => join(projects, entry.name))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Confirm a session belongs to the requested cwd from the transcript itself.
+ * Sanitized project directory names are not injective (`/a_b` and `/a-b`
+ * collide), so trusting the directory alone can anchor another project's
+ * conversation to this repository. The first recorded cwd identifies the
+ * session's origin; later lines may legitimately name a subdirectory after
+ * Claude changes its shell cwd. A transcript with no recorded cwd is skipped:
+ * explicit backfill must fail closed.
+ */
+async function transcriptBelongsTo(path: string, canonicalCwd: string): Promise<boolean> {
+  let raw: string;
+  try {
+    raw = await readFile(path, "utf8");
+  } catch {
+    return false;
+  }
+  for (const text of raw.split("\n")) {
+    if (!text.trim()) continue;
+    let line: ClaudeTranscriptLine;
+    try {
+      line = JSON.parse(text) as ClaudeTranscriptLine;
+    } catch {
+      continue;
+    }
+    if (typeof line.cwd === "string" && line.cwd) {
+      return (await canonicalProjectPath(line.cwd)) === canonicalCwd;
+    }
+  }
+  return false;
+}
+
+/** Every verified top-level session for this exact cwd, newest first. */
+async function projectTranscripts(cwd: string): Promise<{ canonicalCwd: string; paths: string[] }> {
+  const canonicalCwd = await canonicalProjectPath(cwd);
+  const stamped: Array<{ path: string; mtime: number }> = [];
+  for (const dir of await projectDirs(canonicalCwd)) {
+    let names: string[];
+    try {
+      names = await readdir(dir);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      if (!name.endsWith(".jsonl")) continue;
+      const path = join(dir, name);
+      if (!(await transcriptBelongsTo(path, canonicalCwd))) continue;
+      stamped.push({ path, mtime: await stat(path).then((info) => info.mtimeMs, () => 0) });
+    }
+  }
+  stamped.sort((a, b) => b.mtime - a.mtime || a.path.localeCompare(b.path));
+  return { canonicalCwd, paths: stamped.map(({ path }) => path) };
+}
+
+/**
+ * Explicitly adopt every Claude Code session recorded for this exact cwd,
+ * including sessions cledger has never tracked. Subagents are followed by the
+ * ordinary capture path. This is intentionally separate from the hook's
+ * cursor-bounded tail sweep: adopting history should only happen on request.
+ */
+export async function captureClaudeAll(cwd: string, limit?: number): Promise<CaptureResult> {
+  const repo = await findRepo(cwd);
+  if (!repo) throw new Error("not inside a git repository");
+  const total: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
+  const { canonicalCwd, paths } = await projectTranscripts(cwd);
+  if (paths.length === 0) {
+    process.stderr.write(
+      `cledger: claude-code found no sessions for ${canonicalCwd} ` +
+        `(looked under ${claudeProjectsDir()})\n`,
+    );
+  }
+  const seen = new Set<string>();
+  for (const path of typeof limit === "number" ? paths.slice(0, limit) : paths) {
+    mergeCaptureResult(total, await captureTranscriptTree(repo, path, seen));
+  }
   process.stderr.write(
     `cledger: claude-code +${total.appended} events (${total.deduped} deduped)\n`,
   );
