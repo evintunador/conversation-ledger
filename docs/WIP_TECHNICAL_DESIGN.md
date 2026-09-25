@@ -519,16 +519,33 @@ Defense in depth, ordered by where they run and what they may do:
   catches but A missed can never be re-captured raw once confirmed. Like C it
   is exact-value and therefore machine-dependent (id churn is the accepted
   cost); only `--pattern` feeds it (`--all` blanks whole content, no reusable
-  value) and sub-8-char values are dropped to avoid over-matching. It stores
-  plaintext by necessity (fingerprints are one-way and can't drive exact
-  matching) but under `.git/` and written `0600`, exactly as local-and-unshared
-  as the transcripts the values came from — consistent with the transport
-  boundary. Off by default: the store is never read or created unless the flag
-  is set. Note the interaction with the id-preservation rule below: once a
-  value is remembered, re-capturing a source line containing it yields
-  *scrubbed* content and therefore a different id, so it no longer dedups
-  against the redacted original — a second scrubbed copy, not a resurrected
-  secret. Id churn is the accepted cost, identical to C.
+  value) and sub-8-char values are dropped to avoid over-matching.
+
+  The v2 store contains a per-store salt and, for each remembered value, a
+  salted SHA-256 digest, its exact JavaScript UTF-16 code-unit length, and a
+  salted four-bit rolling bucket. The length makes candidate generation
+  lossless for JavaScript strings (including unpaired surrogates); a
+  length-indexed rolling scan uses the four-bit bucket as a prefilter and the
+  full digest as the authority. Candidate plaintext exists only in memory
+  during matching. Writes serialize through a local lock, create an owner-only
+  (`0600`) temporary file, and atomically rename it into place. The reader
+  accepts the legacy plaintext `{"values":[...]}` shape so it remains
+  protective, and the next write migrates every usable value to a digest and
+  removes plaintext, including when no new value was added. A malformed or
+  unreadable store produces a content-free warning and an empty match set:
+  capture deliberately fails open, with remembered-secret protection inactive,
+  rather than wedging a background hook.
+
+  The digest store has an accepted residual disclosure: exact lengths, four
+  rolling-hash bits, and the digest make it a guess-checking oracle. The
+  per-store salt defeats reusable cross-store/rainbow-table work, but it cannot
+  make a low-entropy human password resistant to a targeted dictionary attack.
+  Generated high-entropy tokens are the intended case. Off by default: the
+  store is never read or created unless the flag is set. Once a value is
+  remembered, re-capturing a source line containing it yields *scrubbed*
+  content and therefore a different id, so it no longer dedups against the
+  redacted original — a second scrubbed copy, not a resurrected secret. Id
+  churn is the accepted cost, identical to C.
 
 ### Redaction metadata
 
