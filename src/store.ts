@@ -119,7 +119,13 @@ export function sync(
   repo: RepoInfo,
   remote = "origin",
   mode: "both" | "push" | "fetch" = "both",
-  opts: { skipScan?: boolean; paranoid?: boolean; scope?: string | string[] | null } = {},
+  opts: {
+    skipScan?: boolean;
+    paranoid?: boolean;
+    scope?: string | string[] | null;
+    /** Print the coordinate-only finding report when the scan gate blocks. */
+    reportFindings?: boolean;
+  } = {},
 ): Promise<A.SyncResult> {
   return A.sync(asLedger(repo), remote, mode, opts);
 }

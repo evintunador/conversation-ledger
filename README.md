@@ -296,7 +296,7 @@ The local, git-invisible store at `.git/conversation-ledger/known-secrets.json` 
 - Threat addressed: the capture/scan feedback loop — a value the broad sync scan catches but the conservative capture tier misses gets re-ingested raw every time you revisit it while fixing it. Once redacted, capture learns it and it can never be re-captured raw again.
 - Cost of enabling: like env masking, capture becomes machine-dependent for remembered values. Re-capturing a source line whose value is now remembered yields *scrubbed* content and therefore a different event id, so it no longer dedups against the pre-existing event — you get a second, also-scrubbed copy rather than a resurrected secret. Id churn, not leakage. The store is not reversible, but exact lengths, four bucket bits, and digests make it a guess-checking oracle: low-entropy human passwords remain dictionary-attackable. Per-store salting prevents reusable cross-store/rainbow-table work; generated high-entropy tokens remain the intended case.
 
-**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push with a report and remediation instructions; the report prints **coordinates only** — event id, rule, JSON path + offset, fingerprint — and never a character of the flagged text or its surroundings, because the context around a match is itself what tripped the rule, so a printed excerpt re-seeds a finding on the report. The report is **grouped by fingerprint**: the same span recurring across an event's `content` and `raw` mirrors, or across every edit of one file, is one decision, and the report's size tracks decisions rather than match sites (this repo's own dogfood backlog was 153 sites that collapse to 11 spans). Readable content lives behind `cledger review` (interactive, one screen per span) and `cledger inspect <event-id>` (writes a `0600` file outside the repo); both refuse to run inside a coding-agent session. In the pre-push hook, a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
+**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push, but the default output contains only aggregate counts and safe next-step guidance — no fingerprints or event coordinates. A human can deliberately request the coordinate-only report with `cledger sync --report` (or `cledger scan --report` for the standalone scan). That report prints event id, rule, JSON path + offset, and fingerprint, but never a character of the flagged text or its surroundings. It is **grouped by fingerprint**: the same span recurring across an event's `content` and `raw` mirrors, or across every edit of one file, is one decision, and the report's size tracks decisions rather than match sites (this repo's own dogfood backlog was 153 sites that collapse to 11 spans). Coding agents should not request the report: even contentless credential-shaped coordinates can feed back into captured work. Readable content lives behind `cledger review` (interactive, one screen per span) and `cledger inspect <event-id>` (writes a `0600` file outside the repo); both refuse to run inside a coding-agent session. The pre-push hook always uses concise output; a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
 - Threat addressed: secrets from older capture rules or new tool formats slipping through.
 - Cost of disabling: `{"scan": {"tier": "off"}}` — secrets in tool output push silently.
 - Remediation paths: `cledger review` (walk every outstanding span, one keystroke each), `cledger redact <event-id>` (real secrets), `cledger allow <fingerprint>` (false positives), `cledger sync --no-scan` (bypass once). `--paranoid` tier adds entropy-based detection (noisier but broader).
@@ -314,7 +314,7 @@ The local, git-invisible store at `.git/conversation-ledger/known-secrets.json` 
 
 Severing the chain is not an object purge: the old blobs stay in the local reflog and object store until git's own expiry + `gc`. That residue is local-only (git transfers neither reflogs nor unreachable objects), and the command says so rather than claiming the value is gone. To drop them immediately: `git reflog expire --expire=now --all && git gc --prune=now` (repo-wide).
 
-`cledger scan [--paranoid]`: Standalone check with exit 1 on findings — CI-friendly.
+`cledger scan [--paranoid] [--report]`: Standalone check with exit 1 on findings — CI-friendly. By default it prints only aggregate counts and guidance. `--report` deliberately adds coordinate/fingerprint details (still never matched content or context); CI that parses individual findings must opt in.
 
 ### Maximum safety recipe
 
@@ -566,26 +566,15 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   open. A useful tripwire when adding anything that reads cledger's own
   state or prints cledger's own findings: ask what happens when that output
   is itself captured.
-- **Don't print findings by default; print a pointer to them** — the cleanest
-  structural break in the self-referential loop above. Today `cledger scan`
-  and the sync gate print every finding inline, which is exactly the text that
-  gets captured into the next conversation and re-seeds the finding. Masking
-  the matched span (0.6.1) removed the secret characters but not the
-  *surrounding* credential-shaped context, which is what
-  `keyword-assignment` trips on — so the loop is narrowed, not closed.
-  Proposed: report only the count and how to inspect, with the audience split
-  made explicit in the text — a human is told which command reveals the
-  findings; an agent is told not to run it, because reading the findings into
-  its context is what reproduces them, and to surface the count to its human
-  instead. Naming the failure mode in the output is the point: an agent that
-  understands *why* will comply, where a bare "don't look" invites a
-  workaround. Pairs naturally with the inspection command in the design doc's
-  open questions, which already has to write unmasked output to a file rather
-  than stdout for the same reason. *Tension to resolve first:* CI reads those
-  printed findings, and `cledger scan`'s nonzero exit plus inline report is
-  the documented CI integration — so the default likely has to be
-  terminal-aware, or CI has to opt in explicitly (`--report`), rather than
-  simply going quiet for everyone.
+- **Don't print findings by default; print a pointer to them** *(shipped)* —
+  the structural break in the self-referential loop above. `cledger scan`,
+  `cledger sync`, and the pre-push gate now print only aggregate counts and
+  audience-specific guidance by default. A human in a plain terminal can opt
+  into coordinate/fingerprint details with `--report`; an agent is explicitly
+  told not to, because reading even a contentless credential-shaped report
+  into its context can reproduce the finding. The exit status and blocking
+  behavior are unchanged, so CI still gets a reliable pass/fail signal; CI
+  jobs that intentionally parse individual findings must request `--report`.
 - **Branch-scoped push** *(shipped, 0.14.0)* — reachability filtered *reads*
   (`cledger log`, `show`, `conversations`), but the notes ref is a single ref
   and a ref push sends all of it, so conversations from a branch that was
