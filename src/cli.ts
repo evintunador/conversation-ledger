@@ -24,7 +24,11 @@ import {
   type EventDraft,
   type EvidenceEvent,
 } from "./schema.js";
-import { runClaudeCodeHook, captureClaudeTranscript } from "./adapters/claude-code.js";
+import {
+  runClaudeCodeHook,
+  captureClaudeAll,
+  captureClaudeTranscript,
+} from "./adapters/claude-code.js";
 import { runCodexHook, captureCodexTranscript } from "./adapters/codex.js";
 import {
   runOpencodeHook,
@@ -133,13 +137,13 @@ Usage:
                                            hook capture into coding CLIs (global)
   cledger hook <claude-code|codex|opencode|gemini-cli|qwen-code>
                                            capture entrypoint invoked by CLI hooks (stdin: hook payload)
-  cledger capture <claude-code|codex> --transcript PATH   manual/backfill ingestion
-  cledger capture <gemini-cli|qwen-code> [--transcript PATH | --all]
-                                           both keep per-project session logs; --all backfills every
-                                           session the CLI scopes to this directory, including ones
-                                           cledger has never seen (the hook's own catch-up sweep is
-                                           deliberately narrower — it only finishes sessions cledger
-                                           already tracks)
+  cledger capture codex --transcript PATH  manual/backfill ingestion
+  cledger capture <claude-code|gemini-cli|qwen-code> [--transcript PATH | --all]
+                                           all three keep per-project session logs; --all backfills
+                                           every session the CLI scopes to this exact directory,
+                                           including ones cledger has never seen (the hook's own
+                                           catch-up sweep is deliberately narrower — it only finishes
+                                           sessions cledger already tracks)
   cledger capture opencode [--session ID | --all | --transcript EXPORT.json]
                                            opencode keeps sessions in SQLite, not a transcript file,
                                            so capture shells out to \`opencode export\`; --all sweeps
@@ -970,8 +974,17 @@ async function main(): Promise<void> {
     case "capture": {
       const source = positional[0];
       const transcript = typeof flags["transcript"] === "string" ? flags["transcript"] : undefined;
-      if (source === "claude-code" && transcript) {
-        await captureClaudeTranscript(transcript, process.cwd());
+      if (source === "claude-code") {
+        if (transcript) {
+          await captureClaudeTranscript(transcript, process.cwd());
+          return;
+        }
+        if (flags["all"]) {
+          await captureClaudeAll(process.cwd());
+          return;
+        }
+        process.stderr.write("usage: cledger capture claude-code (--transcript PATH | --all)\n");
+        process.exit(2);
         return;
       }
       if (source === "codex" && transcript) {
@@ -1018,8 +1031,8 @@ async function main(): Promise<void> {
         return;
       }
       process.stderr.write(
-        "usage: cledger capture <claude-code|codex> --transcript PATH\n" +
-          "       cledger capture <gemini-cli|qwen-code> (--transcript PATH | --all)\n" +
+        "usage: cledger capture codex --transcript PATH\n" +
+          "       cledger capture <claude-code|gemini-cli|qwen-code> (--transcript PATH | --all)\n" +
           "       cledger capture opencode (--session ID | --all | --transcript EXPORT.json)\n",
       );
       process.exit(2);

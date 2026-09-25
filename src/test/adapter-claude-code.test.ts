@@ -1,10 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, writeFile, appendFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, mkdtemp, writeFile, appendFile, utimes } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureClaudeTranscript, runClaudeCodeHook } from "../adapters/claude-code.js";
+import {
+  captureClaudeAll,
+  captureClaudeTranscript,
+  runClaudeCodeHook,
+} from "../adapters/claude-code.js";
 import { readEvents } from "../store.js";
 import { cleanupDir, cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
 
@@ -687,5 +691,256 @@ test("captureClaudeTranscript: a torn final line is captured once it is complete
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(transcriptDir);
+  }
+});
+
+/** Claude Code's on-disk project name for paths shorter than its 200-char cap. */
+function claudeProjectDir(cwd: string): string {
+  return join(homedir(), ".claude", "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"));
+}
+
+function sessionLine(sessionId: string, cwd: string, text: string, timestamp: string): string {
+  return (
+    JSON.stringify({
+      type: "user",
+      sessionId,
+      cwd,
+      timestamp,
+      message: { role: "user", content: text },
+    }) + "\n"
+  );
+}
+
+test("captureClaudeAll: scopes by recorded cwd, orders newest first, follows subagents, and is idempotent", async () => {
+  // `_` and `-` both sanitize to `-`, deliberately making another cwd collide
+  // with this repo's Claude project-directory name.
+  const repo = await makeTempRepo("cledger_cc_all_");
+  try {
+    await makeCommit(repo, "init");
+    const otherCwd = repo.root.replace("cledger_cc_all_", "cledger-cc-all-");
+    assert.notStrictEqual(otherCwd, repo.root);
+    assert.strictEqual(
+      otherCwd.replace(/[^a-zA-Z0-9]/g, "-"),
+      repo.root.replace(/[^a-zA-Z0-9]/g, "-"),
+      "the fixture must exercise a real sanitizer collision",
+    );
+
+    const projectDir = claudeProjectDir(repo.root);
+    await mkdir(projectDir, { recursive: true });
+    const oldPath = join(projectDir, "sess-old.jsonl");
+    const newPath = join(projectDir, "sess-new.jsonl");
+    const unrelatedPath = join(projectDir, "sess-unrelated.jsonl");
+    const cwdlessPath = join(projectDir, "sess-cwdless.jsonl");
+    await writeFile(
+      oldPath,
+      sessionLine("sess-old", repo.root, "older matching session", "2026-01-01T00:00:00Z"),
+    );
+    await writeFile(
+      newPath,
+      sessionLine("sess-new", repo.root, "newer matching session", "2026-01-02T00:00:00Z"),
+    );
+    // Claude records later shell-cwd changes too; the first cwd remains the
+    // session origin used for project scoping.
+    await appendFile(
+      newPath,
+      sessionLine(
+        "sess-new",
+        join(repo.root, "src"),
+        "continued from a subdirectory",
+        "2026-01-02T00:00:00.500Z",
+      ),
+    );
+    await writeFile(
+      unrelatedPath,
+      sessionLine("sess-unrelated", otherCwd, "must not cross projects", "2026-01-03T00:00:00Z"),
+    );
+    await writeFile(
+      cwdlessPath,
+      JSON.stringify({
+        type: "user",
+        sessionId: "sess-cwdless",
+        timestamp: "2026-01-04T00:00:00Z",
+        message: { role: "user", content: "must not be guessed" },
+      }) + "\n",
+    );
+
+    const subagents = join(projectDir, "sess-new", "subagents");
+    await mkdir(subagents, { recursive: true });
+    await writeFile(
+      join(subagents, "agent-child.jsonl"),
+      JSON.stringify({
+        type: "assistant",
+        isSidechain: true,
+        agentId: "child",
+        attributionAgent: "Explore",
+        sessionId: "sess-new",
+        cwd: repo.root,
+        timestamp: "2026-01-02T00:00:01Z",
+        message: { role: "assistant", model: "claude-x", content: "child answer" },
+      }) + "\n",
+    );
+
+    // The unrelated/cwd-less files are newer than both valid files. Filtering
+    // must happen before the limit, then the newest valid session wins.
+    await utimes(oldPath, new Date(1_000), new Date(1_000));
+    await utimes(newPath, new Date(2_000), new Date(2_000));
+    await utimes(unrelatedPath, new Date(4_000), new Date(4_000));
+    await utimes(cwdlessPath, new Date(3_000), new Date(3_000));
+
+    const newest = await captureClaudeAll(repo.root, 1);
+    assert.strictEqual(newest.appended, 3, "the newest parent and its subagent are captured");
+    let events = await readEvents(repo);
+    assert.match(JSON.stringify(events), /newer matching session/);
+    assert.match(JSON.stringify(events), /child answer/);
+    assert.doesNotMatch(JSON.stringify(events), /older matching session/);
+    assert.doesNotMatch(JSON.stringify(events), /must not cross projects|must not be guessed/);
+
+    const rest = await captureClaudeAll(repo.root);
+    assert.strictEqual(rest.appended, 1, "the older matching session is adopted on the full pass");
+    events = await readEvents(repo);
+    assert.strictEqual(events.length, 4);
+    assert.match(JSON.stringify(events), /older matching session/);
+    assert.doesNotMatch(JSON.stringify(events), /must not cross projects|must not be guessed/);
+
+    const rerun = await captureClaudeAll(repo.root);
+    assert.strictEqual(rerun.appended, 0, "an unchanged backfill is a no-op");
+    assert.strictEqual((await readEvents(repo)).length, 4);
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("captureClaudeAll: an absent project directory reports the exact cwd and captures nothing", async () => {
+  const repo = await makeTempRepo("cledger-cc-all-empty-");
+  const writes: string[] = [];
+  const originalWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    writes.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write;
+  try {
+    await makeCommit(repo, "init");
+    const result = await captureClaudeAll(repo.root);
+    assert.deepStrictEqual(result, { appended: 0, deduped: 0, unrecognized: {} });
+    assert.match(writes.join(""), /claude-code found no sessions for /);
+    assert.match(writes.join(""), new RegExp(repo.root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.strictEqual((await readEvents(repo)).length, 0);
+  } finally {
+    process.stderr.write = originalWrite;
+    await cleanupRepo(repo);
+  }
+});
+
+test("captureClaudeAll: finds Claude's hash-suffixed directory for a cwd longer than 200 characters", async () => {
+  const repo = await makeTempRepo("cledger-cc-all-long-");
+  try {
+    await makeCommit(repo, "init");
+    const segment = "deep-directory-name-that-keeps-the-component-under-filesystem-limits";
+    const deepCwd = join(repo.root, segment, segment, segment);
+    await mkdir(deepCwd, { recursive: true });
+    const sanitized = deepCwd.replace(/[^a-zA-Z0-9]/g, "-");
+    assert.ok(sanitized.length > 200, "the fixture must exercise Claude's long-path lookup");
+
+    // The suffix is deliberately opaque: Claude's CLI and SDK use different
+    // hashes and Claude itself resolves this case by scanning the 200-char prefix.
+    const projectDir = join(
+      homedir(),
+      ".claude",
+      "projects",
+      `${sanitized.slice(0, 200)}-opaque-runtime-hash`,
+    );
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(
+      join(projectDir, "sess-long.jsonl"),
+      sessionLine("sess-long", deepCwd, "long path session", "2026-01-01T00:00:00Z"),
+    );
+
+    const result = await captureClaudeAll(deepCwd);
+    assert.strictEqual(result.appended, 1);
+    assert.match(JSON.stringify(await readEvents(repo)), /long path session/);
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("captureClaudeAll: mirrors Claude's validated project-directory override and invalid fallback", async () => {
+  const repo = await makeTempRepo("cledger-cc-all-override-");
+  const configDir = await mkdtemp(join(tmpdir(), "cledger-claude-config-"));
+  const previousConfig = process.env["CLAUDE_CONFIG_DIR"];
+  const previousName = process.env["CLAUDE_CODE_PROJECT_DIR_NAME"];
+  try {
+    await makeCommit(repo, "init");
+    process.env["CLAUDE_CONFIG_DIR"] = configDir;
+    process.env["CLAUDE_CODE_PROJECT_DIR_NAME"] = "sdk-project";
+
+    const pinned = join(configDir, "projects", "sdk-project");
+    await mkdir(pinned, { recursive: true });
+    await writeFile(
+      join(pinned, "sess-pinned.jsonl"),
+      sessionLine("sess-pinned", repo.root, "valid pinned session", "2026-01-01T00:00:00Z"),
+    );
+    assert.strictEqual((await captureClaudeAll(repo.root)).appended, 1);
+
+    const derived = join(
+      configDir,
+      "projects",
+      repo.root.replace(/[^a-zA-Z0-9]/g, "-"),
+    );
+    await mkdir(derived, { recursive: true });
+    await writeFile(
+      join(derived, "sess-invalid-fallback.jsonl"),
+      sessionLine(
+        "sess-invalid-fallback",
+        repo.root,
+        "invalid-name fallback",
+        "2026-01-02T00:00:00Z",
+      ),
+    );
+    // A slash is outside Claude's 1-64 [A-Za-z0-9_-] grammar. It must not be
+    // interpreted as a nested path; Claude ignores it and derives from cwd.
+    process.env["CLAUDE_CODE_PROJECT_DIR_NAME"] = "sdk/project";
+    assert.strictEqual((await captureClaudeAll(repo.root)).appended, 1);
+
+    await writeFile(
+      join(derived, "sess-device-fallback.jsonl"),
+      sessionLine(
+        "sess-device-fallback",
+        repo.root,
+        "device-name fallback",
+        "2026-01-03T00:00:00Z",
+      ),
+    );
+    // Claude rejects Windows device names case-insensitively, including COM0.
+    process.env["CLAUDE_CODE_PROJECT_DIR_NAME"] = "COM0";
+    assert.strictEqual((await captureClaudeAll(repo.root)).appended, 1);
+
+    const text = JSON.stringify(await readEvents(repo));
+    assert.match(text, /valid pinned session/);
+    assert.match(text, /invalid-name fallback/);
+    assert.match(text, /device-name fallback/);
+
+    // The name is ignored altogether unless CLAUDE_CONFIG_DIR is explicit.
+    delete process.env["CLAUDE_CONFIG_DIR"];
+    process.env["CLAUDE_CODE_PROJECT_DIR_NAME"] = "ignored-project";
+    const defaultDerived = claudeProjectDir(repo.root);
+    await mkdir(defaultDerived, { recursive: true });
+    await writeFile(
+      join(defaultDerived, "sess-name-alone.jsonl"),
+      sessionLine(
+        "sess-name-alone",
+        repo.root,
+        "name-alone derived fallback",
+        "2026-01-04T00:00:00Z",
+      ),
+    );
+    assert.strictEqual((await captureClaudeAll(repo.root)).appended, 1);
+    assert.match(JSON.stringify(await readEvents(repo)), /name-alone derived fallback/);
+  } finally {
+    if (previousConfig === undefined) delete process.env["CLAUDE_CONFIG_DIR"];
+    else process.env["CLAUDE_CONFIG_DIR"] = previousConfig;
+    if (previousName === undefined) delete process.env["CLAUDE_CODE_PROJECT_DIR_NAME"];
+    else process.env["CLAUDE_CODE_PROJECT_DIR_NAME"] = previousName;
+    await cleanupRepo(repo);
+    await cleanupDir(configDir);
   }
 });
