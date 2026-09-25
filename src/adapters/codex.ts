@@ -1,11 +1,13 @@
-import { readFile, stat } from "node:fs/promises";
-import { basename } from "node:path";
-import { findRepo, gitUserIdentity, type GitUserIdentity } from "annals";
+import { readdir, readFile, stat } from "node:fs/promises";
+import type { Dirent } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
+import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "annals";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import { packageVersion, readCursor, writeCursor } from "./common.js";
 import {
   countUnrecognized,
+  mergeCaptureResult,
   reasoningDraft,
   unrecognizedDraft,
   warnUnrecognized,
@@ -248,6 +250,97 @@ function sessionIdentity(
     return { sessionId, parentSessionId: parent };
   }
   return { sessionId };
+}
+
+/**
+ * A child thread id from either Codex sub-agent activity envelope observed on
+ * disk. Older rollouts used a direct lowercase payload; current Codex wraps a
+ * capitalized item in `item_completed`. These exact shape checks deliberately
+ * do not treat an arbitrary mention of either discriminator as discovery.
+ */
+function childThreadId(line: CodexRolloutLine): string | null {
+  if (line.type !== "event_msg" || !line.payload) return null;
+  if (line.payload["type"] === "sub_agent_activity") {
+    const id = line.payload["agent_thread_id"];
+    return typeof id === "string" && id ? id : null;
+  }
+  if (line.payload["type"] !== "item_completed") return null;
+  const item = line.payload["item"];
+  if (typeof item !== "object" || item === null) return null;
+  const record = item as Record<string, unknown>;
+  if (record["type"] !== "SubAgentActivity") return null;
+  const id = record["agent_thread_id"];
+  return typeof id === "string" && id ? id : null;
+}
+
+/** Child thread ids named by the sub-agent activity stream, in first-seen order. */
+function childThreadIds(lines: string[]): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const text of lines) {
+    let line: CodexRolloutLine;
+    try {
+      line = JSON.parse(text) as CodexRolloutLine;
+    } catch {
+      continue;
+    }
+    const id = childThreadId(line);
+    if (id === null || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * The smallest directory that contains every rollout a Codex session can
+ * point at. Normal stores are `<sessions>/YYYY/MM/DD/rollout-*.jsonl`; files
+ * handed to manual capture from anywhere else are scoped to their own
+ * directory rather than making an unbounded filesystem search.
+ */
+function rolloutSearchRoot(transcriptPath: string): string {
+  const dayDir = dirname(resolve(transcriptPath));
+  const monthDir = dirname(dayDir);
+  const yearDir = dirname(monthDir);
+  const sessionsDir = dirname(yearDir);
+  if (
+    /^\d{2}$/.test(basename(dayDir)) &&
+    /^\d{2}$/.test(basename(monthDir)) &&
+    /^\d{4}$/.test(basename(yearDir)) &&
+    basename(sessionsDir) === "sessions"
+  ) {
+    return sessionsDir;
+  }
+  return dayDir;
+}
+
+/** Build a deterministic thread-id → rollout path index below `root`. */
+async function indexRollouts(root: string): Promise<Map<string, string>> {
+  const index = new Map<string, string>();
+
+  async function walk(dir: string): Promise<void> {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(path);
+      } else if (entry.isFile() && entry.name.startsWith("rollout-") && entry.name.endsWith(".jsonl")) {
+        const id = sessionIdFromFilename(entry.name);
+        // A copied rollout can appear twice in a manually assembled tree.
+        // Lexical traversal plus first-wins makes that ambiguity deterministic.
+        if (!index.has(id)) index.set(id, path);
+      }
+    }
+  }
+
+  await walk(root);
+  return index;
 }
 
 /** `rollout-YYYY-MM-DDThh-mm-ss-*.jsonl` timestamp, else file mtime, else now. */
@@ -583,19 +676,17 @@ export async function runCodexHook(stdinJson: string): Promise<void> {
   }
 }
 
-export async function captureCodexTranscript(
+/** Capture exactly one rollout and report the child thread ids it names. */
+async function captureCodexTranscriptFile(
+  repo: RepoInfo,
   transcriptPath: string,
-  cwd: string,
-): Promise<CaptureResult> {
-  const repo = await findRepo(cwd);
-  if (!repo) throw new Error("not inside a git repository");
-
+): Promise<{ result: CaptureResult; childIds: string[] }> {
   const result: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
   let raw: string;
   try {
     raw = await readFile(transcriptPath, "utf8");
   } catch {
-    return result; // transcript not written yet
+    return { result, childIds: [] }; // transcript not written yet, or was pruned
   }
   // Whether the writer had finished the last line when we read. A rollout that
   // does not end in a newline was caught mid-write, which is how the final
@@ -603,6 +694,7 @@ export async function captureCodexTranscript(
   const endsWithNewline = raw.endsWith("\n");
   const lines = raw.split("\n");
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  const childIds = childThreadIds(lines);
 
   const { sessionId, parentSessionId } = sessionIdentity(transcriptPath, lines[0]);
 
@@ -746,7 +838,43 @@ export async function captureCodexTranscript(
   }
   const consumed = tornTail ?? lines.length;
   await writeCursor(repo, sessionId, CURSOR_FIELD, consumed);
-  process.stderr.write(`cledger: codex +${result.appended} events (${result.deduped} deduped)\n`);
-  warnUnrecognized("codex", result.unrecognized);
-  return result;
+  return { result, childIds };
+}
+
+/**
+ * Capture a Codex rollout and every sub-agent rollout reachable from its
+ * `event_msg/sub_agent_activity.agent_thread_id` trail.
+ *
+ * Child files can land under a different day from their parent, so standard
+ * Codex paths are indexed from the `sessions` root. A visited-path guard makes
+ * malformed self-links and ancestor cycles harmless. Missing child rollouts
+ * are expected when Codex has pruned them and are skipped silently.
+ */
+export async function captureCodexTranscript(
+  transcriptPath: string,
+  cwd: string,
+): Promise<CaptureResult> {
+  const repo = await findRepo(cwd);
+  if (!repo) throw new Error("not inside a git repository");
+
+  const total: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
+  const rollouts = await indexRollouts(rolloutSearchRoot(transcriptPath));
+  const queue = [resolve(transcriptPath)];
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const path = queue.shift()!;
+    if (visited.has(path)) continue;
+    visited.add(path);
+    const captured = await captureCodexTranscriptFile(repo, path);
+    mergeCaptureResult(total, captured.result);
+    for (const childId of captured.childIds) {
+      const childPath = rollouts.get(childId);
+      if (childPath && !visited.has(childPath)) queue.push(childPath);
+    }
+  }
+
+  process.stderr.write(`cledger: codex +${total.appended} events (${total.deduped} deduped)\n`);
+  warnUnrecognized("codex", total.unrecognized);
+  return total;
 }
