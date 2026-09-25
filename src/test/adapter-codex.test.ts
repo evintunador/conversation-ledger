@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtemp, writeFile, appendFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { captureCodexTranscript } from "../adapters/codex.js";
@@ -510,6 +510,7 @@ test("captureCodexTranscript: event_msg splits into duplicates (dropped) and eve
  */
 const CHILD_UUID = "222e4567-e89b-12d3-a456-426614174999";
 const PARENT_UUID = "111e4567-e89b-12d3-a456-426614174111";
+const GRANDCHILD_UUID = "333e4567-e89b-12d3-a456-426614174333";
 
 async function writeSubagentRollout(dir: string, meta: Record<string, unknown>): Promise<string> {
   const path = join(dir, `rollout-2026-01-01T00-00-00-${CHILD_UUID}.jsonl`);
@@ -528,6 +529,167 @@ async function writeSubagentRollout(dir: string, meta: Record<string, unknown>):
   await writeFile(path, lines.join("\n") + "\n");
   return path;
 }
+
+async function writeThreadRollout(
+  dir: string,
+  id: string,
+  meta: Record<string, unknown>,
+  childIds: string[] = [],
+): Promise<string> {
+  await mkdir(dir, { recursive: true });
+  const path = join(dir, `rollout-2026-01-01T00-00-00-${id}.jsonl`);
+  const lines = [
+    { type: "session_meta", payload: meta },
+    ...childIds.map((agent_thread_id) => ({
+      type: "event_msg",
+      timestamp: "2026-01-01T00:00:01.000Z",
+      payload: { type: "sub_agent_activity", agent_thread_id, status: "spawned" },
+    })),
+    {
+      type: "response_item",
+      timestamp: "2026-01-01T00:00:02.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: `turn from ${id}` }],
+      },
+    },
+  ];
+  await writeFile(path, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+  return path;
+}
+
+test("captureCodexTranscript: discovers a child rollout across the sessions date tree", async () => {
+  const repo = await makeTempRepo("cledger-codex-discovery-");
+  const root = await mkdtemp(join(tmpdir(), "cledger-codex-sessions-"));
+  try {
+    await makeCommit(repo);
+    const parentPath = await writeThreadRollout(
+      join(root, "sessions", "2026", "01", "01"),
+      PARENT_UUID,
+      { id: PARENT_UUID, session_id: PARENT_UUID, source: "cli" },
+      [CHILD_UUID],
+    );
+    await writeThreadRollout(join(root, "sessions", "2026", "01", "02"), CHILD_UUID, {
+      id: CHILD_UUID,
+      session_id: PARENT_UUID,
+      parent_thread_id: PARENT_UUID,
+      source: { subagent: { thread_spawn: { agent_role: "explorer", depth: 1 } } },
+    });
+
+    const result = await captureCodexTranscript(parentPath, repo.root);
+    const events = await readEvents(repo);
+    assert.strictEqual(result.appended, 5);
+    assert.ok(events.some((event) => event.stream?.id === `codex:${PARENT_UUID}`));
+    assert.ok(
+      events
+        .filter((event) => event.stream?.id === `codex:${CHILD_UUID}`)
+        .every((event) => event.stream?.parent === `codex:${PARENT_UUID}`),
+    );
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(root);
+  }
+});
+
+test("captureCodexTranscript: a missing child is picked up later even when the parent is at EOF", async () => {
+  const repo = await makeTempRepo("cledger-codex-missing-child-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-missing-child-"));
+  try {
+    await makeCommit(repo);
+    const parentPath = await writeThreadRollout(
+      dir,
+      PARENT_UUID,
+      { id: PARENT_UUID, session_id: PARENT_UUID, source: "cli" },
+      [CHILD_UUID],
+    );
+
+    const result = await captureCodexTranscript(parentPath, repo.root);
+    const events = await readEvents(repo);
+    assert.strictEqual(result.appended, 3);
+    assert.ok(events.every((event) => event.stream?.id === `codex:${PARENT_UUID}`));
+    assert.ok(
+      events.some(
+        (event) =>
+          event.kind === "activity" &&
+          (event.content as { activity_type?: string }).activity_type ===
+            "event_msg/sub_agent_activity",
+      ),
+      "the spawn activity remains evidence even when the child file is gone",
+    );
+
+    await writeThreadRollout(dir, CHILD_UUID, {
+      id: CHILD_UUID,
+      session_id: PARENT_UUID,
+      parent_thread_id: PARENT_UUID,
+      source: { subagent: { thread_spawn: { depth: 1 } } },
+    });
+    const retry = await captureCodexTranscript(parentPath, repo.root);
+    assert.strictEqual(retry.appended, 2, "discovery re-reads the trail behind the parent's cursor");
+    assert.ok(
+      (await readEvents(repo)).some((event) => event.stream?.id === `codex:${CHILD_UUID}`),
+    );
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
+  }
+});
+
+test("captureCodexTranscript: recursively follows descendants and cycle-guards the trail", async () => {
+  const repo = await makeTempRepo("cledger-codex-recursive-");
+  const root = await mkdtemp(join(tmpdir(), "cledger-codex-recursive-sessions-"));
+  try {
+    await makeCommit(repo);
+    const sessions = join(root, "sessions", "2026", "01");
+    const parentPath = await writeThreadRollout(
+      join(sessions, "01"),
+      PARENT_UUID,
+      { id: PARENT_UUID, session_id: PARENT_UUID, source: "cli" },
+      [CHILD_UUID],
+    );
+    await writeThreadRollout(
+      join(sessions, "02"),
+      CHILD_UUID,
+      {
+        id: CHILD_UUID,
+        session_id: PARENT_UUID,
+        parent_thread_id: PARENT_UUID,
+        source: { subagent: { thread_spawn: { depth: 1 } } },
+      },
+      [GRANDCHILD_UUID],
+    );
+    await writeThreadRollout(
+      join(sessions, "03"),
+      GRANDCHILD_UUID,
+      {
+        id: GRANDCHILD_UUID,
+        session_id: CHILD_UUID,
+        parent_thread_id: CHILD_UUID,
+        source: { subagent: { thread_spawn: { depth: 2 } } },
+      },
+      [PARENT_UUID], // malformed ancestor link: must not recurse forever
+    );
+
+    const first = await captureCodexTranscript(parentPath, repo.root);
+    assert.strictEqual(first.appended, 9);
+    const events = await readEvents(repo);
+    assert.deepStrictEqual(
+      new Set(events.map((event) => event.stream?.id)),
+      new Set([`codex:${PARENT_UUID}`, `codex:${CHILD_UUID}`, `codex:${GRANDCHILD_UUID}`]),
+    );
+    assert.ok(
+      events
+        .filter((event) => event.stream?.id === `codex:${GRANDCHILD_UUID}`)
+        .every((event) => event.stream?.parent === `codex:${CHILD_UUID}`),
+    );
+
+    const second = await captureCodexTranscript(parentPath, repo.root);
+    assert.strictEqual(second.appended, 0, "the recursive walk remains incremental");
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(root);
+  }
+});
 
 test("captureCodexTranscript: a sub-agent rollout is its own conversation, under its parent", async () => {
   const repo = await makeTempRepo();
