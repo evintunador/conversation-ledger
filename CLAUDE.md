@@ -15,13 +15,15 @@ enter that queue:
   becomes one the moment you type it, in the file *and* in this transcript.
 - **Format-valid tokens** (a real-looking `ghp_…`/`sk-ant-…` that must
   exercise a capture rule): never write one whole — not in a file, not in
-  the chat, not in a commit message. Store it split as `secret_parts` in
-  `src/test/fixtures/secret-corpus.json` and let the test reassemble it
-  (see `src/test/secret-corpus.test.ts`). Markers do not exempt capture-tier
-  formats, deliberately.
-- Existing helpers already follow this; extend them rather than minting
-  values inline (`fakeSecret(...)` in `src/test/redact.test.ts`, the corpus
-  file for anything new).
+  the chat, not in a commit message. The redaction stack and its tests now
+  live in the sibling
+  [annals repository](https://github.com/evintunador/annals); add such cases
+  to its split `src/test/fixtures/secret-corpus.json` fixture and let its
+  `src/test/secret-corpus.test.ts` reassemble them. Markers do not exempt
+  capture-tier formats, deliberately.
+- Annals' existing helpers already follow this; extend them there rather than
+  minting values inline (`fakeSecret(...)` in its `src/test/redact.test.ts`,
+  the corpus file for anything new).
 
 If a scan finding does appear when pushing: **stop and tell the human.** Do
 not run `cledger review`, `cledger inspect`, or `cledger export` to look at

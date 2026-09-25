@@ -264,7 +264,11 @@ If a real secret does reach the remote, redaction cannot recall it (see `cledger
 Repos that test or document secret handling (this one included) constantly mint fake credentials, and every fake that looks real enough becomes a scan finding a human has to wave through. Two conventions keep fixtures out of the review queue *at authoring time* instead:
 
 - **Put an uppercase marker in the fake value**: `password=FAKEhunter2aa`, `api_key: "EXAMPLE-abcdef12345678"`. Scan-tier heuristics skip spans containing `FAKE`, `EXAMPLE`, `PLACEHOLDER`, `DUMMY`, `NOTREAL`, or `TESTONLY` (uppercase only — `example.com` in a URL does not count, writing the marker must be an authoring choice). This is the convention to teach your coding agents; this repo's `CLAUDE.md` does.
-- **For format-valid tokens** (a syntactically real `ghp_…` that must exercise a capture rule), markers are ignored by design — store the token split into parts and reassemble at runtime, as `src/test/fixtures/secret-corpus.json` does with `secret_parts`. A whole format-valid token should never exist as literal bytes in a file, a conversation, or a commit.
+- **For format-valid tokens** (a syntactically real `ghp_…` that must exercise a capture rule), markers are ignored by design — store the token split into parts and reassemble at runtime, as Annals'
+  [`src/test/fixtures/secret-corpus.json`](https://github.com/evintunador/annals/blob/main/src/test/fixtures/secret-corpus.json)
+  does with `secret_parts`. (The redaction stack and its fixtures moved to
+  Annals in 0.26.0.) A whole format-valid token should never exist as literal
+  bytes in a file, a conversation, or a commit.
 
 ### Redaction layers
 
@@ -764,7 +768,7 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   suggestion tier shipped in 0.9.0: unmatched branches get evidence-ranked
   candidates (forge merge-commit assertion via `gh`, `(#N)`/squash-message
   corroboration, per-file patch-id overlap), confirm-only, behind the forge
-  abstraction in `src/forge/` (GitHub driver first).
+  abstraction in Annals' `src/forge/` (GitHub driver first).
 - **Harness-artifact capture** — decide whether the ledger should also
   preserve valuable non-git-controlled agent artifacts that normally die
   with a worktree or live outside the repo (e.g. Claude Code auto-memory
@@ -946,15 +950,16 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   reasoning dropped and it's not recovered from what's on disk. Replay
   behavior, validation, and open questions are owned by
   [Turnbridge's technical design](https://github.com/evintunador/turnbridge/blob/main/docs/WIP_TECHNICAL_DESIGN.md#encrypted-reasoning-replay).
-  *Deliberately out of scope here:* inter-agent
-  `agent_message` payloads still drop their embedded `encrypted_content`
-  blocks outright (same as before) rather than preserving them via this new
-  `reasoning` kind — same provider-withheld material, but embedded mid-line
-  rather than a standalone response_item, so preserving it needs its own
-  shape; tracked as a follow-up, not bundled into this cut. Also out of scope
-  at the time: no ledger event recorded which model/provider/CLI version
-  produced a given turn — a pre-existing gap in `Producer`, not specific to
-  reasoning, since closed in 0.12.0 (see the entry above). That gap mattered
+  *Deliberately out of scope in the 0.10.0 cut:* inter-agent `agent_message`
+  payloads needed a shape of their own because their `encrypted_content` is
+  embedded mid-line rather than carried by a standalone response item. That
+  follow-up shipped in 0.19.0: capture now emits the visible turn plus a
+  `reasoning`-kind sibling at the same sequence carrying the encrypted blocks,
+  while the visible event's raw payload retains bare markers showing where
+  those blocks occurred. Also out of scope at the time: no ledger event
+  recorded which model/provider/CLI version produced a given turn — a
+  pre-existing gap in `Producer`, not specific to reasoning, since closed in
+  0.12.0 (see the entry above). That gap mattered
   most here: an encrypted blob is only replayable against the model that
   produced it, so `reasoning` events captured before 0.12.0 carry ciphertext
   with no record of where to send it.
@@ -965,7 +970,7 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   with a human actor); what doesn't slot into the existing adapter shape is
   the capture surface — no local transcript file, no hook that fires on a
   remote comment, needs API auth/pagination. The forge abstraction now
-  exists (`src/forge/`, built for re-anchor suggestions: PR-for-branch
+  exists (now in Annals' `src/forge/`, built for re-anchor suggestions: PR-for-branch
   lookup, GitHub driver over the user's `gh` session); this adapter would
   extend it with comment fetching. GitLab/Gitea analogues exist for every
   piece.
