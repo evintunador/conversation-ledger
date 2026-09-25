@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { captureOpencodeExport, type OpencodeExport } from "../adapters/opencode.js";
+import { mkdir, writeFile } from "node:fs/promises";
+import { delimiter, join } from "node:path";
+import {
+  captureOpencodeExport,
+  runOpencodeHook,
+  type OpencodeExport,
+} from "../adapters/opencode.js";
 import { readEvents } from "../store.js";
 import { cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
 
@@ -425,6 +431,61 @@ test("a session whose ids opencode did not mint keeps the positional numbering",
     await captureOpencodeExport(textSession([P[0]!, "prt_handwritten", P[2]!]), repo.root);
     assert.deepEqual(await seqsOf(repo), [0, 1, 2], "one odd id demotes the whole session");
   } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("the hook warns and captures the most recently updated session when its id is missing", async () => {
+  const repo = await makeTempRepo();
+  const originalPath = process.env.PATH;
+  const originalWrite = process.stderr.write;
+  let stderr = "";
+  try {
+    await makeCommit(repo, "initial");
+
+    const bin = join(repo.root, "fake-bin");
+    await mkdir(bin);
+    const olderId = "ses_older00000000000000000";
+    const sessions = [
+      { id: olderId, updated: SESSION_CREATED + 1 },
+      { id: SESSION_ID, updated: SESSION_CREATED + 2 },
+    ];
+    const script = `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args.join(" ") === "session list --pure --format json") {
+  process.stdout.write(${JSON.stringify(JSON.stringify(sessions))});
+} else if (args[0] === "export" && args.at(-1) === ${JSON.stringify(SESSION_ID)}) {
+  process.stdout.write(${JSON.stringify(JSON.stringify(sessionExport()))});
+} else {
+  process.exitCode = 2;
+}
+`;
+    await writeFile(join(bin, "opencode"), script, { mode: 0o755 });
+    process.env.PATH = `${bin}${delimiter}${originalPath ?? ""}`;
+    process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+      stderr += chunk.toString();
+      return true;
+    }) as typeof process.stderr.write;
+
+    await runOpencodeHook(
+      JSON.stringify({ cwd: repo.root, hook_event_name: "session.idle", secret_note: "TOP-SECRET" }),
+    );
+
+    assert.match(
+      stderr,
+      /opencode hook warning: session\.idle provided no session id; falling back to the project's most recently updated session/,
+    );
+    assert.doesNotMatch(stderr, /TOP-SECRET/, "the warning must not echo hook payload content");
+    const events = await readEvents(repo);
+    assert.ok(events.length > 0, "the selected session should be captured");
+    assert.ok(
+      events.every((event) => event.stream?.id === `opencode:${SESSION_ID}`),
+      "the fallback should select the newest session, not merely the first one listed",
+    );
+  } finally {
+    process.stderr.write = originalWrite;
+    if (originalPath === undefined) delete process.env.PATH;
+    else process.env.PATH = originalPath;
     await cleanupRepo(repo);
   }
 });

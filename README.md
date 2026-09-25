@@ -510,16 +510,16 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 
   Related: opencode's `session delete` removes a conversation from opencode
   entirely while the ledger keeps it, which is a feature, not a bug.
-- **The opencode hook's session-id fallback is untested** — the plugin reads
+- **The opencode hook's session-id fallback is explicit and tested** — the plugin reads
   `event.properties.sessionID`, confirmed against a live `session.idle` from
   opencode 1.18.5, so the normal path is pinned to the real field. The hook
   still treats the id as optional and falls back to capturing the most
   recently updated session for the directory, so a future opencode that
-  renames the field degrades instead of silently stopping. That fallback has
-  never run in anger, and it would pick the wrong session if two sessions in
-  one project went idle in the same instant. Worth a test that exercises it
-  directly, and a warning when it triggers, so a silent rename does not look
-  like normal operation.
+  renames the field degrades instead of silently stopping. The fallback emits
+  a warning without echoing the hook payload and has a deterministic regression
+  test that verifies it chooses the most recently updated session. It could
+  still pick the wrong session if two sessions in one project went idle in the
+  same instant; the warning makes that degraded mode visible.
 - **`opencode export` truncates a piped stdout at 64KB** — an upstream Bun
   flush bug: the process exits without draining stdout, so any session over
   ~64KB comes back cut off, and the truncated JSON can still parse. cledger
