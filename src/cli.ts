@@ -85,9 +85,11 @@ Usage:
   cledger export [--all|--rev R]          lossless JSONL dump of every field, incl. reasoning;
                                            scoped to the current branch like log, --all for the
                                            whole local ledger
-  cledger sync [--remote R] [--push|--fetch] [--no-scan] [--paranoid] [--all|--rev R]
+  cledger sync [--remote R] [--push|--fetch] [--no-scan] [--paranoid] [--report] [--all|--rev R]
                                            fetch/merge/push of the ledger ref;
                                            push is gated by a secret scan unless --no-scan.
+                                           finding details are suppressed unless --report;
+                                           the report contains coordinates, never content.
                                            Push carries only conversations reachable from the
                                            current branch; --all pushes the whole ledger,
                                            --rev scopes to another branch/commit
@@ -96,9 +98,11 @@ Usage:
                                            refs being pushed (read from git's pre-push stdin;
                                            falls back to HEAD); scan findings hold back only the
                                            ledger unless transport.strict
-  cledger scan [--all|--rev R] [--paranoid]   scan local events for potential secrets (CI-friendly:
+  cledger scan [--all|--rev R] [--paranoid] [--report]
+                                           scan local events for potential secrets (CI-friendly:
                                            exits 1 if any finding, 0 otherwise); default scope is
-                                           every local event, --rev restricts by reachability
+                                           every local event, --rev restricts by reachability;
+                                           --report prints coordinates/fingerprints, never content
   cledger review [--paranoid] [--context N]   step through every outstanding finding interactively:
                                            one screen per distinct span, match highlighted in
                                            context, one key to allow (here or globally), redact
@@ -525,6 +529,7 @@ async function cmdSync(flags: Flags): Promise<void> {
   const result = await sync(repo, remote, mode, {
     skipScan: flags["no-scan"] === true,
     paranoid: flags["paranoid"] === true,
+    reportFindings: flags["report"] === true,
     scope,
   });
   const pushed = !result.pushed
@@ -585,17 +590,30 @@ async function cmdScan(flags: Flags): Promise<void> {
     process.stderr.write("cledger scan: no findings\n");
     return;
   }
-  // stdout keeps the one-line-per-site format — it is the machine-readable
-  // surface CI greps. The human-facing summary on stderr groups by
-  // fingerprint, because that is the number of decisions actually pending.
-  for (const f of findings) process.stdout.write(formatFinding(f) + "\n");
   const eventIds = [...new Set(findings.map((f) => f.eventId))];
   const spans = new Set(findings.map((f) => f.fingerprint)).size;
-  process.stderr.write(`\n${formatGroupedReport(findings)}\n`);
-  process.stderr.write(`\n${findingGuidance(eventIds)}\n`);
   process.stderr.write(
-    `\ncledger scan: ${spans} distinct span(s) — ${findings.length} site(s) across ${eventIds.length} event(s)\n`,
+    `cledger scan: ${spans} distinct potential secret(s) ` +
+      `(${findings.length} match site(s) across ${eventIds.length} event(s))\n`,
   );
+  if (flags["report"] === true) {
+    // The report is deliberately opt-in. It contains coordinates and
+    // fingerprints only, never the match or its surrounding text.
+    for (const f of findings) process.stdout.write(formatFinding(f) + "\n");
+    process.stderr.write(`\n${formatGroupedReport(findings)}\n`);
+    process.stderr.write(`\n${findingGuidance(eventIds)}\n`);
+  } else {
+    process.stderr.write(
+      "\n  Finding details were suppressed.\n\n" +
+        "  If you are a HUMAN: rerun this same scan in a plain terminal, outside\n" +
+        "  any agent, adding --report.\n" +
+        "  The report contains coordinates and fingerprints, never matched text\n" +
+        "  or surrounding context.\n\n" +
+        "  If you are an AGENT: stop here and hand this to the human. Do not add\n" +
+        "  --report or run cledger review, inspect, export, or otherwise read the\n" +
+        "  flagged content — it would be captured into this conversation.\n",
+    );
+  }
   process.exit(1);
 }
 
