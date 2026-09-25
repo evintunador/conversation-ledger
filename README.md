@@ -87,8 +87,8 @@ cledger conversations           # sessions touching this branch, with the models
 cledger show claude-code:3f9a   # replay one conversation in order (matches subagents too)
 cledger export > ledger.jsonl   # every field incl. source-native payloads, this branch
 cledger export --all            # ...and every branch this machine captured
-cledger sync                    # explicit fetch/merge/push of the ledger ref
-cledger re-anchor               # what did the remote squash away? (--apply to map it)
+cledger records sync            # explicit fetch/merge/push of the ledger ref
+cledger records reanchor        # what did the remote squash away? (--apply to map it)
 echo '{"kind":"decision",...}' | cledger append   # any tool can write events
 ```
 
@@ -106,14 +106,14 @@ The ledger travels with normal git use, no extra commands:
   refs you're pushing are shared, so an abandoned or unmerged branch's
   conversations stay on your machine. Squash-merged work still rides along —
   the scope follows `re_anchor` mappings the same way reads do.
-  `cledger sync --all` pushes the whole ledger; `--rev R` scopes elsewhere.
+  `cledger records sync --all` pushes the whole ledger.
 - **Fetch**: the same first capture adds a fetch refspec on `origin`, so
   `git fetch`/`git pull` stages teammates' events; any read command
   (`cledger log`, `show`, ...) folds them in via the conflict-free
   `cat_sort_uniq` union. The local ref is never force-overwritten.
 - **Opting out**: `{"transport": {"hook": false, "fetchRefspec": false}}` in
   `.cledger.json` or `~/.config/cledger/config.json`, or just delete the
-  marked block from `.git/hooks/pre-push`. `cledger sync` always works
+  marked block from `.git/hooks/pre-push`. `cledger records sync` always works
   explicitly either way.
 
 If git has no author identity configured (`user.email` unset), human turns
@@ -137,19 +137,11 @@ the default branch's view. cledger repairs this automatically:
   never moved or rewritten; the mapping is an ordinary append-only event,
   and the original anchor stays in the record as provenance.
 - Only exact matches auto-apply. If a maintainer edited during the merge or
-  the change matches two commits, nothing is guessed: `cledger re-anchor`
-  (dry-run by default, `--apply` to act) presents evidence-ranked
-  candidates instead — GitHub's own record of the branch's PR and its
-  squash commit (queried through your existing `gh` session; cledger never
-  touches credentials), `(#N)` subject and squash-message corroboration,
-  and per-file content matches — each with its evidence spelled out, the
-  conversation-carrying commits named, and a ready-to-run
-  `cledger re-anchor <old-rev...> --onto REV` command that records the
-  mapping with you as the actor. Old SHAs are accepted even after the
-  commits themselves are garbage-collected. Forge lookups run only in this
-  explicit command (never the auto read path) and degrade to offline
-  evidence without `gh`; `--no-forge` or `{"reanchor": {"forge": false}}`
-  turns them off.
+  the change matches two commits, nothing is guessed. `cledger records reanchor`
+  reports exact, ambiguous, and unmatched mappings (dry run by default;
+  `--apply` records exact matches). A human can assert an inexact mapping with
+  `cledger records reanchor manual OLD_REV... --onto NEW_REV`. Old SHAs remain
+  valid even after their commits are garbage collected.
 - Opt out with `{"reanchor": {"auto": false}}`; the explicit command keeps
   working either way.
 
@@ -296,19 +288,61 @@ The local, git-invisible store at `.git/conversation-ledger/known-secrets.json` 
 - Threat addressed: the capture/scan feedback loop — a value the broad sync scan catches but the conservative capture tier misses gets re-ingested raw every time you revisit it while fixing it. Once redacted, capture learns it and it can never be re-captured raw again.
 - Cost of enabling: like env masking, capture becomes machine-dependent for remembered values. Re-capturing a source line whose value is now remembered yields *scrubbed* content and therefore a different event id, so it no longer dedups against the pre-existing event — you get a second, also-scrubbed copy rather than a resurrected secret. Id churn, not leakage. The store is not reversible, but exact lengths, four bucket bits, and digests make it a guess-checking oracle: low-entropy human passwords remain dictionary-attackable. Per-store salting prevents reusable cross-store/rainbow-table work; generated high-entropy tokens remain the intended case.
 
-**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push, but the default output contains only aggregate counts and safe next-step guidance — no fingerprints or event coordinates. A human can deliberately request the coordinate-only report with `cledger sync --report` (or `cledger scan --report` for the standalone scan). That report prints event id, rule, JSON path + offset, and fingerprint, but never a character of the flagged text or its surroundings. It is **grouped by fingerprint**: the same span recurring across an event's `content` and `raw` mirrors, or across every edit of one file, is one decision, and the report's size tracks decisions rather than match sites (this repo's own dogfood backlog was 153 sites that collapse to 11 spans). Coding agents should not request the report: even contentless credential-shaped coordinates can feed back into captured work. Readable content lives behind `cledger review` (interactive, one screen per span) and `cledger inspect <event-id>` (writes a `0600` file outside the repo); both refuse to run inside a coding-agent session. The pre-push hook always uses concise output; a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
+**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push, but the default output contains only aggregate counts and safe next-step guidance — no fingerprints or event coordinates. A human can deliberately request the coordinate-only report with `cledger records sync --report` (or `cledger scan --report` for the standalone scan). That report prints event id, rule, JSON path + offset, and fingerprint, but never a character of the flagged text or its surroundings. It is **grouped by fingerprint**: the same span recurring across an event's `content` and `raw` mirrors, or across every edit of one file, is one decision, and the report's size tracks decisions rather than match sites (this repo's own dogfood backlog was 153 sites that collapse to 11 spans). Coding agents should not request the report: even contentless credential-shaped coordinates can feed back into captured work. Readable content lives behind `cledger records review` (interactive, one screen per span) and `cledger records inspect --output FILE` (writes a `0600` file); both refuse to run inside a coding-agent session. The pre-push hook always uses concise output; a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
 - Threat addressed: secrets from older capture rules or new tool formats slipping through.
 - Cost of disabling: `{"scan": {"tier": "off"}}` — secrets in tool output push silently.
-- Remediation paths: `cledger review` (walk every outstanding span, one keystroke each), `cledger redact <event-id>` (real secrets), `cledger allow <fingerprint>` (false positives), `cledger sync --no-scan` (bypass once). `--paranoid` tier adds entropy-based detection (noisier but broader).
+- Remediation paths: `cledger records review` (walk every outstanding span), `cledger records redact EVENT_ID --pattern REGEX` (real secrets), `cledger records allow FINGERPRINT` (false positives), `cledger records sync --no-scan` (human-only push bypass). `--paranoid` adds entropy-based detection to sync; review and inspect use `--tier paranoid`.
 - Scan-tier heuristics skip a match whose span carries an uppercase fixture marker (`FAKE`, `EXAMPLE`, `PLACEHOLDER`, `DUMMY`, `NOTREAL`, `TESTONLY`) — see "Writing secret-shaped fixtures" below. Capture-tier rules never honor the marker: they match real token formats, and a real leaked token could contain those bytes by chance.
 
-**Allowlist tiers**: a false positive is usually a property of the *text* (a fixture, a doc example), not of the repo it was captured in — the same span gets re-flagged in the next repo that quotes the same doc. `cledger allow <fp>` records it for this repo (`.git/conversation-ledger/allowlist.json`); `cledger allow <fp> --global` records it for every repo on this machine (`~/.config/cledger/allowlist.json`); and a repo can commit shared entries in `.cledger.json` as `{"scan": {"allowFingerprints": ["..."]}}` so clones and teammates inherit them. All three union at scan time. Fingerprints are truncated `sha256` of a span a human judged *not* to be a secret, so committing them discloses nothing.
+**Allowlist tiers**: a false positive is usually a property of the *text* (a fixture, a doc example), not of the repo it was captured in — the same span gets re-flagged in the next repo that quotes the same doc. `cledger records allow FINGERPRINT` records it for this repo (`.git/conversation-ledger/allowlist.json`); add `--global` for every repo on this machine (`~/.config/cledger/allowlist.json`); and a repo can commit shared entries in `.cledger.json` as `{"scan": {"allowFingerprints": ["..."]}}` so clones and teammates inherit them. All three union at scan time. Fingerprints are truncated `sha256` of a span a human judged *not* to be a secret, so committing them discloses nothing.
 
 ### Commands
 
-`cledger review [--paranoid] [--context N]`: The intended remediation path. Steps through every outstanding finding interactively — one screen per distinct span, the match highlighted inside real surrounding context, `a` to allow in this repo, `g` to allow globally, `r` to redact it everywhere it appears (the span is escaped into a literal pattern for you — you never retype a secret), `s` to skip. HUMANS ONLY: refuses inside a coding-agent session and without a TTY on both ends, for the same reason inspect does — flagged content that lands in a transcript re-seeds the finding.
+The canonical maintenance interface is `cledger records <command>`. These
+shortcuts use the same dispatcher: `cledger sync`, `review`, `inspect`,
+`redact`, `allow`, and `re-anchor`. The installed hook continues to call
+top-level `cledger transport-push`; `cledger records transport-push` is also
+available. `cledger scan` remains cledger's standalone check.
 
-`cledger redact <event-id> (--pattern REGEX | --all) [--reason TEXT]`: Rewrites a stored event to a placeholder + audit metadata, appends a `redaction` event, and severs the local notes-ref commit chain so the prior note is unreachable from the ref.
+| Command after `cledger records` | Purpose |
+| --- | --- |
+| `sync [remote] [--fetch-only\|--push-only] [--all] [--no-scan] [--paranoid] [--report]` | Fetch, merge, or push the notes ref. Default scope is HEAD; `--all` shares the whole ledger. `--no-scan` can push only from a human session. |
+| `review [--tier standard\|paranoid] [--context N]` | Interactive finding review. Human only; requires TTY stdin and stdout. |
+| `inspect --output FILE [--tier standard\|paranoid] [--context N] [--reveal]` | Write finding context to a private file. Human only; `--overwrite` permits replacing a file. |
+| `redact EVENT_ID (--pattern REGEX\|--all) [--reason TEXT]` | Rewrite an unshared event and append an audit event. Human only. |
+| `allow FINGERPRINT... [--global]` | Accept false positives locally or globally. Human only. |
+| `reanchor [--target REV] [--apply]` | Report rewrite mappings; optionally apply exact matches. |
+| `reanchor manual OLD_REV... --onto NEW_REV` | Assert a mapping. Human only. |
+
+`cledger records --help` prints the full command syntax. Exit status is `0`
+for success, `1` for findings, policy refusals, partial results or runtime
+errors, and `2` for invalid usage. `sync --no-scan` is human only when it can
+push; fetch-only use has no sharing gate. Review, inspect, redact, allow, and
+manual reanchoring refuse coding-agent sessions. The pre-push hook lets the
+code push continue after ordinary ledger errors; only a scan block with
+`transport.strict` enabled aborts the code push.
+
+The standalone annals CLI can use this exact namespace through a profile:
+
+```sh
+annals profile add conversation-ledger \
+  --namespace conversation-ledger \
+  --incoming cledger-incoming \
+  --internal-env CLEDGER_INTERNAL \
+  --state-dir conversation-ledger \
+  --config-file .cledger.json \
+  --user-config-dir cledger \
+  --cli-name cledger
+annals --profile conversation-ledger sync
+```
+
+The profile does not install cledger's hook; that executable path stays with
+cledger itself.
+
+`cledger records redact EVENT_ID (--pattern REGEX | --all) [--reason TEXT]`
+rewrites a stored event to a placeholder and audit metadata, appends a
+`redaction` event, and severs the local notes-ref commit chain so the prior
+note is unreachable from the ref.
 
 **Pre-push only, and enforced.** The command refuses once the target event is on `origin`, because rewriting shared content does not remove it: a notes ref carries its own commit chain, so every prior note body is in any clone's history (`git log -p refs/notes/conversation-ledger`), and `cat_sort_uniq` unions *lines*, so the original returns on the next merge — a scoped push would in fact re-upload it alongside the rewrite. It also refuses when `origin` cannot be reached, rather than assuming nothing was shared. Gating is per *event*, so pushing regularly does not disable redaction for anything captured afterwards. For a secret that has already left the machine, rotate the credential; purging shared ledger history is separate destructive tooling that does not exist yet.
 
@@ -654,7 +688,7 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
   handle), and `renormalize` (otherwise it strands preserved lines on every
   branch but the current one). `cledger show <id>` is the fifth: you named one
   conversation, so reachability is not the question you asked.
-  *Consequence worth knowing:* after a `cledger sync --fetch`, conversations
+  *Consequence worth knowing:* after a `cledger records sync --fetch-only`, conversations
   anchored to commits you have not fetched are invisible by default — correct,
   since you cannot reach them, but it looks like nothing arrived. `--all`
   answers "did it arrive"; the default answers "does it belong to this

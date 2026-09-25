@@ -2,22 +2,18 @@
 import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import { stdin as input } from "node:process";
-import { findRepo, type RepoInfo } from "annals";
+import { findRepo, runRecordsCommand, type RepoInfo } from "annals";
 import {
   appendEvents,
-  manualReAnchor,
   NOTES_REF,
+  parsePrePushRefs,
   readEvents,
-  redactEvent,
-  RedactAfterShareError,
-  runReAnchor,
   ScanBlockedError,
   sortEvents,
-  sync,
-  parsePrePushRefs,
   transportPush,
   type ReadOptions,
 } from "./store.js";
+import { asLedger } from "./ledger.js";
 import {
   parseEventLine,
   SESSION_MACHINERY_KINDS,
@@ -44,21 +40,15 @@ import {
 import { runQwenHook, captureQwenAll, captureQwenTranscript } from "./adapters/qwen-code.js";
 import { renormalize } from "./renormalize.js";
 import { installAdapters } from "./install.js";
-import { forgeForRepo } from "annals";
-import { suggestMappings } from "annals";
-import { loadConfig } from "./redact.js";
 import {
-  addToAllowlist,
   filterFindings,
   findingGuidance,
   formatFinding,
   formatGroupedReport,
-  inAgentSession,
   loadAllowlist,
-  renderFinding,
+  loadConfig,
   scanEvents,
 } from "./redact.js";
-import { runReview } from "./review.js";
 
 const USAGE = `conversation-ledger — durable records of coding-agent conversations, in git notes
 
@@ -85,54 +75,22 @@ Usage:
   cledger export [--all|--rev R]          lossless JSONL dump of every field, incl. reasoning;
                                            scoped to the current branch like log, --all for the
                                            whole local ledger
-  cledger sync [--remote R] [--push|--fetch] [--no-scan] [--paranoid] [--report] [--all|--rev R]
-                                           fetch/merge/push of the ledger ref;
-                                           push is gated by a secret scan unless --no-scan.
-                                           finding details are suppressed unless --report;
-                                           the report contains coordinates, never content.
-                                           Push carries only conversations reachable from the
-                                           current branch; --all pushes the whole ledger,
-                                           --rev scopes to another branch/commit
-  cledger transport-push [remote]         pre-push hook entrypoint (installed automatically):
-                                           pushes the ledger ref alongside git push, scoped to the
-                                           refs being pushed (read from git's pre-push stdin;
-                                           falls back to HEAD); scan findings hold back only the
-                                           ledger unless transport.strict
+  cledger records <command> [options]       shared ledger maintenance commands:
+      sync [remote] [--fetch-only|--push-only] [--all] [--no-scan] [--paranoid] [--report]
+      review [--tier standard|paranoid] [--context N]        HUMAN ONLY
+      inspect --output FILE [--tier standard|paranoid] [--context N] [--reveal]  HUMAN ONLY
+      redact EVENT_ID (--pattern REGEX|--all) [--reason TEXT]  HUMAN ONLY
+      allow FINGERPRINT... [--global]                        HUMAN ONLY
+      reanchor [--target REV] [--apply]
+      reanchor manual OLD_REV... --onto NEW_REV                HUMAN ONLY
+      transport-push [remote] [--report]                      hook entrypoint
+                                           sync --no-scan can push only from a plain human session.
+                                           Use cledger records --help for full command usage.
+  cledger sync|review|inspect|redact|allow|re-anchor ...
+                                           top-level aliases for the same records commands
+  cledger transport-push [remote]         installed pre-push hook ABI (fail-open unless strict)
   cledger scan [--all|--rev R] [--paranoid] [--report]
-                                           scan local events for potential secrets (CI-friendly:
-                                           exits 1 if any finding, 0 otherwise); default scope is
-                                           every local event, --rev restricts by reachability;
-                                           --report prints coordinates/fingerprints, never content
-  cledger review [--paranoid] [--context N]   step through every outstanding finding interactively:
-                                           one screen per distinct span, match highlighted in
-                                           context, one key to allow (here or globally), redact
-                                           everywhere, or skip. HUMANS ONLY, plain terminal —
-                                           refuses inside an agent session and without a TTY.
-  cledger inspect <event-id-prefix> [--context N] [--reveal] [--stdout] [--force]
-                                           show a finding with real surrounding context (default 400
-                                           chars each side). Writes to a file outside the repo and
-                                           refuses to run inside a coding-agent session — reports
-                                           never print content, because reprinting it re-seeds the
-                                           finding. HUMANS ONLY, in a plain terminal.
-  cledger allow <fingerprint...> [--global]   mark scan finding fingerprint(s) as known false
-                                           positives, for this repo or (--global) every repo on
-                                           this machine; repos can also commit shared entries in
-                                           .cledger.json {"scan":{"allowFingerprints":[...]}}
-  cledger redact <event-id-prefix> (--pattern REGEX | --all) [--reason TEXT]
-                                           rewrite a not-yet-pushed event to remove a secret, keeping
-                                           its id stable, and sever the local notes history chain.
-                                           PRE-PUSH ONLY: refuses once the event is on origin, where
-                                           rewriting cannot remove it (rotate the credential instead)
-  cledger re-anchor [--apply] [--target R] [--no-forge]
-                                           detect branches squash-merged/rewritten onto the remote
-                                           default branch and map their conversations to the
-                                           surviving commits (dry-run by default; exact matches
-                                           also auto-apply on read unless reanchor.auto is false).
-                                           Inexact cases get evidence-ranked suggestions — forge PR
-                                           metadata via your own gh session, commit-message
-                                           corroboration, per-file content match — never auto-applied
-  cledger re-anchor <old-rev...> --onto REV   assert one mapping manually (edited squashes,
-                                           deleted branches, ambiguous matches)
+                                           scan local events; exit 1 on findings, 0 otherwise
   cledger renormalize                      re-interpret preserved unrecognized transcript lines this
                                            cledger version can now parse into their proper kind
                                            (conversation_turn, session_state, activity, ...),
@@ -515,64 +473,6 @@ async function cmdExport(flags: Flags): Promise<void> {
   await printJsonl(events, true);
 }
 
-async function cmdSync(flags: Flags): Promise<void> {
-  const repo = await requireRepo();
-  const remote = typeof flags["remote"] === "string" ? flags["remote"] : "origin";
-  const mode = flags["push"] ? "push" : flags["fetch"] ? "fetch" : "both";
-  // Push is scoped to the current branch by default; --all restores the
-  // pre-0.14.0 whole-ledger push, --rev scopes to something else.
-  const scope: string | null = flags["all"] === true
-    ? null
-    : typeof flags["rev"] === "string"
-      ? flags["rev"]
-      : "HEAD";
-  const result = await sync(repo, remote, mode, {
-    skipScan: flags["no-scan"] === true,
-    paranoid: flags["paranoid"] === true,
-    reportFindings: flags["report"] === true,
-    scope,
-  });
-  const pushed = !result.pushed
-    ? "not pushed"
-    : result.scopedAnchors === null
-      ? "pushed (whole ledger)"
-      : `pushed (${result.scopedAnchors} commit(s) in scope)`;
-  process.stderr.write(
-    `sync ${remote}: ${result.fetched ? "fetched+merged" : "nothing fetched"}, ${pushed}\n`,
-  );
-}
-
-async function cmdTransportPush(positional: string[]): Promise<void> {
-  const repo = await findRepo(process.cwd());
-  if (!repo) return; // a hook must never fail the user's push
-  const remote = positional[0] || "origin";
-  // git's pre-push hook pipes the refs being pushed. Only read when stdin is
-  // actually a pipe: a manual `cledger transport-push` from a terminal would
-  // otherwise block forever waiting on a human who has nothing to type.
-  let revs: string[] = [];
-  if (process.stdin.isTTY !== true) {
-    try {
-      revs = parsePrePushRefs(await readStdin());
-    } catch {
-      revs = []; // unreadable stdin must never fail the user's push
-    }
-  }
-  try {
-    await transportPush(repo, remote, revs);
-  } catch (err) {
-    if (err instanceof ScanBlockedError) {
-      // transport.strict: nonzero exit makes git abort the entire push.
-      process.stderr.write("cledger: entire push blocked (transport.strict is enabled)\n");
-      process.exit(1);
-    }
-    // Anything else is a cledger bug or environment problem; the user's
-    // code push must proceed regardless.
-    process.stderr.write(
-      `cledger: transport-push error (push continues): ${err instanceof Error ? err.message : String(err)}\n`,
-    );
-  }
-}
-
 async function cmdScan(flags: Flags): Promise<void> {
   const repo = await requireRepo();
   const tier: "standard" | "paranoid" = flags["paranoid"] ? "paranoid" : "standard";
@@ -617,304 +517,6 @@ async function cmdScan(flags: Flags): Promise<void> {
   process.exit(1);
 }
 
-/**
- * Interactive triage in a terminal: everything `cledger inspect` shows, per
- * distinct span instead of per event, with the verdict applied on the spot.
- * Refuses inside an agent session for exactly inspect's reason — and unlike
- * inspect it deliberately has no --force: it exists for the human half of
- * the review split, and an agent that wants coordinates already has scan.
- */
-async function cmdReview(flags: Flags): Promise<void> {
-  const agentVar = inAgentSession();
-  if (agentVar) {
-    process.stderr.write(
-      `cledger review: refusing to run inside a coding-agent session (saw $${agentVar}).\n\n` +
-        "  Reviewing flagged content here would capture it into this conversation and\n" +
-        "  re-seed the findings being reviewed. Run this in a plain terminal.\n",
-    );
-    process.exit(2);
-  }
-  if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) {
-    process.stderr.write(
-      "cledger review: needs an interactive terminal on stdin and stdout.\n" +
-        "  Piping review output defeats its purpose — the content must not land in a\n" +
-        "  file or transcript. Use `cledger scan` for machine-readable coordinates.\n",
-    );
-    process.exit(2);
-  }
-  const repo = await requireRepo();
-  const tier: "standard" | "paranoid" = flags["paranoid"] ? "paranoid" : "standard";
-  const context = typeof flags["context"] === "string" ? Number(flags["context"]) : 600;
-  if (!Number.isFinite(context) || context < 0) {
-    process.stderr.write("cledger review: --context must be a non-negative number\n");
-    process.exit(2);
-  }
-  const summary = await runReview(repo, { tier, context });
-  const total =
-    summary.allowed + summary.allowedGlobally + summary.redacted + summary.skipped;
-  if (total === 0 && summary.errors.length === 0) {
-    process.stderr.write("cledger review: nothing to review\n");
-    return;
-  }
-  process.stderr.write(
-    `cledger review: ${summary.allowed} allowed here, ${summary.allowedGlobally} allowed globally, ` +
-      `${summary.redacted} event(s) redacted, ${summary.skipped} span(s) skipped\n`,
-  );
-  for (const err of summary.errors) process.stderr.write(`  ${err}\n`);
-  if (summary.skipped > 0 || summary.errors.length > 0) process.exit(1);
-}
-
-/**
- * Show a finding with enough surrounding text to actually judge it — the
- * counterpart to `formatFinding`'s deliberately contentless report.
- *
- * Two guards, both load-bearing rather than decorative. It refuses to run
- * inside a coding-agent session, because an agent investigating a blocked sync
- * would otherwise read the flagged text into the transcript and mint a fresh
- * event carrying it. And it writes to a file outside the repo by default
- * rather than to stdout, so the content does not pass through a terminal that
- * something else may be recording.
- */
-async function cmdInspect(positional: string[], flags: Flags): Promise<void> {
-  if (positional.length === 0) {
-    process.stderr.write(
-      "usage: cledger inspect <event-id-prefix> [--context N] [--reveal] [--stdout] [--force]\n",
-    );
-    process.exit(2);
-  }
-  const agentVar = inAgentSession();
-  if (agentVar && !flags["force"]) {
-    process.stderr.write(
-      `cledger inspect: refusing to run inside a coding-agent session (saw $${agentVar}).\n\n` +
-        "  Reading flagged content here would capture it into this conversation and\n" +
-        "  re-seed the finding you are inspecting. Run this in a plain terminal.\n\n" +
-        "  --force overrides, and is almost always the wrong call.\n",
-    );
-    process.exit(2);
-  }
-
-  const repo = await requireRepo();
-  const tier: "standard" | "paranoid" = flags["paranoid"] ? "paranoid" : "standard";
-  const prefix = positional[0]!;
-  const context = typeof flags["context"] === "string" ? Number(flags["context"]) : 400;
-  if (!Number.isFinite(context) || context < 0) {
-    process.stderr.write("cledger inspect: --context must be a non-negative number\n");
-    process.exit(2);
-  }
-  const reveal = Boolean(flags["reveal"]);
-
-  // Whole local ledger: an event id is a global handle, and a finding you were
-  // told to inspect must be inspectable from wherever you are standing.
-  const events = await readEvents(repo, { reachableFrom: null });
-  const matched = events.filter((e) => e.id.startsWith(prefix));
-  if (matched.length === 0) {
-    process.stderr.write(`cledger inspect: no event matching id prefix ${prefix}\n`);
-    process.exit(1);
-  }
-
-  // Deliberately not allowlist-filtered: inspecting is exactly how you decide
-  // whether something *should* be allowlisted, and re-checking an old decision
-  // is legitimate.
-  const findings = scanEvents(matched, tier);
-  if (findings.length === 0) {
-    process.stderr.write(
-      `cledger inspect: no findings in ${matched.length} matching event(s) at the ${tier} tier\n`,
-    );
-    return;
-  }
-
-  const byId = new Map(matched.map((e) => [e.id, e]));
-  const body = [
-    `cledger inspect — ${findings.length} finding(s) in ${matched.length} event(s)`,
-    `context: ${context} chars each side | matched text: ${reveal ? "REVEALED" : "masked"}`,
-    "",
-    "This file contains raw conversation content and possibly a real secret.",
-    "Delete it when you are done, and do not paste it into an agent session.",
-    "",
-    ...findings.map((f) => renderFinding(byId.get(f.eventId)!, f, { context, reveal })),
-  ].join("\n");
-
-  if (flags["stdout"]) {
-    process.stdout.write(body);
-    return;
-  }
-  const { mkdtemp, writeFile } = await import("node:fs/promises");
-  const { tmpdir } = await import("node:os");
-  const { join } = await import("node:path");
-  const dir = await mkdtemp(join(tmpdir(), "cledger-inspect-"));
-  const out = join(dir, `${prefix.slice(0, 16)}.txt`);
-  await writeFile(out, body, { mode: 0o600 });
-  process.stderr.write(
-    `${findings.length} finding(s) written to:\n  ${out}\n\n` +
-      "Open it in an editor, then delete it. Re-run with --reveal to include the\n" +
-      "matched text itself, or --context N to widen the surrounding text.\n",
-  );
-}
-
-async function cmdAllow(positional: string[], flags: Flags): Promise<void> {
-  if (positional.length === 0) {
-    process.stderr.write("usage: cledger allow <fingerprint...> [--global]\n");
-    process.exit(2);
-  }
-  const repo = await requireRepo();
-  const scope = flags["global"] === true ? "global" : "local";
-  await addToAllowlist(repo, positional, scope);
-  process.stderr.write(
-    `allowlisted ${positional.length} fingerprint(s) ` +
-      `(${scope === "global" ? "every repo on this machine" : "this repo"})\n`,
-  );
-}
-
-async function cmdRedact(positional: string[], flags: Flags): Promise<void> {
-  const idPrefix = positional[0];
-  if (!idPrefix) {
-    process.stderr.write("usage: cledger redact <event-id-prefix> (--pattern REGEX | --all) [--reason TEXT]\n");
-    process.exit(2);
-  }
-  const repo = await requireRepo();
-  const redactOpts: { pattern?: string; all?: boolean; reason?: string } = {};
-  if (typeof flags["pattern"] === "string") redactOpts.pattern = flags["pattern"];
-  if (flags["all"] === true) redactOpts.all = true;
-  if (typeof flags["reason"] === "string") redactOpts.reason = flags["reason"];
-  let result;
-  try {
-    result = await redactEvent(repo, idPrefix, redactOpts);
-  } catch (err) {
-    // Already-shared (or unverifiable) content: the message is a full
-    // explanation, so print it as-is rather than through main()'s generic
-    // one-line handler.
-    if (err instanceof RedactAfterShareError) {
-      process.stderr.write(err.message + "\n");
-      process.exit(1);
-    }
-    throw err;
-  }
-  const fingerprints = result.event.redactions?.map((r) => r.fingerprint).join(", ") || "(none)";
-  process.stderr.write(
-    `cledger redact: rewrote ${result.event.id.slice(0, 16)} — fingerprints: ${fingerprints}\n` +
-      `companion event: ${result.redactionEvent.id.slice(0, 16)}\n`,
-  );
-  // Say what actually happened. This used to print "history squashed: yes",
-  // which read as "the value is gone" — it is not, and asserting an outcome
-  // the tool does not achieve is worse than saying nothing.
-  if (result.squashed) {
-    process.stderr.write(
-      `notes history: chain severed — the pre-redaction note is no longer reachable from\n` +
-        `  ${NOTES_REF} and was never pushed. The old objects remain in this repo's\n` +
-        `  reflog and object store until git expires them (typically 30-90 days); they are\n` +
-        `  local-only, as git transfers neither reflogs nor unreachable objects. To drop them\n` +
-        `  now: git reflog expire --expire=now --all && git gc --prune=now  (repo-wide).\n`,
-    );
-  } else {
-    process.stderr.write(
-      `notes history: untouched — this event was still in the pending queue, so it never\n` +
-        `  reached the notes ref.\n`,
-    );
-  }
-  if (result.knownSecretsRemembered > 0) {
-    process.stderr.write(
-      `remembered ${result.knownSecretsRemembered} secret value(s) for capture-time redaction ` +
-        `(redact.knownSecrets is on)\n`,
-    );
-  }
-}
-
-async function cmdReAnchor(positional: string[], flags: Flags): Promise<void> {
-  const repo = await requireRepo();
-
-  if (positional.length > 0) {
-    if (typeof flags["onto"] !== "string") {
-      process.stderr.write("usage: cledger re-anchor <old-rev...> --onto REV\n");
-      process.exit(2);
-    }
-    const { event, superseded, successor } = await manualReAnchor(repo, positional, flags["onto"]);
-    process.stderr.write(
-      event
-        ? `cledger re-anchor: mapped ${superseded.length} commit(s) onto ${successor.slice(0, 12)} ` +
-            `(event ${event.id.slice(0, 16)})\n`
-        : `cledger re-anchor: an identical mapping already exists — nothing appended\n`,
-    );
-    return;
-  }
-
-  const apply = flags["apply"] === true;
-  const opts: { target?: string; apply: boolean } = { apply };
-  if (typeof flags["target"] === "string") opts.target = flags["target"];
-  const result = await runReAnchor(repo, opts);
-  if (!result.target) {
-    process.stderr.write(
-      "cledger re-anchor: no target to compare against (no origin default branch or upstream); " +
-        "pass one with --target\n",
-    );
-    process.exit(2);
-  }
-  if (result.detected.length === 0 && result.unmatched.length === 0) {
-    process.stderr.write(`cledger re-anchor: nothing to re-anchor against ${result.target}\n`);
-    return;
-  }
-  for (const d of result.detected) {
-    process.stderr.write(
-      `  branch ${d.mapping.branch}: ${d.mapping.superseded.length} commit(s) -> ` +
-        `${d.mapping.successor.slice(0, 12)} (${d.mapping.method} match, ` +
-        `${d.notedAnchors} with conversations)\n`,
-    );
-  }
-
-  if (result.unmatched.length > 0) {
-    const config = await loadConfig(repo);
-    let forge = null;
-    if (flags["no-forge"] === true || config.reanchor?.forge === false) {
-      process.stderr.write("  (forge lookups disabled — offline evidence only)\n");
-    } else {
-      forge = await forgeForRepo(repo);
-      if (!forge) {
-        process.stderr.write("  (no forge driver for this origin — offline evidence only)\n");
-      }
-    }
-    for (const unmatched of result.unmatched) {
-      const reason =
-        unmatched.reason === "ambiguous" ? "several commits tie" : "no exact content match";
-      process.stderr.write(
-        `  branch ${unmatched.branch}: looks rewritten onto ${result.target}, but ${reason} ` +
-          `(${unmatched.notedAnchors} commit(s) with conversations)\n`,
-      );
-      const { suggestions, notes } = await suggestMappings(repo, unmatched, {
-        target: result.target,
-        forge,
-      });
-      for (const note of notes) process.stderr.write(`    note: ${note}\n`);
-      if (suggestions.length === 0) {
-        process.stderr.write(
-          `    no candidates with evidence; if you know the commit, map it yourself:\n` +
-            `      cledger re-anchor ${unmatched.superseded.join(" ")} --onto REV\n`,
-        );
-        continue;
-      }
-      for (const s of suggestions) {
-        process.stderr.write(`    candidate ${s.candidate.slice(0, 12)} "${s.subject}"\n`);
-        for (const line of s.evidence) process.stderr.write(`      - ${line}\n`);
-      }
-      // Never auto-applied: the human runs the printed command to confirm.
-      // The list is every commit on the branch since it forked — only the
-      // human knows whether the merge really covered all of them, so name
-      // the ones that carry conversations before inviting a trim.
-      process.stderr.write(
-        `    carry conversations (keep these): ` +
-          `${unmatched.noted.map((sha) => sha.slice(0, 12)).join(" ")}\n` +
-          `    confirm with: cledger re-anchor ${unmatched.superseded.join(" ")} ` +
-          `--onto ${suggestions[0]!.candidate}\n` +
-          `    (newest first; trim commits that were not part of the merge)\n`,
-      );
-    }
-  }
-
-  process.stderr.write(
-    apply
-      ? `cledger re-anchor: applied ${result.applied.length} mapping(s)\n`
-      : `cledger re-anchor: dry run — apply exact matches with \`cledger re-anchor --apply\`\n`,
-  );
-}
-
 async function cmdRenormalize(): Promise<void> {
   const repo = await requireRepo();
   const result = await renormalize(repo);
@@ -925,10 +527,63 @@ async function cmdRenormalize(): Promise<void> {
   );
 }
 
+async function cmdTransportPush(remote: string | undefined): Promise<void> {
+  // Keep the installed hook fail-open even if repository discovery or
+  // configuration loading fails before annals reaches its transport handler.
+  try {
+    const repo = await findRepo(process.cwd());
+    if (!repo) return;
+    let refs: string[] = [];
+    if (process.stdin.isTTY !== true) {
+      try {
+        refs = parsePrePushRefs(await readStdin());
+      } catch {
+        refs = [];
+      }
+    }
+    await transportPush(repo, remote ?? "origin", refs);
+  } catch (err) {
+    if (err instanceof ScanBlockedError) {
+      process.stderr.write("cledger: entire push blocked (transport.strict is enabled)\n");
+      process.exitCode = 1;
+      return;
+    }
+    process.stderr.write(
+      `cledger: transport-push error (push continues): ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+  }
+}
+
+const RECORD_ALIASES = new Map([
+  ["sync", "sync"],
+  ["review", "review"],
+  ["inspect", "inspect"],
+  ["redact", "redact"],
+  ["allow", "allow"],
+  ["re-anchor", "reanchor"],
+]);
+
+async function cmdRecords(argv: string[]): Promise<void> {
+  const repo = await findRepo(process.cwd());
+  if (!repo) {
+    process.stderr.write("cledger: not inside a git repository\n");
+    process.exitCode = 2;
+    return;
+  }
+  process.exitCode = await runRecordsCommand({
+    ledger: asLedger(repo),
+    argv,
+    stdin: process.stdin,
+    stdout: process.stdout,
+    stderr: process.stderr,
+    env: process.env,
+    commandName: "cledger records",
+  });
+}
+
 async function main(): Promise<void> {
   guardStdout();
   const [, , command, ...rest] = process.argv;
-  const { positional, flags } = parseArgs(rest);
 
   if (!command || command === "--help" || command === "help") {
     process.stdout.write(USAGE + "\n");
@@ -938,6 +593,11 @@ async function main(): Promise<void> {
     process.stdout.write(version() + "\n");
     return;
   }
+  if (command === "records") return cmdRecords(rest);
+  if (command === "transport-push") return cmdTransportPush(rest[0]);
+  const alias = RECORD_ALIASES.get(command);
+  if (alias) return cmdRecords([alias, ...rest]);
+  const { positional, flags } = parseArgs(rest);
   switch (command) {
     case "append":
       return cmdAppend(flags);
@@ -949,22 +609,8 @@ async function main(): Promise<void> {
       return cmdConversations(flags);
     case "export":
       return cmdExport(flags);
-    case "sync":
-      return cmdSync(flags);
-    case "transport-push":
-      return cmdTransportPush(positional);
     case "scan":
       return cmdScan(flags);
-    case "review":
-      return cmdReview(flags);
-    case "inspect":
-      return cmdInspect(positional, flags);
-    case "allow":
-      return cmdAllow(positional, flags);
-    case "redact":
-      return cmdRedact(positional, flags);
-    case "re-anchor":
-      return cmdReAnchor(positional, flags);
     case "renormalize":
       return cmdRenormalize();
     case "install":

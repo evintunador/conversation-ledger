@@ -83,24 +83,25 @@ test("sync passes --report through to Annals while remaining concise by default"
     await git(["remote", "add", "backup", remote], { cwd: repo.root });
     const { secret, finding } = await seedFinding(repo);
 
-    const originalFlags = ["--remote", "backup", "--push", "--paranoid", "--all"];
-    const concise = spawnSync(process.execPath, [CLI, "sync", ...originalFlags], {
+    const originalFlags = ["backup", "--push-only", "--paranoid", "--all"];
+    const concise = spawnSync(process.execPath, [CLI, "records", "sync", ...originalFlags], {
       cwd: repo.root,
       encoding: "utf8",
       env: process.env,
     });
     assert.strictEqual(concise.status, 1, "a blocked sync must remain nonzero");
     assert.strictEqual(concise.stdout, "");
-    assert.match(concise.stderr, /same sync command[\s\S]*adding --report/);
+    assert.match(concise.stderr, /Finding details were suppressed/);
+    assert.match(concise.stderr, /preserving the original remote and scope/);
     assert.ok(!concise.stderr.includes("sync origin"), "guidance must not substitute the default remote");
     assert.ok(
       !concise.stderr.includes("sync backup --report"),
-      "guidance must not synthesize a command that drops --push/--paranoid/--all",
+      "guidance must not synthesize a command that drops --push-only/--paranoid/--all",
     );
     assertNoCoordinates(concise.stderr, finding);
     assertNoSecretFragments(concise.stderr, secret);
 
-    const detailed = spawnSync(process.execPath, [CLI, "sync", ...originalFlags, "--report"], {
+    const detailed = spawnSync(process.execPath, [CLI, "records", "sync", ...originalFlags, "--report"], {
       cwd: repo.root,
       encoding: "utf8",
       env: process.env,
