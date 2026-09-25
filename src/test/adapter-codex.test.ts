@@ -351,7 +351,7 @@ test("captureCodexTranscript: a secret inside an unrecognized line is redacted i
   }
 });
 
-test("captureCodexTranscript: agent_message keeps visible text, drops encrypted blocks everywhere", async () => {
+test("captureCodexTranscript: agent_message keeps visible text and seals encrypted blocks in a sibling", async () => {
   const repo = await makeTempRepo("cledger-codex-agentmsg-");
   const dir = await mkdtemp(join(tmpdir(), "cledger-codex-agentmsg-"));
   try {

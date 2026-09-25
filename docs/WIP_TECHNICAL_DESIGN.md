@@ -587,9 +587,12 @@ Three layers exist today:
 2. `raw.format` (`claude-code-jsonl/1`, `codex-rollout-jsonl/2`) versions
    each adapter's interpretation of its native format; it must be bumped
    whenever the mapping changes, allowing later reprocessing to know which
-   parser produced an event. (codex `/2`: `agent_message` payloads convert;
-   encrypted blocks are split into a sealed sibling event — `/1` dropped those
-   lines entirely.)
+   parser produced an event. One known violation remains: 0.19.0 kept codex
+   `/2` when `agent_message` ciphertext changed from being omitted to being
+   preserved in a sealed sibling event. A stored `/2` visible turn therefore
+   does not identify that mapping by itself; the sibling's presence is the
+   evidence that capture preserved the encrypted blocks. Codex `/1` dropped
+   `agent_message` lines entirely. Future mapping changes must bump the format.
 3. The native payload inside `raw.data` retains the harness's own version
    markers (Claude Code lines carry `version`; Codex `session_meta` carries
    `cli_version`), so captured content can always be re-normalized under a
