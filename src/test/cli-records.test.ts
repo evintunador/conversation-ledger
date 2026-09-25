@@ -20,27 +20,27 @@ function run(cwd: string, args: string[]) {
   });
 }
 
-test("canonical records commands and every top-level alias share dispatcher output and exit codes", async () => {
+test("canonical records commands remain available and legacy human commands refuse agent sessions", async () => {
   const repo = await makeTempRepo("cledger-records-cli-");
   try {
     await makeCommit(repo);
-    const cases: Array<[string, string, string[]]> = [
-      ["sync", "sync", ["--fetch-only", "--push-only"]],
-      ["review", "review", []],
-      ["inspect", "inspect", ["--output", "ignored.txt"]],
-      ["redact", "redact", ["example", "--all"]],
-      ["allow", "allow", ["000000000000"]],
-      ["re-anchor", "reanchor", ["manual", "HEAD", "--onto", "HEAD"]],
+    const cases: Array<[string, string[], string[]]> = [
+      ["review", [], []],
+      ["inspect", ["--output", "ignored.txt"], ["example", "--force"]],
+      ["redact", ["example", "--all"], ["example", "--all"]],
+      ["allow", ["000000000000"], ["000000000000"]],
+      ["reanchor", ["manual", "HEAD", "--onto", "HEAD"], ["HEAD", "--onto", "HEAD"]],
     ];
-    for (const [alias, canonical, args] of cases) {
-      const direct = run(repo.root, ["records", canonical, ...args]);
-      const shortcut = run(repo.root, [alias, ...args]);
-      assert.equal(shortcut.status, direct.status, alias);
-      assert.equal(shortcut.stdout, direct.stdout, alias);
-      assert.equal(shortcut.stderr, direct.stderr, alias);
-      assert.ok([1, 2].includes(direct.status ?? -1), alias);
-      if (alias !== "sync") assert.match(direct.stderr, /refuses inside an agent session/);
+    for (const [canonical, recordsArgs, legacyArgs] of cases) {
+      const direct = run(repo.root, ["records", canonical, ...recordsArgs]);
+      const shortcut = run(repo.root, [canonical === "reanchor" ? "re-anchor" : canonical, ...legacyArgs]);
+      assert.ok([1, 2].includes(direct.status ?? -1), canonical);
+      assert.ok([1, 2].includes(shortcut.status ?? -1), canonical);
+      assert.match(direct.stderr, /refuses inside an agent session/);
+      assert.match(shortcut.stderr, /refusing to run inside a coding-agent session/);
     }
+    const sync = run(repo.root, ["records", "sync", "--fetch-only", "--push-only"]);
+    assert.equal(sync.status, 2);
     const help = run(repo.root, ["records", "--help"]);
     assert.equal(help.status, 0);
     assert.match(help.stdout, /^usage: cledger records <command>/);
@@ -60,6 +60,12 @@ test("agent sessions cannot bypass a push scan, but can fetch without scanning",
     const fetch = run(repo.root, ["records", "sync", "--no-scan", "--fetch-only", "missing"]);
     assert.equal(fetch.status, 0);
     assert.doesNotMatch(fetch.stderr, /refuses inside an agent session/);
+    const legacyBlocked = run(repo.root, ["sync", "--no-scan", "--push"]);
+    assert.equal(legacyBlocked.status, 1);
+    assert.match(legacyBlocked.stderr, /refusing to run inside a coding-agent session/);
+    const legacyFetch = run(repo.root, ["sync", "--no-scan", "--fetch", "--remote", "missing"]);
+    assert.equal(legacyFetch.status, 0);
+    assert.doesNotMatch(legacyFetch.stderr, /refusing to run inside a coding-agent session/);
   } finally {
     await cleanupRepo(repo);
   }
