@@ -473,7 +473,8 @@ Defense in depth, ordered by where they run and what they may do:
   surrounding context (default 400 chars each side, `--context N`), masks the
   match unless `--reveal`, writes to a mode-0600 file outside the repo rather
   than stdout, and **refuses to run inside a coding-agent session** (detected
-  via the harnesses' own env markers; `--force` overrides). That last guard is
+  via the harnesses' own env markers). The legacy `--force` option remains
+  accepted for compatibility but cannot bypass this refusal. That guard is
   the load-bearing one: an agent asked to investigate a blocked sync will
   otherwise do the helpful, wrong thing and read the secret straight into the
   record being protected. Reports therefore address humans and agents

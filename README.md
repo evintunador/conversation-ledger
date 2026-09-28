@@ -38,9 +38,18 @@ visibly said, by whom, against which commit — nothing more.
 
 ## Install
 
+Requires Node.js 20 or newer. Until published packages are available, clone
+annals and conversation-ledger into sibling directories: cledger's local
+dependency points to `../annals`. Install annals first to build its exports.
+
 ```sh
+git clone https://github.com/evintunador/annals
 git clone https://github.com/evintunador/conversation-ledger
-cd conversation-ledger && npm install && npm link   # npm publish coming later
+cd annals
+npm install
+cd ../conversation-ledger
+npm install
+npm link
 cledger install all    # hook capture into every supported coding CLI
 ```
 
