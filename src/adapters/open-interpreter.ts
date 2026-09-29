@@ -3,10 +3,11 @@
  * https://github.com/openinterpreter/openinterpreter/blob/rust-v0.0.45/codex-rs/protocol/src/models.rs
  * Native ordinals and physical rollout identities survive compression/revert.
  */
-import { readFile, readdir, realpath } from "node:fs/promises";
+import { readFile, readdir, realpath, stat } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { decompress, Decompress } from "fzstd";
 import { canonicalJson, findRepo, gitUserIdentity, sha256Hex, type GitUserIdentity } from "annals";
 import { appendEvents } from "../store.js";
@@ -15,6 +16,7 @@ import { packageVersion } from "./common.js";
 import { normalizeCodexRolloutRecord } from "./codex.js";
 import { countUnrecognized, mergeCaptureResult, warnUnrecognized, type CaptureResult } from "./drift.js";
 import { recordDraft, type RecordContext } from "./records.js";
+import { scheduleTailCapture, runTailCapture } from "./tail.js";
 
 type Obj = Record<string, unknown>;
 const object = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
@@ -197,6 +199,20 @@ export async function captureOpenInterpreterAll(cwd:string,sessionRoot?:string):
   return result;
 }
 export async function runOpenInterpreterHook(stdinJson:string):Promise<void>{
-  try{const payload:unknown=JSON.parse(stdinJson);if(!object(payload)||typeof payload.transcript_path!=="string")return;const cwd=typeof payload.cwd==="string"?payload.cwd:process.cwd();if(!(await findRepo(cwd)))return;await captureOpenInterpreterTranscript(payload.transcript_path,cwd);}
+  try{const payload:unknown=JSON.parse(stdinJson);if(!object(payload)||typeof payload.transcript_path!=="string")return;const cwd=typeof payload.cwd==="string"?payload.cwd:process.cwd();if(!(await findRepo(cwd)))return;
+    // The Rust CLI can append its final message and turn-aborted record after
+    // Stop/SessionEnd has returned. Observe this one rollout for a bounded tail.
+    if(["Stop","SessionEnd"].includes(String(payload.hook_event_name)))
+      await scheduleTailCapture(payload.transcript_path,cwd,SOURCE,fileURLToPath(import.meta.url));
+    await captureOpenInterpreterTranscript(payload.transcript_path,cwd);}
   catch(error){process.stderr.write(`cledger: open-interpreter hook error: ${error instanceof Error?error.message:String(error)}\n`);}
+}
+
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)&&process.argv[2]==="--cledger-tail"){
+  const [path,cwd,lock,status]=process.argv.slice(3);
+  if(!path||!cwd||!lock||!status)throw Error("Missing Open Interpreter tail worker arguments");
+  await runTailCapture(lock,status,SOURCE,async()=>{
+    try{const info=await stat(path);return JSON.stringify([info.size,info.mtimeMs]);}
+    catch(error){if((error as NodeJS.ErrnoException).code==="ENOENT")return "missing";throw error;}
+  },()=>captureOpenInterpreterTranscript(path,cwd));
 }

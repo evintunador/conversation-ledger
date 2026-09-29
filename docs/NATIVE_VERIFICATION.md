@@ -297,16 +297,16 @@ candidate evidence. A separate hosted workflow can open draft maintenance PRs
 after merge and after the repository PR-creation setting is enabled; it never
 merges them.
 
-Hosted run 36625554603 recorded Linux 18/18 headless and 16/16 interactive
+Hosted run 36627184224 recorded Linux 18/18 headless and 16/16 interactive
 passes; macOS recorded 18/18 headless and 15/16 interactive. All eighteen runtimes
-provisioned on both systems. Gemini rejected a slash command while its hook was
-still running; a ready-state gate passed twice in targeted local runs. The next
-full run on the
+provisioned on both systems. Open Interpreter wrote two final native records after
+its hooks; a bounded tail worker passed local headless/interactive checks and a
+delayed-write regression. The next full run on the
 [draft review PR](https://github.com/evintunador/conversation-ledger/pull/26)
 must qualify those repairs. Partial runs are not full certification.
 
 
-Final regression checkpoint: 327 tests, 315 passed, 12 explicitly skipped native
+Final regression checkpoint: 328 tests, 316 passed, 12 explicitly skipped native
 opt-ins, zero failures. Separate actual CLI runs provide the native reports;
 skipped opt-ins are not presented as executable proof. The private project ledger
 and normal user CLI configuration were not used as test fixtures.

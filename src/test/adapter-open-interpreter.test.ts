@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { appendFile, mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
+import { appendFile, mkdtemp, writeFile, readFile, readdir, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureOpenInterpreterTranscript, captureOpenInterpreterAll, renormalizeUnrecognizedMany } from "../adapters/open-interpreter.js";
+import { captureOpenInterpreterTranscript, captureOpenInterpreterAll, renormalizeUnrecognizedMany, runOpenInterpreterHook } from "../adapters/open-interpreter.js";
 import { readEvents } from "../store.js";
 import { eventId } from "../schema.js";
 import { cleanupDir, cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
@@ -13,6 +13,26 @@ async function fixture(root:string,cwd:string,records:unknown[],id=ID,extra:Reco
   await mkdir(root,{recursive:true});const path=join(root,`rollout-2026-09-29T00-00-00-${id}${suffix}.jsonl`);
   await writeFile(path,[line("session_meta",{id,session_id:ID,cwd,cli_version:"0.0.45",model_provider:"fixture",...extra},0),...records].map(value=>JSON.stringify(value)).join("\n")+"\n");return path;
 }
+test("Open Interpreter Stop worker captures records appended after the hook returns",async()=>{
+ const repo=await makeTempRepo(),root=await mkdtemp(join(tmpdir(),"cledger-oi-tail-"));try{
+  await makeCommit(repo,"initial");
+  const path=await fixture(root,repo.root,[line("response_item",{type:"message",role:"user",content:[{type:"input_text",text:"TESTONLY-initial"}]},1)]);
+  await runOpenInterpreterHook(JSON.stringify({hook_event_name:"Stop",transcript_path:path,cwd:repo.root}));
+  await appendFile(path,JSON.stringify(line("event_msg",{type:"turn_aborted",message:"TESTONLY-late-record"},2))+"\n");
+  const directory=join(repo.root,".git","cledger-open-interpreter-tail"),deadline=Date.now()+12_000;
+  let complete=false;
+  while(Date.now()<deadline){
+   const names=await readdir(directory),statuses=names.filter(name=>name.endsWith(".json"));
+   if(statuses.length&&!names.some(name=>name.endsWith(".lock"))){
+    complete=(await Promise.all(statuses.map(async name=>JSON.parse(await readFile(join(directory,name),"utf8")) as {status:string}))).every(status=>status.status==="complete");
+    break;
+   }
+   await new Promise(done=>setTimeout(done,100));
+  }
+  assert.ok(complete,"bounded worker must finish successfully");
+  assert.ok((await readEvents(repo)).some(event=>JSON.stringify(event.content).includes("TESTONLY-late-record")),"late native record must arrive before manual backfill");
+ }finally{await cleanupRepo(repo);await cleanupDir(root);}
+});
 test("Open Interpreter all native response variants plus twelve rollout kinds preserve structured fields",async()=>{
  const repo=await makeTempRepo(),root=await mkdtemp(join(tmpdir(),"cledger-oi-types-"));try{
   await makeCommit(repo,"initial");

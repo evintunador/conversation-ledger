@@ -88,23 +88,21 @@ The user chose GitHub Actions if free, otherwise a local Linux VM. This reposito
 is public, so standard hosted runners are eligible for free compute. Draft PR
 https://github.com/evintunador/conversation-ledger/pull/26 is open from an isolated
 code-only checkout at /tmp/cledger-ci-review/conversation-ledger. The latest full
-hosted run (36625554603) provisioned all eighteen runtimes. Linux passed all
-18 headless and 16 non-deferred interactive checks. macOS passed all 18 headless
-and 15 of 16 interactive checks; Gemini rejected a slash command queued during
-its AfterAgent hook. A targeted local Gemini check passed twice after waiting
-for its ready state before exit. Earlier targeted checks of Codex, Copilot, Qwen
-and Crush also passed after repairs.
-A new full hosted run must confirm the repairs across both operating systems.
-The hosted maintenance workflow now prepares a draft review PR every other Monday
-after merge and a currently disabled repository PR-creation setting is enabled.
-It checks baseline CLIs on both systems, candidate npm updates on Linux and
-observed non-npm releases. It dispatches the full matrix on a proposal branch
-and never auto-merges or uses paid inference. Candidate packages run with a
-read-only token; a separate publisher validates exact code-only pin changes.
-The local 14-day scheduler remains disabled. Source changes in this original
-checkout remain uncommitted.
-Defer subscription-gated verification; do not repeat login/browser flows or ask
-the user to purchase plans for these checks.
+hosted run (36627184224) provisioned all eighteen runtimes. Linux passed all
+18 headless and 16 non-deferred interactive checks. macOS passed 18 headless
+and 15 interactive; Open Interpreter's hooks missed two final native records
+written after Stop. A bounded native tail worker now captures the late records
+before backfill; both real local modes and a delayed-write regression passed.
+A new full hosted run must confirm the repair across both operating systems.
+The hosted maintenance workflow can prepare a draft review PR every other Monday
+after merge and after its currently disabled repository PR-creation setting is
+enabled. It checks baseline CLIs on both systems, changed npm candidates in both
+modes on Linux, and observed non-npm releases. It dispatches the full matrix
+on each proposal branch and never auto-merges or uses paid inference. Candidate
+packages run without repository write credentials; a separate publisher validates
+exact code-only pin changes. The local 14-day scheduler remains disabled.
+Source changes in this original checkout remain uncommitted. Defer subscription-
+gated verification; do not repeat login/browser flows or ask the user to buy plans.
 
 The recreated agents finished source work; root is consolidating evidence.
 The aggregate process exited and no matching Cline test processes remained when

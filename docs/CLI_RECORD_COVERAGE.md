@@ -267,7 +267,9 @@ Unknown nested parts remain drift. Ciphertext, including encrypted function
 arguments and inter-agent content, gets separate digest-bearing records; replay
 preserves siblings. Native macOS headless and initial-prompt PTY proof passes
 installed Stop/SessionEnd hooks, real read/result/answer, graceful exit and exact
-final-tail/backfill IDs. Interactive testing uses a custom fixture model to avoid
+final-tail/backfill IDs. A bounded per-rollout worker captures records written
+after Stop returns; a delayed-write fixture verifies the worker independently of
+manual backfill. Interactive testing uses a custom fixture model to avoid
 the native retired-model migration screen. Typed prompt entry, trust review,
 live forks, compaction, realtime and multimodal input remain unverified.
 

@@ -11,6 +11,27 @@ import { isolatedEnvironment, runProcess } from "./process.js";
 
 
 export interface OpenInterpreterVerificationOptions { binary?: string; timeoutMs?: number; interactive?: boolean }
+
+async function awaitNativeTail(repo: string): Promise<boolean> {
+  const directory = join(repo, ".git", "cledger-open-interpreter-tail"), deadline = Date.now() + 12_000;
+  while (Date.now() < deadline) {
+    try {
+      const names = await readdir(directory), statuses = names.filter(name => name.endsWith(".json"));
+      if (statuses.length && !names.some(name => name.endsWith(".lock"))) {
+        let exited = true;
+        for (const name of statuses) {
+          const status = JSON.parse(await readFile(join(directory, name), "utf8")) as { status?: string; pid?: number };
+          if (status.status !== "complete" || !status.pid) return false;
+          try { process.kill(status.pid, 0); exited = false; }
+          catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") exited = false; }
+        }
+        if (exited) return true;
+      }
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    await new Promise(done => setTimeout(done, 100));
+  }
+  return false;
+}
 export interface OpenInterpreterVerificationReport {
   schema: "cledger-verification/1";
   cli: "open-interpreter";
@@ -138,6 +159,7 @@ export async function verifyScriptedOpenInterpreter(options: OpenInterpreterVeri
     }
     const read = async (): Promise<EvidenceEvent[]> => (await checked(process.execPath, [cli, "export", "--all"]))
       .split("\n").filter(Boolean).map((line) => JSON.parse(line) as EvidenceEvent);
+    report.gates.tailWorkerCompleteAndExited = await awaitNativeTail(repo);
     const nativeEvents = await read();
     report.gates.noUnrecognizedRecords = !hasUnrecognizedEvidence(nativeEvents, "open-interpreter");
     Object.assign(report.gates, openInterpreterEvidenceGates(nativeEvents, marker, secret));
