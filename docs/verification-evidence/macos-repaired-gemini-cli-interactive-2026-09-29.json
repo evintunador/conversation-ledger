@@ -18,7 +18,7 @@
     "hookEvidenceRetained": true,
     "scriptedRequests": true
   },
-  "durationMs": 6467,
+  "durationMs": 6409,
   "coverage": [
     "interactive PTY terminal input and native hooks",
     "human text",

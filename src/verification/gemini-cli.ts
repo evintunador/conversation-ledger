@@ -135,7 +135,11 @@ export async function verifyScriptedGemini(options: { binary?: string; timeoutMs
       report.coverage[0] = "interactive PTY terminal input and native hooks";
       report.exclusions = report.exclusions.filter(value => value !== "interactive TUI");
       const terminal = await runPty(binary, [], { cwd: repo, env, timeoutMs: options.timeoutMs ?? 60_000,
-        actions: [{ waitFor: "Type your message|Type a message|> ", send: prompt + "\r" }, { waitFor: secret, send: "/quit", delayMs: 1000 }, { waitFor: "Exit the cli", send: "\r", delayMs: 1000 }] });
+        actions: [{ waitFor: "Type your message|Type a message|> ", send: prompt + "\r" },
+          // The final text can render while AfterAgent is still running. Slash
+          // commands are rejected until Gemini returns to its ready state.
+          { waitFor: `${secret}[\\s\\S]*Ready \\(repo\\)`, send: "/quit", delayMs: 1000 },
+          { waitFor: "Exit the cli", send: "\r", delayMs: 1000 }] });
       report.gates.interactiveTerminal = terminal.actionsCompleted === 3 && !terminal.timedOut && terminal.code === 0;
       if (!report.gates.interactiveTerminal) throw new Error(`Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`);
     } else await checked(binary, ["-p", prompt, "--output-format", "stream-json"], options.timeoutMs ?? 60_000);

@@ -1,5 +1,7 @@
 name: Integration maintenance review
-# This becomes active only after review/merge onto the default branch.
+# Schedule starts after merge onto the default branch. Draft PR creation also
+# requires the repository's "Allow GitHub Actions to create and approve pull
+# requests" setting; this workflow never approves or merges a PR.
 on:
   workflow_dispatch:
   schedule:
@@ -35,18 +37,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: write
-      pull-requests: write
-      actions: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           path: conversation-ledger
+          persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: evintunador/annals
           ref: dcd06c0f724cf3509b2d61dce7d0b537d4d86340
           path: annals
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22.19.0'
@@ -72,6 +74,61 @@ jobs:
           name: integration-maintenance-review
           retention-days: 1
           path: ${{ runner.temp }}/integration-review
+      - name: Stage code-only review proposal
+        run: |
+          mkdir -p "$RUNNER_TEMP/review-publish/src/verification" "$RUNNER_TEMP/review-publish/docs/verification-evidence"
+          cp conversation-ledger/src/verification/runtimes.ts "$RUNNER_TEMP/review-publish/src/verification/runtimes.ts"
+          cp conversation-ledger/docs/verification-evidence/maintenance-latest.json "$RUNNER_TEMP/review-publish/docs/verification-evidence/maintenance-latest.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: integration-maintenance-proposal
+          retention-days: 1
+          path: ${{ runner.temp }}/review-publish
+  publish:
+    needs: review
+    if: needs.review.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: conversation-ledger
+      - uses: actions/download-artifact@v4
+        with:
+          name: integration-maintenance-proposal
+          path: ${{ runner.temp }}/review-publish
+      - name: Validate and copy the restricted proposal
+        env:
+          PROPOSAL_DIRECTORY: ${{ runner.temp }}/review-publish
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const base = 'conversation-ledger/';
+          const proposal = process.env.PROPOSAL_DIRECTORY + '/';
+          const report = JSON.parse(readFileSync(proposal + 'docs/verification-evidence/maintenance-latest.json', 'utf8'));
+          const current = readFileSync(base + 'src/verification/runtimes.ts', 'utf8');
+          const candidate = readFileSync(proposal + 'src/verification/runtimes.ts', 'utf8');
+          if (report.schema !== 'cledger-hosted-maintenance/1') throw Error('Invalid review schema');
+          let expected = current;
+          if (report.pinsProposed) {
+            if (report.baseline !== 'success' || !Array.isArray(report.maintenance?.changes) || !report.maintenance.changes.length)
+              throw Error('Unqualified runtime proposal');
+            for (const item of report.maintenance.changes) {
+              if (![item.cli, item.package, item.pinned, item.latest].every(value => typeof value === 'string')) throw Error('Invalid package observation');
+              if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(item.latest)) throw Error('Invalid proposed version');
+              const before = `cli: ${JSON.stringify(item.cli)}, package: ${JSON.stringify(item.package)}, version: ${JSON.stringify(item.pinned)}`;
+              const after = `cli: ${JSON.stringify(item.cli)}, package: ${JSON.stringify(item.package)}, version: ${JSON.stringify(item.latest)}`;
+              if (expected.split(before).length !== 2) throw Error(`Pin source mismatch for ${item.cli}`);
+              expected = expected.replace(before, after);
+            }
+          }
+          if (candidate !== expected) throw Error('Proposal changes code outside exact version pins');
+          writeFileSync(base + 'src/verification/runtimes.ts', candidate);
+          writeFileSync(base + 'docs/verification-evidence/maintenance-latest.json', JSON.stringify(report, null, 2) + '\n');
+          JS
       - name: Open a draft maintenance PR
         id: pr
         uses: peter-evans/create-pull-request@v7

@@ -293,12 +293,15 @@ review files are in `scheduler-review/ACTIVATION.md` (gitignored). Their intende
 persistent runtimes must be provisioned and checked before activation; today's
 temporary proof installations are deliberately excluded. No periodic job or
 auto-merge has been enabled. Maintenance produces local review proposals and
-candidate evidence; opening/merging hosted PRs is not implemented yet.
+candidate evidence. A separate hosted workflow can open draft maintenance PRs
+after merge and after the repository PR-creation setting is enabled; it never
+merges them.
 
-Hosted run 36591908258 recorded Linux 18/18 headless and 16/16 interactive
-passes; macOS recorded 18/18 headless and 11/16 interactive. All eighteen runtimes
-provisioned on both systems. Five macOS terminal/tail failures were repaired
-and passed targeted local runs. The next full run on the
+Hosted run 36625554603 recorded Linux 18/18 headless and 16/16 interactive
+passes; macOS recorded 18/18 headless and 15/16 interactive. All eighteen runtimes
+provisioned on both systems. Gemini rejected a slash command while its hook was
+still running; a ready-state gate passed twice in targeted local runs. The next
+full run on the
 [draft review PR](https://github.com/evintunador/conversation-ledger/pull/26)
 must qualify those repairs. Partial runs are not full certification.
 
