@@ -53,24 +53,19 @@ Aider automatic decisions/model attribution; Cline unknown-part replay.
 
 ## Current evidence and remaining environment requirements
 
-The aggregate macOS ARM64 headless campaign passed all eighteen implemented
-CLIs. Saved report: docs/verification-evidence/macos-headless-2026-09-29.json.
-Droid's public BYOK path was separately reverified without enterprise startup
-overrides; use the accompanying public-headless report for that qualification.
-The latest sixteen-source aggregate recorded fourteen interactive passes and
-OpenHands/Kilo terminal timeouts. Both then passed repaired targeted scenarios;
-the saved repaired reports are in docs/verification-evidence/. Earlier Gemini
-and OpenCode timing failures were also repaired and both passed the first hosted
-macOS/Linux interactive run. Cline's
-interactive welcome flow repeatedly opened the user's browser; its interactive
-check is now deferred in all campaigns, including explicit selections. Cline
-supports direct API credentials and its headless check remains enabled.
+The full hosted macOS/Linux campaign passed all eighteen headless and sixteen
+non-deferred interactive CLI scenarios on each platform; reports are saved in
+docs/verification-evidence/hosted-*.json. Droid's public BYOK headless path was
+also reverified without enterprise startup overrides. Cline's interactive
+welcome flow repeatedly opened the user's browser, so interactive testing is
+deferred in all campaigns, including explicit selections. Cline supports direct
+API credentials and its headless check remains enabled.
 Droid's public TUI asks for Factory login; the user explicitly deferred that
 interactive check. Neither deferral is a parser/capture pass.
 Test auth is explicitly opt-in via CLEDGER_VERIFY_DROID_FACTORY_API_KEY; no key,
 account login or subscription purchase occurred. Never ask for keys in chat.
 
-Latest full regression suite: 327 total, 315 pass, 12 explicit opt-in skips,
+Latest full regression suite: 328 total, 316 pass, 12 explicit opt-in skips,
 zero failures (/tmp/cledger-final-regression.log). Native checks ran separately.
 Review fixes added heartbeat lock recovery for Continue (proper-lockfile),
 Gemini malformed-container preservation and bounded post-hook tail capture,
@@ -81,19 +76,17 @@ Latest verified pins: Claude2.1.284, Codex0.159.0, Gemini0.61.0, Qwen0.24.6,
 OpenCode1.18.33. New Claude accounting records and Codex token_usage_record
 initially failed drift gates and were explicitly mapped/tested before promotion.
 Other versions and per-source exclusions are in NATIVE_VERIFICATION.md and
-CLI_RECORD_COVERAGE.md. Full certification remains unclaimed: Linux and complete
-native lifecycle/data-type proof are separate from these read/write smoke tests.
+CLI_RECORD_COVERAGE.md. Full certification remains unclaimed: broader native lifecycle/data-type proof
+is separate from these read/write smoke tests.
 
 The user chose GitHub Actions if free, otherwise a local Linux VM. This repository
 is public, so standard hosted runners are eligible for free compute. Draft PR
 https://github.com/evintunador/conversation-ledger/pull/26 is open from an isolated
-code-only checkout at /tmp/cledger-ci-review/conversation-ledger. The latest full
-hosted run (36627184224) provisioned all eighteen runtimes. Linux passed all
-18 headless and 16 non-deferred interactive checks. macOS passed 18 headless
-and 15 interactive; Open Interpreter's hooks missed two final native records
-written after Stop. A bounded native tail worker now captures the late records
-before backfill; both real local modes and a delayed-write regression passed.
-A new full hosted run must confirm the repair across both operating systems.
+code-only checkout at /tmp/cledger-ci-review/conversation-ledger. Hosted run
+36628884457 passed on both macOS and Linux: eighteen of eighteen headless
+scenarios and sixteen of sixteen non-deferred interactive scenarios per system.
+The saved reports are in docs/verification-evidence/hosted-*.json. These are
+native CLI smoke passes, not complete proof of every record type or lifecycle.
 The hosted maintenance workflow can prepare a draft review PR every other Monday
 after merge and after its currently disabled repository PR-creation setting is
 enabled. It checks baseline CLIs on both systems, changed npm candidates in both

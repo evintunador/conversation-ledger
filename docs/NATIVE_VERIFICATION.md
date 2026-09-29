@@ -67,8 +67,8 @@ Verified during implementation on macOS ARM64:
 | Open Interpreter | Rust 0.0.45 | Passed native hooks, final tail and backfill; historical Python product excluded |
 | Crush | 0.97.1 | Passed explicit wrapper and read-only SQLite snapshot capture |
 
-These are native smoke checks, not full certification. Linux and interactive
-results must be obtained separately. Native verification needs subprocess and
+These are native smoke checks, not full certification. The later hosted Linux
+and interactive reports are linked below. Native verification needs subprocess and
 loopback socket permissions; a restricted agent sandbox may require escalation.
 Guard unit tests report skipped socket checks explicitly when bind is forbidden.
 
@@ -267,7 +267,7 @@ The repaired local scenarios passed for
 [Continue interactive](verification-evidence/macos-repaired-continue-interactive-2026-09-29.json),
 [Kilo interactive](verification-evidence/macos-repaired-kilo-interactive-2026-09-29.json), and
 [OpenHands interactive](verification-evidence/macos-repaired-openhands-interactive-2026-09-29.json).
-These are individual macOS runs; hosted Linux qualification remains separate.
+These are individual macOS runs; the full hosted Linux reports are linked below.
 
 The PTY runner uses Python3 on macOS/Linux, disposable terminal sessions, bounded
 output/deadlines and process-group cleanup. Its input timing separates pasted text
@@ -297,13 +297,16 @@ candidate evidence. A separate hosted workflow can open draft maintenance PRs
 after merge and after the repository PR-creation setting is enabled; it never
 merges them.
 
-Hosted run 36627184224 recorded Linux 18/18 headless and 16/16 interactive
-passes; macOS recorded 18/18 headless and 15/16 interactive. All eighteen runtimes
-provisioned on both systems. Open Interpreter wrote two final native records after
-its hooks; a bounded tail worker passed local headless/interactive checks and a
-delayed-write regression. The next full run on the
-[draft review PR](https://github.com/evintunador/conversation-ledger/pull/26)
-must qualify those repairs. Partial runs are not full certification.
+[Hosted run 36628884457](https://github.com/evintunador/conversation-ledger/actions/runs/36628884457)
+passed both systems: Linux and macOS each recorded 18/18 headless and 16/16
+non-deferred interactive native CLI smoke scenarios. All eighteen pinned runtimes
+provisioned on both platforms. Its checked-in
+[macOS headless](verification-evidence/hosted-macos-headless-2026-09-29.json),
+[macOS interactive](verification-evidence/hosted-macos-interactive-2026-09-29.json),
+[Linux headless](verification-evidence/hosted-linux-headless-2026-09-29.json), and
+[Linux interactive](verification-evidence/hosted-linux-interactive-2026-09-29.json)
+reports contain exact per-CLI gates. The run is green, but native smoke scenarios
+do not certify every data type or lifecycle path; see CLI_RECORD_COVERAGE.md.
 
 
 Final regression checkpoint: 328 tests, 316 passed, 12 explicitly skipped native

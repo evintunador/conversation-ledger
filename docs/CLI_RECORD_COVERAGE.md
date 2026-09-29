@@ -62,11 +62,12 @@ pass; unwrapped invocation is not represented as automatic integration.
 
 Cursor and Kiro do not yet have implemented adapters or native proof. See
 `CLI_ROSTER_RESEARCH.md` for the current authentication findings. Eighteen of
-twenty headless smoke passes on macOS is 90% of this roster, not measured market
-share, full record certification, or Linux coverage. Interactive scenarios,
-resume/fork/compaction/cancellation, exact upstream discriminant inventories and
-Linux results must be tracked independently. Intentionally unsupported backends
-(Vibe unified, historical Python Open Interpreter) remain explicit limitations.
+twenty headless smoke passes on both macOS and Linux cover 90% of this roster,
+not measured market share or full record certification. Sixteen non-deferred
+interactive scenarios pass on both systems. Resume/fork/compaction/cancellation
+and exact upstream discriminant inventories remain separate proof gaps.
+Intentionally unsupported backends (Vibe unified, historical Python Open
+Interpreter) remain explicit limitations.
 
 ## Pi 0.87.1
 
