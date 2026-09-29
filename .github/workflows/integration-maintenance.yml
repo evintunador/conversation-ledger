@@ -1,0 +1,104 @@
+name: Integration maintenance review
+# This becomes active only after review/merge onto the default branch.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 12 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: integration-maintenance
+  cancel-in-progress: false
+jobs:
+  cadence:
+    runs-on: ubuntu-latest
+    outputs:
+      due: ${{ steps.due.outputs.due }}
+    steps:
+      - id: due
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          node --input-type=module <<'JS' >> "$GITHUB_OUTPUT"
+          // Every other Monday. Manual runs are available between scheduled checks.
+          const due = process.env.EVENT !== 'schedule' || Math.floor(Date.now() / (7 * 86400000)) % 2 === 0;
+          console.log(`due=${due}`);
+          JS
+  qualification:
+    needs: cadence
+    if: needs.cadence.outputs.due == 'true'
+    uses: ./.github/workflows/native-verification.yml
+  review:
+    needs: [cadence, qualification]
+    # A broken baseline must still produce an actionable review report.
+    if: ${{ !cancelled() && needs.cadence.outputs.due == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: conversation-ledger
+      - uses: actions/checkout@v4
+        with:
+          repository: evintunador/annals
+          ref: dcd06c0f724cf3509b2d61dce7d0b537d4d86340
+          path: annals
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Enable native CLI sandboxes on this disposable runner
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          unshare --user --map-root-user true
+      - working-directory: annals
+        run: npm ci
+      - working-directory: conversation-ledger
+        run: npm ci
+      - name: Observe releases and verify npm candidates
+        id: observe
+        working-directory: conversation-ledger
+        env:
+          BASELINE_RESULT: ${{ needs.qualification.result }}
+          REVIEW_DIRECTORY: ${{ runner.temp }}/integration-review
+        run: node dist/verification/hosted-review.js
+      - name: Retain review and failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-maintenance-review
+          retention-days: 1
+          path: ${{ runner.temp }}/integration-review
+      - name: Open a draft maintenance PR
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          path: conversation-ledger
+          branch: automation/integration-maintenance
+          delete-branch: true
+          draft: true
+          title: Review coding CLI integration maintenance
+          commit-message: Prepare integration maintenance evidence and tested npm pins
+          body: |
+            Automated fortnightly review of pinned CLI integrations and public releases.
+
+            Read docs/verification-evidence/maintenance-latest.json for baseline status,
+            candidate headless/interactive results and release observations. Proposed npm
+            pins are applied only after the existing two-platform baseline and both local
+            candidate modes pass. Non-npm updates require source-specific review.
+
+            The full macOS/Linux workflow is dispatched on this review branch. Its result
+            must pass before merging. Cline and Droid interactive checks remain deferred.
+            No paid inference or automatic merge is enabled.
+          add-paths: |
+            src/verification/runtimes.ts
+            docs/verification-evidence/maintenance-latest.json
+      - name: Qualify the review branch on macOS and Linux
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run native-verification.yml --ref automation/integration-maintenance

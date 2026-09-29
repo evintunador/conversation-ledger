@@ -718,5 +718,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   await runTailCapture(lock, status, "qwen-code", async () => {
     try { const info = await stat(path); return JSON.stringify([info.size, info.mtimeMs]); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return "missing"; throw error; }
-  }, () => captureQwenTranscript(path, cwd));
+  }, () => captureQwenTranscript(path, cwd), { softMs: 20_000, hardMs: 25_000 });
 }

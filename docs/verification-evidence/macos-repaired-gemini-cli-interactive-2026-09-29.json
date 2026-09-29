@@ -1,6 +1,6 @@
 {
   "schema": "cledger-verification/1",
-  "cli": "copilot",
+  "cli": "gemini-cli",
   "status": "pass",
   "certification": "native-smoke",
   "inference": "scripted",
@@ -8,36 +8,32 @@
   "gates": {
     "installedHooks": true,
     "interactiveTerminal": true,
-    "noUnrecognizedRecords": true,
-    "tailComplete": true,
-    "terminalRecord": true,
+    "tailWorkerCompleteAndExited": true,
     "hookPrompt": true,
     "hookToolUse": true,
     "hookToolResult": true,
     "hookAnswer": true,
+    "noUnrecognizedRecords": true,
     "backfillIdempotent": true,
     "hookEvidenceRetained": true,
-    "scriptedRequests": true,
-    "agentHeader": true
+    "scriptedRequests": true
   },
-  "durationMs": 5372,
+  "durationMs": 6467,
   "coverage": [
-    "interactive PTY terminal input",
-    "native hook capture",
+    "interactive PTY terminal input and native hooks",
+    "human text",
     "read tool call/result",
     "assistant text",
     "backfill idempotency"
   ],
   "exclusions": [
-    "individual agentStop versus sessionEnd timing",
-    "ACP/daemon",
-    "attachments",
     "subagents",
+    "attachments",
     "compaction/rewind",
-    "real model/provider behavior",
+    "real provider authentication",
     "full record coverage"
   ],
   "mode": "interactive",
-  "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates.",
+  "version": "0.61.0",
   "requests": 2
 }

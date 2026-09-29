@@ -238,12 +238,13 @@ export async function verifyScriptedCopilot(
               waitFor: "Type|Ask|> |❯",
               send: `${marker}. Read evidence.txt using view and reply with its exact contents.\r`,
             },
-            { waitFor: "TESTONLY_OK", send: "/quit\r", delayMs: 1000 },
+            { waitFor: "file-value-[\\s\\S]*open sidebar", send: "/quit", delayMs: 1000 },
+            { waitFor: "/quit", send: "\r", delayMs: 1000 },
           ],
         },
       );
       report.gates.interactiveTerminal =
-        terminal.actionsCompleted === 2 &&
+        terminal.actionsCompleted === 3 &&
         !terminal.timedOut &&
         terminal.code === 0;
       if (!report.gates.interactiveTerminal)

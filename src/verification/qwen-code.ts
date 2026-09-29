@@ -23,7 +23,7 @@ export type QwenReport = Omit<Report, "cli"> & { cli: "qwen-code" };
 
 async function awaitNativeTail(repo: string): Promise<boolean> {
   const directory = join(repo, ".git", "cledger-qwen-code-tail");
-  const deadline = Date.now() + 12_000;
+  const deadline = Date.now() + 27_000;
   while (Date.now() < deadline) {
     try {
       const names = await readdir(directory), statuses = names.filter(name => name.endsWith(".json"));
@@ -41,6 +41,16 @@ async function awaitNativeTail(repo: string): Promise<boolean> {
     await new Promise(done => setTimeout(done, 100));
   }
   return false;
+}
+
+async function tailFailure(repo: string): Promise<string> {
+  const directory = join(repo, ".git", "cledger-qwen-code-tail");
+  try {
+    const names = await readdir(directory);
+    const details = await Promise.all(names.filter(name => name.endsWith(".json") || name.endsWith(".log"))
+      .map(async name => `${name}: ${(await readFile(join(directory, name), "utf8")).slice(-1000)}`));
+    return details.length ? details.join("; ").slice(-3000) : "tail directory has no status or log";
+  } catch (error) { return `tail directory unavailable: ${String(error).slice(0, 300)}`; }
 }
 
 export function qwenEvidenceGates(
@@ -303,7 +313,9 @@ export async function verifyScriptedQwen(
     } while (Date.now() < deadline);
     if (!Object.values(report.gates).every(Boolean))
       throw new Error(
-        "Native hook evidence incomplete; no manual capture attempted" + (nativeOutput ? `; native output: ${terminalTail(nativeOutput)}` : ""),
+        "Native hook evidence incomplete; no manual capture attempted" +
+        (!report.gates.tailWorkerCompleteAndExited ? `; tail: ${await tailFailure(repo)}` : "") +
+        (nativeOutput ? `; native output: ${terminalTail(nativeOutput)}` : ""),
       );
     await checked(process.execPath, [cli, "capture", "qwen-code", "--all"]);
     const first = await read();

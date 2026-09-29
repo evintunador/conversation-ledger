@@ -295,15 +295,15 @@ temporary proof installations are deliberately excluded. No periodic job or
 auto-merge has been enabled. Maintenance produces local review proposals and
 candidate evidence; opening/merging hosted PRs is not implemented yet.
 
-Hosted run 36588451942 recorded Linux 15/18 headless and 12/16 interactive
-passes; macOS recorded 17/18 and 14/16. All eighteen runtimes provisioned on
-both systems. Outstanding failures prompted executable-path, terminal timing,
-and disposable Linux runner namespace repairs. The next full run on the
+Hosted run 36591908258 recorded Linux 18/18 headless and 16/16 interactive
+passes; macOS recorded 18/18 headless and 11/16 interactive. All eighteen runtimes
+provisioned on both systems. Five macOS terminal/tail failures were repaired
+and passed targeted local runs. The next full run on the
 [draft review PR](https://github.com/evintunador/conversation-ledger/pull/26)
 must qualify those repairs. Partial runs are not full certification.
 
 
-Final regression checkpoint: 323 tests, 311 passed, 12 explicitly skipped native
+Final regression checkpoint: 327 tests, 315 passed, 12 explicitly skipped native
 opt-ins, zero failures. Separate actual CLI runs provide the native reports;
 skipped opt-ins are not presented as executable proof. The private project ledger
 and normal user CLI configuration were not used as test fixtures.

@@ -1,6 +1,6 @@
 {
   "schema": "cledger-verification/1",
-  "cli": "copilot",
+  "cli": "qwen-code",
   "status": "pass",
   "certification": "native-smoke",
   "inference": "scripted",
@@ -8,9 +8,8 @@
   "gates": {
     "installedHooks": true,
     "interactiveTerminal": true,
+    "tailWorkerCompleteAndExited": true,
     "noUnrecognizedRecords": true,
-    "tailComplete": true,
-    "terminalRecord": true,
     "hookPrompt": true,
     "hookToolUse": true,
     "hookToolResult": true,
@@ -20,7 +19,7 @@
     "scriptedRequests": true,
     "agentHeader": true
   },
-  "durationMs": 5372,
+  "durationMs": 12842,
   "coverage": [
     "interactive PTY terminal input",
     "native hook capture",
@@ -29,7 +28,7 @@
     "backfill idempotency"
   ],
   "exclusions": [
-    "individual agentStop versus sessionEnd timing",
+    "individual Stop versus SessionEnd timing",
     "ACP/daemon",
     "attachments",
     "subagents",
@@ -38,6 +37,6 @@
     "full record coverage"
   ],
   "mode": "interactive",
-  "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates.",
-  "requests": 2
+  "version": "0.24.6",
+  "requests": 3
 }

@@ -69,7 +69,7 @@ export async function verifyScriptedCrush(options: { binary?: string; timeoutMs?
     const wrapper = [cli,"run","crush","--binary",binary,"--","--data-dir",join(repo,".crush")];
     if (options.interactive) {
       const terminal = await runPty(process.execPath, wrapper, {cwd:repo,env:{...env,TERM:"xterm-256color"},timeoutMs:options.timeoutMs??45_000,
-        actions:[{waitFor:"Would you like to initialize",send:"n"},{waitFor:"Fixture|Ready[!.?]|Ready for instructions",send:prompt},{waitFor:"contents[.]",send:"\r",delayMs:250},{waitFor:secret,send:"\x03"},{waitFor:"Are you sure you want to quit",send:"y"}]});
+        actions:[{waitFor:"Would you like to initialize",send:"n"},{waitFor:"Fixture|Ready[!.?]|Ready for instructions",send:prompt},{waitFor:"contents[.]",send:"\r",delayMs:1000},{waitFor:secret,send:"\x03"},{waitFor:"Are you sure you want to quit",send:"y"}]});
       report.gates.interactiveExit=!terminal.timedOut&&terminal.code===0&&terminal.actionsCompleted===5;
       report.coverage.push("interactive PTY keyboard prompt and exit");report.exclusions=report.exclusions.filter(value=>value!=="interactive TUI");
       if(!report.gates.interactiveExit)throw new Error(`Crush interactive terminal incomplete (${terminal.code}, actions=${terminal.actionsCompleted}, timeout=${terminal.timedOut}): ${terminal.output.slice(-2200)}`);

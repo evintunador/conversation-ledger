@@ -41,18 +41,19 @@ export async function scheduleTailCapture(directory: string, cwd: string, source
   } catch (error) { await rm(lock, { recursive: true, force: true }); throw error; }
   finally { await errorFile.close(); }
 }
-export async function runTailCapture(lock: string, status: string, source: string, fingerprint: () => Promise<string>, capture: () => Promise<unknown>): Promise<void> {
+export async function runTailCapture(lock: string, status: string, source: string, fingerprint: () => Promise<string>, capture: () => Promise<unknown>,
+  limits: { softMs: number; hardMs: number } = { softMs: 8_000, hardMs: 10_000 }): Promise<void> {
   const started = Date.now();
   // Hard wall limit also kills any subprocesses in this worker's own process
   // group. Never inherit the hook's pipes: that would block native Stop.
   const hardStop = setTimeout(() => {
-    try { writeFileSync(status, JSON.stringify({ status: "failed", pid: process.pid, error: "Tail worker exceeded 10-second deadline" }), { mode: 0o600 }); chmodSync(status, 0o600); } catch { /* stderr remains available */ }
-    process.stderr.write(`cledger: ${source} tail worker exceeded 10-second deadline\n`);
+    try { writeFileSync(status, JSON.stringify({ status: "failed", pid: process.pid, error: `Tail worker exceeded ${limits.hardMs}-ms deadline` }), { mode: 0o600 }); chmodSync(status, 0o600); } catch { /* stderr remains available */ }
+    process.stderr.write(`cledger: ${source} tail worker exceeded ${limits.hardMs}-ms deadline\n`);
     try { process.kill(-process.pid, "SIGKILL"); } catch { process.exit(1); }
-  }, 10_000);
+  }, limits.hardMs);
   let captures = 0, last = "", unchangedSince = started, settled = false;
   try {
-    while (Date.now() - started < 8_000) {
+    while (Date.now() - started < limits.softMs) {
       await new Promise(resolveWait => setTimeout(resolveWait, 200));
       const current = await fingerprint();
       if (current !== last) {

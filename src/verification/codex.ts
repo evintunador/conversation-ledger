@@ -205,9 +205,12 @@ export async function verifyScriptedCodex(options: CodexVerificationOptions = {}
     if (options.interactive) {
       const terminal = await runPty(binary, ["--dangerously-bypass-hook-trust", "--sandbox", "read-only", "--no-alt-screen", prompt], {
         cwd: repo, env: { ...env, TERM: "xterm-256color" }, timeoutMs: options.timeoutMs ?? 60_000,
-        actions: [{ waitFor: "TESTONLY_OK", send: "/exit\r", delayMs: 1000 }],
+        actions: [
+          { waitFor: "TESTONLY_OK[\\s\\S]*Ask Codex to do anything", send: "/exit", delayMs: 1000 },
+          { waitFor: "/exit", send: "\r", delayMs: 1000 },
+        ],
       });
-      report.gates.interactiveExit = !terminal.timedOut && terminal.code === 0 && terminal.actionsCompleted === 1;
+      report.gates.interactiveExit = !terminal.timedOut && terminal.code === 0 && terminal.actionsCompleted === 2;
       report.coverage = report.coverage.map(value => value === "headless exec" ? "interactive PTY session and exit" : value);
       report.exclusions = report.exclusions.filter(value => value !== "interactive TUI");
       if (!report.gates.interactiveExit) throw new Error(`Codex interactive terminal incomplete: ${JSON.stringify({ ...terminal, output: terminal.output.slice(-4000) })}`);

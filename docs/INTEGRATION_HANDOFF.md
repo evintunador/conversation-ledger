@@ -70,8 +70,8 @@ interactive check. Neither deferral is a parser/capture pass.
 Test auth is explicitly opt-in via CLEDGER_VERIFY_DROID_FACTORY_API_KEY; no key,
 account login or subscription purchase occurred. Never ask for keys in chat.
 
-Latest full regression suite: 323 total, 311 pass, 12 explicit opt-in skips,
-zero failures (/tmp/cledger-current-regression.log). Native checks ran separately.
+Latest full regression suite: 327 total, 315 pass, 12 explicit opt-in skips,
+zero failures (/tmp/cledger-final-regression.log). Native checks ran separately.
 Review fixes added heartbeat lock recovery for Continue (proper-lockfile),
 Gemini malformed-container preservation and bounded post-hook tail capture,
 scoped TOML feature configuration, orphan-process cleanup, verification signal
@@ -88,18 +88,19 @@ The user chose GitHub Actions if free, otherwise a local Linux VM. This reposito
 is public, so standard hosted runners are eligible for free compute. Draft PR
 https://github.com/evintunador/conversation-ledger/pull/26 is open from an isolated
 code-only checkout at /tmp/cledger-ci-review/conversation-ledger. The latest full
-hosted run (36588451942) provisioned all eighteen runtimes successfully on both
-platforms. Headless passes: Linux 15/18, macOS 17/18. Interactive passes:
-Linux 12/16, macOS 14/16. Linux Codex/Open Interpreter failed because AppArmor
-blocked the namespace setup needed by their native sandboxes; the disposable
-runner now permits user namespaces for this boot, keeping CLI read-only sandboxes.
-Cline's platform executable is selected directly because npm omitted its shared
-bin alias. Codex, Copilot and Goose terminal completion/exit synchronization was
-repaired. All four targeted local checks passed (Cline headless only).
-The next hosted run must demonstrate eighteen headless and sixteen non-deferred
-interactive passes on both platforms. Source changes in this original checkout
-remain uncommitted. Defer subscription-gated verification; do not repeat
-login/browser flows or ask the user to purchase plans for these checks.
+hosted run (36591908258) provisioned all eighteen runtimes. Linux passed all
+18 headless and 16 non-deferred interactive checks. macOS passed all 18 headless
+and 11 of 16 interactive checks; Codex, Gemini, Copilot, Qwen and Crush failed
+on terminal timing or Qwen's bounded tail completion. Subsequent targeted local
+runs of all five passed after repairs, including Qwen's extended bounded worker.
+A new full hosted run must confirm the repairs across both operating systems.
+The hosted maintenance workflow now prepares a draft review PR every other Monday
+after merge, checking baseline CLIs on both systems, candidate npm updates on
+Linux and observed non-npm releases. It dispatches the full matrix on a proposal
+branch and never auto-merges or uses paid inference. The local 14-day scheduler
+remains disabled. Source changes in this original checkout remain uncommitted.
+Defer subscription-gated verification; do not repeat login/browser flows or ask
+the user to purchase plans for these checks.
 
 The recreated agents finished source work; root is consolidating evidence.
 The aggregate process exited and no matching Cline test processes remained when

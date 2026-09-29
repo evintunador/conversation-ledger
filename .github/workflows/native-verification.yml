@@ -2,6 +2,7 @@ name: Native CLI verification
 # Review and manual runs until the maintainer enables hosted scheduling. Local campaigns use
 # the same runner and enforce fourteen elapsed days between scheduled attempts.
 on:
+  workflow_call:
   workflow_dispatch:
   pull_request:
     paths:
@@ -12,7 +13,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: native-verification-${{ github.event.pull_request.number || github.ref }}
+  group: native-verification-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
   native:

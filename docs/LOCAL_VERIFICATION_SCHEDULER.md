@@ -1,6 +1,6 @@
 # Reviewable local scheduling
 
-`dist/verification/schedule.js` generates scheduler files; it never installs,
+`dist/verification/schedule.js` generates local scheduler files; it never installs,
 loads, starts, enables, or modifies an operating-system scheduler. The generated
 `ACTIVATION.md` contains concrete commands to review and run later. Automation is
 review-first: update candidates produce proposals and reports, never commits,
@@ -65,6 +65,16 @@ logs are alongside the artifacts; systemd logs go to the user journal. Arrange
 log/report retention. Regenerate for moved checkouts, changed Node locations or
 another machine. Hosted scheduling can invoke the same runner after provisioning
 persistent state and runtimes; it does not require a different campaign format.
+
+The separate `integration-maintenance.yml` hosted workflow checks the full native
+matrix every other Monday after this review branch is merged. It also observes
+public releases, runs changed npm candidates in both supported modes on Linux,
+and opens a draft review PR with evidence. Pin changes require a passing baseline
+and candidate checks; the review branch gets a further macOS/Linux qualification
+run. Non-npm releases are reported for source-specific review. No subscription,
+paid inference or auto-merge is enabled. Manual workflow dispatch works between
+scheduled runs. The local scheduler remains available when hosted execution is
+not desired.
 
 Validation covers plist parsing and macOS `plutil`, shell activation-command
 syntax, literal paths with spaces/apostrophes/dollar signs/percent signs, rejected
