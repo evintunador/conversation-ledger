@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { EvidenceEvent } from "../schema.js";
 import { createServer } from "node:http";
+import { stripVTControlCharacters } from "node:util";
 import { isolatedEnvironment, runProcess } from "./process.js";
 
 
@@ -65,7 +66,16 @@ export async function startScriptedResponsesProvider(): Promise<{
         JSON.stringify(data.input).includes("Generate a concise, single-line task title");
       const answer = titleRequest ? JSON.stringify({ title: "Read fixture file" }) : secret;
       if (!answer && !name) { reject("No supported shell tool in native Responses request"); return; }
-      if (tool && !secret) { reject("Native shell output did not contain the fixture file value"); return; }
+      if (tool && !secret) {
+        // This provider only serves disposable verification sessions. Keep the
+        // actual failed native tool output so CI can distinguish sandbox setup,
+        // missing executables and read errors without relaxing the read gate.
+        const output = typeof tool.output === "string" ? tool.output : JSON.stringify(tool.output) ?? "(missing output)";
+        const text = stripVTControlCharacters(output).replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "");
+        reject("Native shell output did not contain the fixture file value; native tool output: " +
+          text.slice(0, 4000) + (text.length > 4000 ? " [truncated]" : ""));
+        return;
+      }
       const args = name === "exec_command" ? { cmd: "cat evidence.txt", login: false }
         : name === "shell_command" ? { command: "cat evidence.txt" } : { command: ["/bin/cat", "evidence.txt"] };
       const item = answer ? { id: "msg_probe", type: "message", role: "assistant", status: "completed",

@@ -38,6 +38,11 @@ jobs:
       - name: Install SQLite (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y sqlite3
+      - name: Report Linux sandbox prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          unshare --user --map-root-user true || true
+          sysctl kernel.apparmor_restrict_unprivileged_userns || true
       - name: Install upstream SQLite (macOS)
         if: runner.os == 'macOS'
         run: brew install sqlite
@@ -54,17 +59,31 @@ jobs:
           node dist/verification/runtimes.js "$RUNNER_TEMP/cledger-runtimes"
           uv venv --python 3.12 "$RUNNER_TEMP/cledger-vibe"
           uv pip install --python "$RUNNER_TEMP/cledger-vibe/bin/python" mistral-vibe==2.25.8
+          node dist/verification/native-runtimes.js "$RUNNER_TEMP/cledger-native-runtimes"
+          cat "$RUNNER_TEMP/cledger-native-runtimes/native-runtimes.env" >> "$GITHUB_ENV"
       - name: Run real CLIs against local scripted providers
         working-directory: conversation-ledger
         env:
           CLEDGER_VERIFY_MISTRAL_VIBE_BINARY: ${{ runner.temp }}/cledger-vibe/bin/vibe
-        run: node dist/verification/campaign.js --runtime-dir "$RUNNER_TEMP/cledger-runtimes" --only claude-code,codex,gemini-cli,qwen-code,opencode,pi,copilot,kimi,mistral-vibe,continue,kilo,cline --output "$RUNNER_TEMP/cledger-campaign.json"
+        run: node dist/verification/campaign.js --runtime-dir "$RUNNER_TEMP/cledger-runtimes" --output "$RUNNER_TEMP/cledger-campaign.json"
       - name: Run supported interactive terminal scenarios
         if: ${{ !cancelled() && steps.provision.outcome == 'success' }}
         working-directory: conversation-ledger
         env:
           CLEDGER_VERIFY_MISTRAL_VIBE_BINARY: ${{ runner.temp }}/cledger-vibe/bin/vibe
-        run: node dist/verification/campaign.js --mode interactive --runtime-dir "$RUNNER_TEMP/cledger-runtimes" --only claude-code,codex,gemini-cli,qwen-code,opencode,pi,copilot,kimi,mistral-vibe,continue,kilo --output "$RUNNER_TEMP/cledger-interactive-campaign.json"
+        run: node dist/verification/campaign.js --mode interactive --runtime-dir "$RUNNER_TEMP/cledger-runtimes" --output "$RUNNER_TEMP/cledger-interactive-campaign.json"
+      - name: Require the agreed executable coverage
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          for (const [name, minimum] of [['cledger-campaign.json', 18], ['cledger-interactive-campaign.json', 16]]) {
+            const report = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/${name}`, 'utf8'));
+            if (report.coverage.nativeSmokePassed < minimum) {
+              throw new Error(`${report.mode}: ${report.coverage.nativeSmokePassed} native passes; required ${minimum}`);
+            }
+          }
+          JS
       - name: Retain compatibility evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -76,3 +95,5 @@ jobs:
             ${{ runner.temp }}/cledger-interactive-campaign.json
             ${{ runner.temp }}/cledger-runtimes/runtimes.json
             ${{ runner.temp }}/cledger-runtimes/*/package-lock.json
+            ${{ runner.temp }}/cledger-native-runtimes/native-runtimes.json
+            ${{ runner.temp }}/cledger-native-runtimes/*/cledger-installed.txt

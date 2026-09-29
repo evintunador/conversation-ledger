@@ -1,0 +1,47 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "openhands",
+  "status": "pass",
+  "certification": "native-smoke",
+  "inference": "scripted",
+  "platform": "darwin/arm64",
+  "gates": {
+    "installedHook": true,
+    "interactiveTerminal": true,
+    "tailWorkerCompleteAndExited": true,
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "hookSelfObservation": true,
+    "nativeSessionState": true,
+    "scriptedRequests": true,
+    "agentHeader": true,
+    "backfillIdempotent": true
+  },
+  "coverage": [
+    "installed native Stop + SessionEnd hooks",
+    "bounded tail worker",
+    "final hook self-observation",
+    "interactive PTY terminal input",
+    "human prompt",
+    "tool call/result linkage",
+    "assistant answer",
+    "session header",
+    "backfill idempotency"
+  ],
+  "exclusions": [
+    "real provider/model behavior",
+    "attachments",
+    "branching/forks",
+    "compaction",
+    "full record coverage",
+    "ephemeral sessions",
+    "CLI 1.16.0 / SDK 1.21.0 fails to persist SessionEnd self-observation at atexit: visualizer raises App is not running; persisted Stop self-observation is required"
+  ],
+  "durationMs": 35632,
+  "mode": "interactive",
+  "version": "OpenHands CLI 1.16.0",
+  "requests": 2
+}

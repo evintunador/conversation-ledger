@@ -151,12 +151,13 @@ export async function verifyScriptedOpenHands(options: OpenHandsVerificationOpti
     if (options.interactive) {
       delete runtimeEnv.CI; delete runtimeEnv.NO_COLOR; runtimeEnv.TERM = "xterm-256color";
       const terminal = await runPty(binary, ["--always-approve", "--override-with-envs", "--exit-without-confirmation"], {
-        cwd: repo, env, timeoutMs: options.timeoutMs ?? 60000, actions: [
-          { waitFor: "Type your message", send: `${prompt}\r` },
+        cwd: repo, env, timeoutMs: options.timeoutMs ?? 120000, actions: [
+          { waitFor: "Loaded:.*skills,.*hooks", send: prompt, delayMs: 250 },
+          { waitFor: "exact contents", send: "\r", delayMs: 250 },
           { waitFor: secret, send: "\x11", delayMs: 750 },
         ],
       });
-      report.gates.interactiveTerminal = terminal.actionsCompleted === 2 && !terminal.timedOut && terminal.code === 0;
+      report.gates.interactiveTerminal = terminal.actionsCompleted === 3 && !terminal.timedOut && terminal.code === 0;
       if (!report.gates.interactiveTerminal) throw Error(`Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`);
     } else await checked(binary, ["--headless", "--json", "--always-approve", "--override-with-envs", "--task", prompt], options.timeoutMs ?? 60_000);
     report.gates.tailWorkerCompleteAndExited = await awaitNativeTail(repo);

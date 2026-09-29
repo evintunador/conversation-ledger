@@ -3,6 +3,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -19,6 +20,28 @@ import type { Report, Options } from "./opencode.js";
 import type { EvidenceEvent } from "../schema.js";
 
 export type QwenReport = Omit<Report, "cli"> & { cli: "qwen-code" };
+
+async function awaitNativeTail(repo: string): Promise<boolean> {
+  const directory = join(repo, ".git", "cledger-qwen-code-tail");
+  const deadline = Date.now() + 12_000;
+  while (Date.now() < deadline) {
+    try {
+      const names = await readdir(directory), statuses = names.filter(name => name.endsWith(".json"));
+      if (statuses.length && !names.some(name => name.endsWith(".lock"))) {
+        let exited = true;
+        for (const name of statuses) {
+          const status = JSON.parse(await readFile(join(directory, name), "utf8"));
+          if (status.status !== "complete") return false;
+          try { process.kill(status.pid, 0); exited = false; }
+          catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") exited = false; }
+        }
+        if (exited) return true;
+      }
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    await new Promise(done => setTimeout(done, 100));
+  }
+  return false;
+}
 
 export function qwenEvidenceGates(
   events: EvidenceEvent[],
@@ -117,6 +140,7 @@ export async function verifyScriptedQwen(
   let locked = false;
   let provider: Awaited<ReturnType<typeof startScriptedProvider>> | undefined;
   let guard: Awaited<ReturnType<typeof startGuard>> | undefined;
+  let nativeOutput = "";
   try {
     try {
       await mkdir(lock);
@@ -159,7 +183,7 @@ export async function verifyScriptedQwen(
       });
       if (result.code !== 0 || result.timedOut)
         throw new Error(
-          `${command} ${args[0]} failed (${result.timedOut ? "deadline" : `exit ${result.code}`})`,
+          `${command} ${args[0]} failed (${result.timedOut ? "deadline" : `exit ${result.code}`}): ${terminalTail(result.stderr)}`,
         );
       return result.stdout;
     };
@@ -247,7 +271,7 @@ export async function verifyScriptedQwen(
           `Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`,
         );
     } else
-      await checked(
+      nativeOutput = await checked(
         "qwen",
         [
           "-p",
@@ -257,6 +281,7 @@ export async function verifyScriptedQwen(
         ],
         options.timeoutMs ?? 60_000,
       );
+    report.gates.tailWorkerCompleteAndExited = await awaitNativeTail(repo);
     const read = async (): Promise<EvidenceEvent[]> =>
       (await checked(process.execPath, [cli, "export", "--all"]))
         .split("\n")
@@ -276,7 +301,7 @@ export async function verifyScriptedQwen(
     } while (Date.now() < deadline);
     if (!Object.values(report.gates).every(Boolean))
       throw new Error(
-        "Native hook evidence incomplete; no manual capture attempted",
+        "Native hook evidence incomplete; no manual capture attempted" + (nativeOutput ? `; native output: ${terminalTail(nativeOutput)}` : ""),
       );
     await checked(process.execPath, [cli, "capture", "qwen-code", "--all"]);
     const first = await read();

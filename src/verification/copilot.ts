@@ -192,6 +192,9 @@ export async function verifyScriptedCopilot(
     env.COPILOT_PROVIDER_WIRE_API = "completions";
     env.COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "1024";
     env.COPILOT_MODEL = "fixture";
+    // Trust only this disposable repository. Onboarding can repaint its trust
+    // menu after Enter, so matching its selection arrow is not editor readiness.
+    await writeFile(join(root, ".copilot", "config.json"), JSON.stringify({ trustedFolders: [repo] }));
     await checked(process.execPath, [cli, "install", "copilot"]);
     const settings = JSON.parse(
       await readFile(join(root, ".copilot", "hooks", "cledger.json"), "utf8"),
@@ -228,7 +231,6 @@ export async function verifyScriptedCopilot(
           env,
           timeoutMs: options.timeoutMs ?? 60000,
           actions: [
-            { waitFor: "remember this folder", send: "\r" },
             {
               waitFor: "Type|Ask|> |❯",
               send: `${marker}. Read evidence.txt using view and reply with its exact contents.\r`,
@@ -238,7 +240,7 @@ export async function verifyScriptedCopilot(
         },
       );
       report.gates.interactiveTerminal =
-        terminal.actionsCompleted === 3 &&
+        terminal.actionsCompleted === 2 &&
         !terminal.timedOut &&
         terminal.code === 0;
       if (!report.gates.interactiveTerminal)

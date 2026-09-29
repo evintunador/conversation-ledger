@@ -64,8 +64,8 @@ export async function verifyScriptedContinue(options: { binary?: string; timeout
       delete env.CI; delete env.NO_COLOR; env.TERM = "xterm-256color";
       report.coverage.push("interactive PTY prompt and exit");
       report.exclusions = report.exclusions.filter(value => value !== "interactive TUI");
-      const terminal = await runPty(process.execPath, [...launchArgs, "--allow", "Read"], { cwd: repo, env, timeoutMs: options.timeoutMs ?? 30_000,
-        actions: [{ waitFor: "Ask anything", send: prompt }, { waitFor: marker, send: "\r", delayMs: 600 }, { waitFor: secret, send: "/exit", delayMs: 600 }, { waitFor: "/exit", send: "\r", delayMs: 600 }] });
+      const terminal = await runPty(process.execPath, [...launchArgs, "--allow", "Read"], { cwd: repo, env, timeoutMs: options.timeoutMs ?? 90_000,
+        actions: [{ waitFor: "Ask anything", send: prompt, delayMs: 250 }, { waitFor: "exact file contents", send: "\r", delayMs: 600 }, { waitFor: secret, send: "/exit", delayMs: 600 }, { waitFor: "/exit", send: "\r", delayMs: 600 }] });
       report.gates.interactiveTerminal = terminal.actionsCompleted === 4 && !terminal.timedOut && terminal.code === 0;
       if (!report.gates.interactiveTerminal) throw new Error(`Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`);
     } else await checked(process.execPath, [...launchArgs, "-p", prompt], options.timeoutMs ?? 90_000);

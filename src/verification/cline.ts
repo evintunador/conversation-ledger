@@ -160,15 +160,15 @@ export async function verifyScriptedCline(
       });
       if (result.code !== 0 || result.timedOut)
         throw new Error(
-          `${command} ${args[0]} failed (${result.timedOut ? "deadline" : `exit ${result.code}`})`,
+          `${command} ${args[0]} failed (${result.timedOut ? "deadline" : `exit ${result.code}`}): ${terminalTail(result.stderr)}`,
         );
       return result.stdout;
     };
     try {
       report.version = (await checked("cline", ["--version"])).trim();
-    } catch {
+    } catch (error) {
       report.status = "blocked";
-      report.reason = "Cline executable unavailable or version probe failed";
+      report.reason = `Cline executable unavailable or version probe failed: ${error instanceof Error ? error.message : String(error)}`;
       return report;
     }
     await checked("git", ["init", "--quiet"]);

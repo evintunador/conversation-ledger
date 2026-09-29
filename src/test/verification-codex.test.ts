@@ -114,3 +114,20 @@ test("Codex scripted provider recognizes native background title requests withou
     assert.equal(invalid.status, 400);
   } finally { await provider.close(); }
 });
+
+test("Codex fixture retains bounded native sandbox errors while rejecting missing file evidence", async () => {
+  const provider = await startScriptedResponsesProvider();
+  try {
+    const output = "\u001b[31mbwrap: Creating new namespace failed: Operation not permitted\u001b[0m\n" + "x".repeat(5000);
+    const response = await fetch(`${provider.endpoint}/responses`, { method: "POST", body: JSON.stringify({
+      input: [{ type: "function_call_output", call_id: "call_probe", output }],
+      tools: [{ type: "function", name: "exec_command" }],
+    }) });
+    assert.equal(response.status, 400);
+    assert.equal(provider.signal.aborted, true);
+    assert.match(provider.state.blocked!, /bwrap: Creating new namespace failed: Operation not permitted/);
+    assert.doesNotMatch(provider.state.blocked!, /\u001b/);
+    assert.match(provider.state.blocked!, /\[truncated\]$/);
+    assert.ok(provider.state.blocked!.length < 4200);
+  } finally { await provider.close(); }
+});

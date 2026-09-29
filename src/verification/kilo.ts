@@ -1,4 +1,4 @@
-import { runPty } from "./pty.js";
+import { runPty, terminalTail } from "./pty.js";
 import { hasUnrecognizedEvidence } from "./drift.js";
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -17,7 +17,7 @@ export interface Report {
   platform: string; requests?: number;
   coverage: string[]; exclusions: string[]; durationMs: number;
 }
-export interface Options { apiKey?: string; endpoint?: string; model?: string; binary?: string; timeoutMs?: number; pollMs?: number; interactive?: boolean }
+export interface Options { apiKey?: string; endpoint?: string; model?: string; binary?: string; timeoutMs?: number; pollMs?: number; interactive?: boolean; terminalCompletionPrefix?: string }
 
 export function validateEndpoint(value: string): void {
   const url = new URL(value);
@@ -94,11 +94,11 @@ export async function verifyKilo(options: Options): Promise<Report> {
     report.gates.installedHook = plugin.includes("session.idle");
     const prompt = `${marker}. Use the read tool to read evidence.txt. Reply with its exact contents. Do not call any other tool.`;
     if(options.interactive){
-      const terminal=await runPty("kilo",["-m",`verification/${options.model}`,"--prompt",prompt],{cwd:repo,env:{...env,TERM:"xterm-256color"},timeoutMs:options.timeoutMs??45_000,
-        actions:[{waitFor:secret,send:"/exit",delayMs:1000},{waitFor:"/exit",send:"\r",delayMs:250}]});
+      const terminal=await runPty("kilo",["-m",`verification/${options.model}`,"--prompt",prompt],{cwd:repo,env:{...env,TERM:"xterm-256color"},timeoutMs:options.timeoutMs??120_000,
+        actions:[{waitFor:options.terminalCompletionPrefix ?? secret,send:"/exit",delayMs:250},{waitFor:"/exit",send:"\r",delayMs:250}]});
       report.gates.interactiveExit=!terminal.timedOut&&terminal.code===0&&terminal.actionsCompleted===2;
       report.coverage.push("interactive PTY session and exit (initial argv prompt)");report.exclusions=report.exclusions.filter(value=>value!=="interactive TUI");
-      if(!report.gates.interactiveExit)throw new Error(`Kilo interactive terminal incomplete (${terminal.code}, actions=${terminal.actionsCompleted}, timeout=${terminal.timedOut}): ${terminal.output.slice(-2200)}`);
+      if(!report.gates.interactiveExit)throw new Error(`Kilo interactive terminal incomplete (${terminal.code}, actions=${terminal.actionsCompleted}, timeout=${terminal.timedOut}): ${terminalTail(terminal.output)}`);
     }else await checked("kilo", ["run", "--format", "json", "-m", `verification/${options.model}`, prompt], options.timeoutMs ?? 120_000);
     const read = async (): Promise<EvidenceEvent[]> => (await checked(process.execPath, [cli, "export", "--all"])).split("\n").filter(Boolean).map(s => JSON.parse(s) as EvidenceEvent);
     let events: EvidenceEvent[] = [];
@@ -140,9 +140,10 @@ export async function verifyKilo(options: Options): Promise<Report> {
 }
 
 export async function verifyScriptedKilo(options: Options = {}): Promise<Report> {
-  const provider = await startScriptedProvider({ noToolsCompletionText: "Verification Session" });
+  const completionPrefix = `TESTONLY-answer-complete-${randomUUID()} `;
+  const provider = await startScriptedProvider({ noToolsCompletionText: "Verification Session", completionPrefix });
   try {
-    const report = await verifyKilo({ ...options, endpoint: provider.endpoint, model: "fixture" });
+    const report = await verifyKilo({ ...options, endpoint: provider.endpoint, model: "fixture", terminalCompletionPrefix: completionPrefix });
     report.inference = "scripted";
     report.exclusions.push("real model/provider behavior");
     report.gates.scriptedRequests = provider.state.requests >= 2 && provider.state.requests <= 4;
@@ -154,6 +155,7 @@ export async function verifyScriptedKilo(options: Options = {}): Promise<Report>
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const options: Options = {
+    interactive: process.env.CLEDGER_VERIFY_INTERACTIVE === "1",
     ...(process.env.CLEDGER_VERIFY_API_KEY ? { apiKey: process.env.CLEDGER_VERIFY_API_KEY } : {}),
     ...(process.env.CLEDGER_VERIFY_ENDPOINT ? { endpoint: process.env.CLEDGER_VERIFY_ENDPOINT } : {}),
     ...(process.env.CLEDGER_VERIFY_MODEL ? { model: process.env.CLEDGER_VERIFY_MODEL } : {}),

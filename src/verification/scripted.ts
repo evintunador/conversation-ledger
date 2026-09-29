@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { verifyOpencode, type Options, type Report } from "./opencode.js";
 
-export interface ScriptedOptions { toolName?: string; toolArguments?: Record<string, unknown>; completionText?: string; noToolsCompletionText?: string }
+export interface ScriptedOptions { toolName?: string; toolArguments?: Record<string, unknown>; completionText?: string; noToolsCompletionText?: string; completionPrefix?: string }
 
 /** Deterministic OpenAI-compatible provider, useful with the actual CLI executable. */
 export async function startScriptedProvider(options: ScriptedOptions = {}) {
@@ -19,7 +19,7 @@ export async function startScriptedProvider(options: ScriptedOptions = {}) {
       const tool = [...(data.messages ?? [])].reverse().find(m => m.role === "tool");
       const secret = options.noToolsCompletionText && !data.tools?.length ? options.noToolsCompletionText
         : tool && options.completionText ? options.completionText : JSON.stringify(tool ?? "").match(/file-value-[a-f0-9-]+/)?.[0];
-      const delta = secret ? { content: secret } : { tool_calls: [{ index: 0, id: "call_probe", type: "function", function: {
+      const delta = secret ? { content: tool ? (options.completionPrefix ?? "") + secret : secret } : { tool_calls: [{ index: 0, id: "call_probe", type: "function", function: {
         name: options.toolName ?? "read", arguments: JSON.stringify(options.toolArguments ?? { filePath: "evidence.txt" }),
       } }] };
       if (data.stream !== true) {

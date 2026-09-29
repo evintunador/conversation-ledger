@@ -57,10 +57,11 @@ The aggregate macOS ARM64 headless campaign passed all eighteen implemented
 CLIs. Saved report: docs/verification-evidence/macos-headless-2026-09-29.json.
 Droid's public BYOK path was separately reverified without enterprise startup
 overrides; use the accompanying public-headless report for that qualification.
-Seventeen sources previously passed interactive PTY scenarios individually.
-The final aggregate interactive report recorded fifteen passes, Gemini and
-OpenCode terminal timeouts, and Droid blocked. It is saved temporarily at
-/tmp/cledger-final-interactive-campaign.json; the two timeouts need repair. Cline's
+The latest sixteen-source aggregate recorded fourteen interactive passes and
+OpenHands/Kilo terminal timeouts. Both then passed repaired targeted scenarios;
+the saved repaired reports are in docs/verification-evidence/. Earlier Gemini
+and OpenCode timing failures were also repaired and both passed the first hosted
+macOS/Linux interactive run. Cline's
 interactive welcome flow repeatedly opened the user's browser; its interactive
 check is now deferred in all campaigns, including explicit selections. Cline
 supports direct API credentials and its headless check remains enabled.
@@ -69,8 +70,8 @@ interactive check. Neither deferral is a parser/capture pass.
 Test auth is explicitly opt-in via CLEDGER_VERIFY_DROID_FACTORY_API_KEY; no key,
 account login or subscription purchase occurred. Never ask for keys in chat.
 
-Latest full regression suite: 316 total, 304 pass, 12 explicit opt-in skips,
-zero failures (/tmp/cledger-final-regression.log). Native checks ran separately.
+Latest full regression suite: 323 total, 311 pass, 12 explicit opt-in skips,
+zero failures (/tmp/cledger-current-regression.log). Native checks ran separately.
 Review fixes added heartbeat lock recovery for Continue (proper-lockfile),
 Gemini malformed-container preservation and bounded post-hook tail capture,
 scoped TOML feature configuration, orphan-process cleanup, verification signal
@@ -84,8 +85,18 @@ CLI_RECORD_COVERAGE.md. Full certification remains unclaimed: Linux and complete
 native lifecycle/data-type proof are separate from these read/write smoke tests.
 
 The user chose GitHub Actions if free, otherwise a local Linux VM. This repository
-is public, so standard hosted runners are eligible for free compute. The prepared
-workflow has not run or been pushed. Defer subscription-gated verification; do
+is public, so standard hosted runners are eligible for free compute. Draft PR
+https://github.com/evintunador/conversation-ledger/pull/26 is open from an isolated
+code-only checkout at /tmp/cledger-ci-review/conversation-ledger. Its first hosted
+run (36585306619) recorded nine of twelve headless passes on Linux and eleven on
+macOS; interactive passes were nine of eleven on Linux and ten on macOS.
+Pending Linux diagnoses: Codex missing shell-result evidence, Qwen final capture,
+and Cline version-probe failure. Qwen's bounded final-write worker and clearer
+Codex/Cline diagnostics are prepared; Cline's fresh local install passes. Copilot
+trust setup and Continue terminal submission were repaired and passed locally.
+The next workflow provisions all eighteen runtimes, requiring eighteen headless
+and sixteen non-deferred interactive passes. Source changes in this original checkout remain
+uncommitted. Defer subscription-gated verification; do
 not repeat login/browser flows or ask the user to purchase plans for these checks.
 
 The recreated agents finished source work; root is consolidating evidence.
@@ -98,12 +109,15 @@ checked after the user's browser interruption report.
 concrete proposed runtime source, optionally provisions/verifies candidates in
 isolated prefixes. Candidate runs ignore baseline binary overrides. Campaign
 state enforces fourteen days and retains baseline reports on candidate failure.
-Non-npm products have release observations but still need portable automated
-runtime recipes. A portable scheduler generator now produces reviewed launchd/systemd artifacts
+Non-npm products have release observations and portable pinned runtime recipes
+in native-runtimes.ts, verified separately from automatic version promotion.
+Fresh locked Aider/OpenHands native checks and Crush download/hash/version probes
+passed locally; fresh Goose/Open Interpreter/Droid recipe execution awaits hosted CI.
+A portable scheduler generator now produces reviewed launchd/systemd artifacts
 and a credential-isolated runner. Machine-specific files are in scheduler-review/
 (gitignored), with intended persistent runtimes explicitly unprovisioned.
 Nothing is installed or enabled. No hosted repair PR bot, paid inference,
-auto-merge, commit or push has been enabled. Review proposals remain local.
+auto-merge, automatic commit or automatic push has been enabled. Review proposals remain local.
 Runtime provisioning and scheduler deployment remain necessary before an
 actual automatic schedule is operational.
 

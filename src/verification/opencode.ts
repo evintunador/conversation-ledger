@@ -100,7 +100,7 @@ export async function verifyOpencode(options: Options): Promise<Report> {
       report.exclusions = report.exclusions.filter(x => x !== "interactive TUI");
       // OpenCode/OpenTUI stalls after this minimal terminal's capability replies.
       // Let its native bounded capability fallback choose the terminal features.
-      const terminal = await runPty("opencode", [], { cwd: repo, env, answerTerminalQueries: false, timeoutMs: options.timeoutMs ?? 60000, actions: [
+      const terminal = await runPty("opencode", [], { cwd: repo, env, answerTerminalQueries: false, timeoutMs: options.timeoutMs ?? 120000, actions: [
         { waitFor: "Ask anything|Ask a question|Build", send: `${prompt}\r` },
         { waitFor: secret, send: "/exit\r" },
       ] });

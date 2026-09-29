@@ -260,6 +260,15 @@ authentication, which the maintainer deferred. Subscription-gated checks should
 remain deferred. Prior individual Cline PTY evidence does not establish reliable
 unattended interactive verification.
 
+The repaired local scenarios passed for
+[Qwen headless](verification-evidence/macos-repaired-qwen-code-headless-2026-09-29.json),
+[Cline headless](verification-evidence/macos-repaired-cline-headless-2026-09-29.json),
+[Copilot interactive](verification-evidence/macos-repaired-copilot-interactive-2026-09-29.json),
+[Continue interactive](verification-evidence/macos-repaired-continue-interactive-2026-09-29.json),
+[Kilo interactive](verification-evidence/macos-repaired-kilo-interactive-2026-09-29.json), and
+[OpenHands interactive](verification-evidence/macos-repaired-openhands-interactive-2026-09-29.json).
+These are individual macOS runs; hosted Linux qualification remains separate.
+
 The PTY runner uses Python3 on macOS/Linux, disposable terminal sessions, bounded
 output/deadlines and process-group cleanup. Its input timing separates pasted text
 from Enter; it never attaches to your real terminal. Proof and exclusions remain
@@ -286,12 +295,13 @@ temporary proof installations are deliberately excluded. No periodic job or
 auto-merge has been enabled. Maintenance produces local review proposals and
 candidate evidence; opening/merging hosted PRs is not implemented yet.
 
-Linux has no recorded native pass yet. The prepared GitHub workflow needs to be
-run, or a Linux machine/VM supplied. These pending environment requirements must
+Linux has no recorded native pass yet. The GitHub workflow is running on the
+[draft review PR](https://github.com/evintunador/conversation-ledger/pull/26).
+These pending environment requirements must
 not be converted into inferred passes from macOS or parser fixtures.
 
 
-Final regression checkpoint: 316 tests, 304 passed, 12 explicitly skipped native
+Final regression checkpoint: 323 tests, 311 passed, 12 explicitly skipped native
 opt-ins, zero failures. Separate actual CLI runs provide the native reports;
 skipped opt-ins are not presented as executable proof. The private project ledger
 and normal user CLI configuration were not used as test fixtures.

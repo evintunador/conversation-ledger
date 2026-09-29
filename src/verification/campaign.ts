@@ -97,7 +97,10 @@ export async function runCampaign(upstream = false, runtimeDirectory?: string, s
     const recipe = PINNED_NPM_RUNTIMES.find(r => r.cli === cli);
     const binary = (ignoreBinaryOverrides ? undefined : process.env[`CLEDGER_VERIFY_${cli.replaceAll("-", "_").toUpperCase()}_BINARY`]) ??
       (runtimeDirectory && recipe ? runtimeBinary(runtimeDirectory, recipe.cli, recipe.binary) : undefined);
-    nativeReports.push(await safely<{ cli: string; status: string }>(cli, () => driver({ ...(binary ? { binary } : {}), ...(mode === "interactive" ? { interactive: true } : {}) })));
+    process.stderr.write(`Verifying ${cli} (${mode})...\n`);
+    const report = await safely<{ cli: string; status: string }>(cli, () => driver({ ...(binary ? { binary } : {}), ...(mode === "interactive" ? { interactive: true } : {}) }));
+    nativeReports.push(report);
+    process.stderr.write(`${cli} (${mode}): ${report.status}\n`);
   }
   return {
     schema: "cledger-campaign/1", started, completed: new Date().toISOString(),
