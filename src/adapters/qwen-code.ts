@@ -27,7 +27,7 @@ import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import { packageVersion, readCursor, writeCursor } from "./common.js";
-import { convertParts, isEmptyParts } from "./genai-parts.js";
+import { convertParts, isEmptyParts, partIssues } from "./genai-parts.js";
 import {
   countUnrecognized,
   mergeCaptureResult,
@@ -468,6 +468,7 @@ export function renormalizeUnrecognized(
 ): EventDraft | null {
   if (!event.raw || event.stream === undefined) return null;
   const line = event.raw.data as QwenTranscriptLine;
+  if (partIssues(line?.message?.parts).length) return null;
   const sessionId = event.producer.session_id ?? "";
   const parentId = event.stream.parent?.replace(/^qwen-code:/, "");
   const version = packageVersion();
@@ -552,6 +553,13 @@ async function captureTranscriptFile(
       countUnrecognized(result.unrecognized, type);
       drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version, parentId));
       continue;
+    }
+    const issues = partIssues(parsed.message?.parts);
+    if (issues.length) {
+      const occurredAt = typeof parsed.timestamp === "string" ? parsed.timestamp : firstTimestamp(lines) ?? (await sessionMtime(transcriptPath));
+      const driftType = "message/parts";
+      countUnrecognized(result.unrecognized, driftType);
+      drafts.push(preserve(driftType, parsed, occurredAt, i, sessionId, version, parentId));
     }
     const draft = convertLine(parsed, i, version, identity, sessionId, parentId);
     if (draft) drafts.push(draft);

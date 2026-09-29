@@ -5,27 +5,128 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   installClaudeCode,
+  installCodex,
+  installOpenInterpreter,
   installGeminiCli,
   installOpencode,
   installQwenCode,
+  installPi,
+  installMistralVibe,
+  installCopilot,
+  installKimi,
+  installGoose,
+  installDroid,
 } from "../install.js";
 
-/**
- * `os.homedir()` reads $HOME on POSIX, which is the only seam these functions
- * offer — they write to fixed paths under the user's home by design.
- */
+/** Neither default nor overridden roots may point at real user configuration. */
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
   const home = await mkdtemp(join(tmpdir(), "cledger-install-"));
-  const previous = process.env["HOME"];
+  const keys = ["HOME", "INTERPRETER_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "PI_CODING_AGENT_DIR", "GEMINI_CLI_HOME", "VIBE_HOME", "COPILOT_HOME", "KIMI_CODE_HOME", "GOOSE_PATH_ROOT", "FACTORY_HOME_OVERRIDE"];
+  const previous = new Map(keys.map(key => [key, process.env[key]]));
+  for (const key of keys) delete process.env[key];
   process.env["HOME"] = home;
   try {
     return await fn(home);
   } finally {
-    if (previous === undefined) delete process.env["HOME"];
-    else process.env["HOME"] = previous;
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
     await rm(home, { recursive: true, force: true });
   }
 }
+
+test("install: Claude and Codex use their configured roots without changing default config", async () => {
+  await withTempHome(async (home) => {
+    const claudeRoot = join(home, "isolated claude");
+    const codexRoot = join(home, "isolated codex");
+    process.env["CLAUDE_CONFIG_DIR"] = claudeRoot;
+    process.env["CODEX_HOME"] = codexRoot;
+    await mkdir(join(home, ".claude"), { recursive: true });
+    await mkdir(join(home, ".codex"), { recursive: true });
+    const originalClaude = '{"theme":"dark"}\n';
+    const originalCodex = 'model = "existing-model"\n';
+    await writeFile(join(home, ".claude", "settings.json"), originalClaude);
+    await writeFile(join(home, ".codex", "config.toml"), originalCodex);
+
+    await installClaudeCode();
+    await installCodex();
+    assert.equal(await hookTimeout(join(claudeRoot, "settings.json"), "Stop"), 120);
+    assert.match(await readFile(join(codexRoot, "config.toml"), "utf8"), /hook codex/);
+    assert.equal(await readFile(join(home, ".claude", "settings.json"), "utf8"), originalClaude);
+    assert.equal(await readFile(join(home, ".codex", "config.toml"), "utf8"), originalCodex);
+    assert.match(await installClaudeCode(), /already installed/);
+    assert.match(await installCodex(), /already installed/);
+  });
+});
+
+test("new native installers preserve other configuration, honor roots and reinstall idempotently", async () => {
+  await withTempHome(async (home) => {
+    const vibe = join(home, "vibe"), kimi = join(home, "kimi"), copilot = join(home, "copilot");
+    process.env["VIBE_HOME"] = vibe;
+    process.env["KIMI_CODE_HOME"] = kimi;
+    process.env["COPILOT_HOME"] = copilot;
+    process.env["GEMINI_CLI_HOME"] = join(home, "gemini-parent");
+    await Promise.all([vibe, kimi, join(copilot, "hooks")].map(path => mkdir(path, { recursive: true })));
+    const otherHook = '[[hooks]]\nname = "other"\ntype = "post_agent"\ncommand = "echo preserved"\n';
+    const kimiConfig = 'default_model = "existing"\n[providers.existing]\nbase_url = "https://example.invalid/v1"\n';
+    await writeFile(join(vibe, "hooks.toml"), otherHook);
+    await writeFile(join(kimi, "config.toml"), kimiConfig);
+    await writeFile(join(copilot, "hooks", "other.json"), '{"version":1}\n');
+    await installMistralVibe(); await installKimi(); await installCopilot(); await installGeminiCli();
+    const vibeHooks = await readFile(join(vibe, "hooks.toml"), "utf8");
+    assert.ok(vibeHooks.startsWith(otherHook));
+    assert.equal((vibeHooks.match(/type = "post_agent"/g) ?? []).length, 2);
+    const kimiHooks = await readFile(join(kimi, "config.toml"), "utf8");
+    assert.ok(kimiHooks.startsWith(kimiConfig));
+    assert.equal((kimiHooks.match(/\[\[hooks\]\]/g) ?? []).length, 4);
+    assert.ok(!kimiHooks.includes('name = "conversation-ledger"'), "Kimi rejects extra hook fields");
+    const copilotHooks = JSON.parse(await readFile(join(copilot, "hooks", "cledger.json"), "utf8"));
+    assert.equal(copilotHooks.version, 1);
+    assert.equal(copilotHooks.hooks.sessionEnd[0].args.at(-1), "--session-end");
+    assert.equal(copilotHooks.hooks.agentStop[0].exec, process.execPath);
+    assert.deepEqual(copilotHooks.hooks.agentStop[0].args.slice(-2), ["hook", "copilot"]);
+    assert.equal(await readFile(join(copilot, "hooks", "other.json"), "utf8"), '{"version":1}\n');
+    assert.equal(await hookTimeout(join(home, "gemini-parent", ".gemini", "settings.json"), "AfterAgent"), 120000);
+    for (const install of [installMistralVibe, installKimi, installCopilot]) assert.match(await install(), /already installed/);
+    await writeFile(join(kimi, "config.toml"), kimiHooks.replace("# <<< conversation-ledger kimi", ""));
+    await assert.rejects(installKimi, /incomplete managed block/);
+    assert.equal(await readFile(join(kimi, "config.toml"), "utf8"), kimiHooks.replace("# <<< conversation-ledger kimi", ""));
+  });
+});
+
+test("Pi extension awaits native lifecycle capture and honors its configured root", async () => {
+  await withTempHome(async (home) => {
+    const originalPath = process.env.PATH;
+    try {
+      const bin = join(home, "bin");
+      const agentRoot = join(home, "pi agent");
+      const payloads = join(home, "payloads.jsonl");
+      await mkdir(bin);
+      await writeFile(join(bin, "cledger"), `#!${process.execPath}\nif(process.argv[2]==="--version") process.exit(0);\nlet input="";process.stdin.on("data",b=>input+=b);process.stdin.on("end",()=>require("node:fs").appendFileSync(${JSON.stringify(payloads)},input+"\\n"));\n`, { mode: 0o755 });
+      process.env.PATH = `${bin}:${originalPath ?? ""}`;
+      process.env["PI_CODING_AGENT_DIR"] = agentRoot;
+      await installPi();
+      const body = await readFile(join(agentRoot, "extensions", "cledger.ts"), "utf8");
+      type Handler = (event: unknown, context: { cwd: string; sessionManager: { getSessionFile(): string | undefined } }) => Promise<void>;
+      const handlers = new Map<string, Handler>();
+      const extension = await import(`data:text/javascript;base64,${Buffer.from(body).toString("base64")}`);
+      extension.default({ on: (name: string, handler: Handler) => handlers.set(name, handler) });
+      assert.ok(handlers.has("agent_end"));
+      assert.ok(handlers.has("agent_settled"));
+      assert.ok(handlers.has("session_shutdown"));
+      const transcript = join(home, "session with ' quotes.jsonl");
+      const context = { cwd: home, sessionManager: { getSessionFile: () => transcript } };
+      await Promise.all([handlers.get("agent_end")!({}, context), handlers.get("session_shutdown")!({}, context)]);
+      await handlers.get("agent_settled")!({}, { cwd: home, sessionManager: { getSessionFile: () => undefined } });
+      const lines = (await readFile(payloads, "utf8")).trim().split("\n").map(s => JSON.parse(s));
+      assert.deepEqual(lines, [{ transcript_path: transcript, cwd: home }, { transcript_path: transcript, cwd: home }]);
+      assert.match(await installPi(), /already installed/);
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+    }
+  });
+});
 
 async function hookTimeout(path: string, event: string): Promise<number | undefined> {
   const settings = JSON.parse(await readFile(path, "utf8")) as {
@@ -253,6 +354,86 @@ test("install: the opencode plugin visibly warns only when it must discover a se
       else process.env["XDG_CONFIG_HOME"] = originalConfigHome;
       if (originalPath === undefined) delete process.env.PATH;
       else process.env.PATH = originalPath;
+    }
+  });
+});
+
+
+test("Goose user plugin uses its isolated root and keeps neighboring plugins", async () => {
+  await withTempHome(async home => {
+    process.env.GOOSE_PATH_ROOT = join(home, "goose root");
+    const plugins = join(process.env.GOOSE_PATH_ROOT, ".agents", "plugins");
+    await mkdir(plugins, { recursive: true });
+    await writeFile(join(plugins, "neighbor.txt"), "unchanged");
+    await installGoose();
+    const hooks = JSON.parse(await readFile(join(plugins, "conversation-ledger", "hooks", "hooks.json"), "utf8"));
+    assert.ok(hooks.hooks.Stop[0].hooks[0].command.includes("hook goose"));
+    assert.ok(hooks.hooks.SessionEnd[0].hooks[0].command.includes("hook goose"));
+    assert.equal(await readFile(join(plugins, "neighbor.txt"), "utf8"), "unchanged");
+    assert.match(await installGoose(), /already installed/);
+  });
+});
+
+
+test("Droid preserves unrelated hooks and uses Factory's direct event map", async () => {
+  await withTempHome(async home => {
+    const root = join(home, "factory parent"); process.env.FACTORY_HOME_OVERRIDE = root;
+    const path = join(root, ".factory", "hooks.json"); await mkdir(join(root, ".factory"), { recursive: true });
+    const other = { hooks: [{ type: "command", command: "echo unrelated" }] };
+    await writeFile(path, JSON.stringify({ Stop: [other] }));
+    await installDroid();
+    const config = JSON.parse(await readFile(path, "utf8"));
+    assert.equal(config.hooks, undefined);
+    assert.deepEqual(config.Stop[0], other);
+    assert.ok(config.SessionEnd[0].hooks[0].command.includes("hook droid"));
+    assert.match(await installDroid(), /already installed/);
+  });
+});
+
+
+test("rollout hook installers enable only their scoped features and retain neighboring settings", async () => {
+  await withTempHome(async home => {
+    for (const [source, installer, directory] of [["codex", installCodex, ".codex"], ["open-interpreter", installOpenInterpreter, ".openinterpreter"]] as const) {
+      const path = join(home, directory, "config.toml");
+      await mkdir(join(home, directory), { recursive: true });
+      const original = 'model = "TESTONLY-model"\n[other]\nhooks = true\n[features] # retained comment\nparallel = true\nhooks = false # explicit old setting\n[neighbor]\nvalue = "retained"\n';
+      await writeFile(path, original);
+      await installer();
+      const text = await readFile(path, "utf8");
+      assert.ok(text.includes('[features] # retained comment\nparallel = true\nhooks = true # explicit old setting'));
+      assert.ok(text.includes('[neighbor]\nvalue = "retained"'));
+      assert.ok(text.includes(`hook ${source}`));
+      assert.match(await installer(), /already installed/);
+      assert.equal(await readFile(path, "utf8"), text);
+      await writeFile(path, '[features]');
+      await installer();
+      assert.equal(((await readFile(path, "utf8")).match(/\[features\]/g) ?? []).length, 1);
+      assert.match(await readFile(path, "utf8"), /\[features\]\nhooks = true/);
+    }
+  });
+});
+
+test("rollout installers distinguish root dotted features from neighboring table keys", async () => {
+  await withTempHome(async home => {
+    for (const [installer, directory] of [[installCodex, ".codex"], [installOpenInterpreter, ".openinterpreter"]] as const) {
+      const path = join(home, directory, "config.toml"); await mkdir(join(home, directory), { recursive: true });
+      const neighbor = '[other]\nfeatures.hooks = false\n';
+      await writeFile(path, neighbor); await installer();
+      const installed = await readFile(path, "utf8");
+      assert.ok(installed.startsWith(neighbor)); assert.match(installed, /\[features\]\nhooks = true/);
+      assert.match(await installer(), /already installed/);
+      for (const root of ['features.hooks = false # TESTONLY\n', 'features.parallel = true\n']) {
+        await writeFile(path, root + neighbor); await installer();
+        const text = await readFile(path, "utf8");
+        assert.match(text.split('[other]')[0]!, /features.hooks = true/);
+        assert.ok(text.includes(neighbor)); assert.doesNotMatch(text, /\[features\]/);
+        assert.match(await installer(), /already installed/);
+      }
+      for (const unsupported of ['features.hooks = "false"\n', '[features]\nhooks = "false"\n', 'features = { hooks = false }\n', '["features"]\nhooks = false\n']) {
+        await writeFile(path, unsupported);
+        await assert.rejects(installer(), /features/);
+        assert.equal(await readFile(path, "utf8"), unsupported, "unsupported config stays untouched");
+      }
     }
   });
 });

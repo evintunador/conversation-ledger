@@ -85,6 +85,7 @@ export const SESSION_MACHINERY_KINDS = new Set<string>([
 ]);
 
 import * as A from "annals";
+import { applyAttachmentPolicy } from "./attachments.js";
 
 export { SCHEMA_VERSION } from "annals";
 export type {
@@ -180,11 +181,11 @@ export function fromAnnals(event: A.EvidenceEvent): EvidenceEvent {
 }
 
 export function eventId(draft: EventDraft): string {
-  return A.eventId(toAnnals(draft));
+  return A.eventId(toAnnals(applyAttachmentPolicy(draft)));
 }
 
 export function finalizeEvent(draft: EventDraft, now?: Date): EvidenceEvent {
-  return fromAnnals(A.finalizeEvent(toAnnals(draft), now));
+  return fromAnnals(A.finalizeEvent(toAnnals(applyAttachmentPolicy(draft)), now));
 }
 
 export function validateEvent(event: EvidenceEvent): string[] {

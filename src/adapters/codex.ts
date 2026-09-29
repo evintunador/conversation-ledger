@@ -70,7 +70,7 @@ const SESSION_STATE_LINE_TYPES = new Set(["session_meta", "turn_context", "world
  * anyway: it is the only record of *what the model could still see* after a
  * compaction, which is not recoverable from the turns it summarizes.
  */
-const ACTIVITY_LINE_TYPES = new Set(["compacted", "inter_agent_communication_metadata"]);
+const ACTIVITY_LINE_TYPES = new Set(["compacted", "inter_agent_communication_metadata", "token_usage_record"]);
 
 /**
  * `event_msg` payload types that genuinely duplicate a `response_item` — the
@@ -558,8 +558,12 @@ function convertLine(
 
   if (payloadType === "message") {
     const role = payload["role"];
-    const roleStr = typeof role === "string" ? role : "user";
-    actor = roleStr === "assistant" ? { type: "agent" } : { type: "human" };
+    if (typeof role !== "string" || !role || !Array.isArray(payload["content"])) return null;
+    const roleStr = role;
+    // Only an explicit user role names the human. System/developer/tool and
+    // future roles must not inherit the person's Git identity.
+    actor = roleStr === "assistant" ? { type: "agent" }
+      : roleStr === "user" ? { type: "human" } : { type: "system" };
     if (actor.type === "human") {
       if (identity.email) actor.id = identity.email;
       if (identity.name) actor.display = identity.name;
@@ -659,6 +663,59 @@ export function renormalizeUnrecognized(
     line,
     recordContext(event.occurred_at, event.stream.seq, sessionId, version, agent),
   );
+}
+
+/** Reconstruct every native sibling when older raw records gain support. */
+export function renormalizeUnrecognizedMany(event: EvidenceEvent, identity: GitUserIdentity): EventDraft[] | null {
+  if (!event.raw || !event.stream) return null;
+  const line = event.raw.data as CodexRolloutLine;
+  const sessionId = event.producer.session_id ?? "";
+  const agent: CodexAgentState = {};
+  if (event.producer.source_version) agent.source_version = event.producer.source_version;
+  if (event.producer.model) agent.model = event.producer.model;
+  if (event.producer.provider) agent.provider = event.producer.provider;
+  return normalizeCodexRolloutRecord(line, {
+    ...recordContext(event.occurred_at, event.stream.seq, sessionId, packageVersion(), agent), identity,
+    ...(event.stream.parent ? { parentConversationId: event.stream.parent } : {}),
+  });
+}
+
+/** Pure normalization of the shared Codex-derived rollout schema. The caller
+ * supplies its own source namespace before any append; no source event is
+ * stored or given a ledger identity here. Fork-specific variants stay with
+ * the fork adapter, and unsupported records return null. */
+export function normalizeCodexRolloutRecord(value: unknown, ctx: RecordContext): EventDraft[] | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const line = value as CodexRolloutLine;
+  const occurredAt = typeof line.timestamp === "string" ? line.timestamp : ctx.occurredAt;
+  const agent = ctx.agent ?? {};
+  const drafts: EventDraft[] = [];
+  const seal = (raw: unknown) => reasoningDraft({ line: raw, occurredAt, source: ctx.source, sessionId: ctx.sessionId,
+    seq: ctx.seq, version: ctx.version, rawFormat: ctx.rawFormat, conversationId: ctx.conversationId, agent: { ...agent } });
+  if (line.type === "response_item" && line.payload?.["type"] === "reasoning") {
+    const summary = reasoningSummaryText(line.payload["summary"]);
+    if (summary) drafts.push({ kind: "conversation_turn", occurred_at: occurredAt, actor: { type: "agent" },
+      producer: { tool: "cledger", version: ctx.version, source: ctx.source, session_id: ctx.sessionId, ...agent },
+      stream: { id: ctx.conversationId, seq: ctx.seq },
+      content: { role: "reasoning_summary", blocks: [{ type: "text", text: summary }] } });
+    drafts.push(seal(line));
+  } else {
+    const visible = convertLine(line, ctx.seq, ctx.sessionId, occurredAt, ctx.version, ctx.identity ?? { name: null, email: null }, agent)
+      ?? convertRecordLine(line, { ...ctx, occurredAt });
+    if (!visible) return null;
+    drafts.push(visible);
+    if (line.type === "response_item" && line.payload?.["type"] === "agent_message") {
+      const encrypted = encryptedAgentMessage(line);
+      if (encrypted) drafts.push(seal(encrypted));
+    }
+  }
+  for (const draft of drafts) {
+    draft.producer = { ...draft.producer, source: ctx.source };
+    if (draft.stream) draft.stream = { ...draft.stream, id: ctx.conversationId,
+      ...(ctx.parentConversationId ? { parent: ctx.parentConversationId } : {}) };
+    if (draft.raw) draft.raw = { ...draft.raw, format: ctx.rawFormat };
+  }
+  return drafts;
 }
 
 export async function runCodexHook(stdinJson: string): Promise<void> {
@@ -792,7 +849,13 @@ async function captureCodexTranscriptFile(
       continue;
     }
     const draft = convertLine(parsed, i, sessionId, baseTime, version, identity, agent);
-    if (draft) drafts.push(draft);
+    if (draft) {
+      drafts.push(draft);
+    } else {
+      const typeKey = `response_item/${String(parsed.payload?.["type"])}/invalid-shape`;
+      countUnrecognized(result.unrecognized, typeKey);
+      drafts.push(preserve(typeKey, parsed, occurredAt, i, sessionId, version, agent));
+    }
 
     // An inter-agent message's encrypted blocks ride alongside the visible
     // turn as a sealed sibling at the same seq — the same pairing a reasoning

@@ -53,18 +53,33 @@ npm link
 cledger install all    # hook capture into every supported coding CLI
 ```
 
-`cledger install` adds `Stop`/`SessionEnd` hooks to `~/.claude/settings.json`,
-a `Stop` hook (plus `features.hooks = true`) to `~/.codex/config.toml`, and a
-`session.idle` plugin at `~/.config/opencode/plugin/cledger.js`, backing each
-up first. From then on, every completed turn in any git
-repository is captured automatically, in the same universal format. Capture is
-idempotent — events are content-derived, so re-scanning a transcript never
-duplicates.
+`cledger install <source>` installs native hooks or plugins for Claude Code,
+Codex, OpenCode, Gemini CLI, Qwen Code, Pi, Mistral Vibe, Copilot, Kimi Code,
+Goose, Droid, Cline, OpenHands, Open Interpreter, and Kilo.
+Existing configuration is preserved and changed files are backed up. Config-root
+overrides are honored. Mistral Vibe currently supports its legacy backend;
+Some hooks use a short session-scoped tail worker to capture records written
+after the hook returns. Aider, Continue and Crush require an explicit launch:
+`cledger run <source> -- <native args>`. Aider accepts `--python PATH`; Continue
+and Crush accept `--binary PATH`. Crush also requires compatible SQLite (upstream
+SQLite on macOS). These wrappers observe only the invocation they launch.
+
+The [integration program](docs/CLI_INTEGRATION_PROGRAM.md) tracks the selected
+twenty-CLI roster. Implemented adapters and passing headless smoke checks do not
+mean full market coverage: Linux, interactive use, lifecycle scenarios and each
+native data type have separate acceptance requirements. Agents can run actual
+CLIs against free scripted providers using the [native verification suite](docs/NATIVE_VERIFICATION.md).
+
+New captures retain known text attachment formats and replace embedded binary
+bodies with references containing available locators, hashes and sizes. This
+applies to normalized content and retained raw payloads; it does not purge older
+records. Embedded-only references cannot recover deleted bytes themselves.
+See the [attachment retention policy](docs/NATIVE_VERIFICATION.md#attachment-retention).
 
 Two one-time activation notes: Claude Code reads hooks at session start, so
 capture begins with your next session; Codex requires you to trust new hooks
 interactively — open `codex`, run `/hooks`, and approve the `cledger hook
-codex` command once. Missed turns are never lost either way: `cledger capture
+codex` command once. Retained native sessions can be backfilled: `cledger capture
 <source> --transcript PATH` backfills any native transcript, idempotently
 (for opencode, which has no transcript file, use `cledger capture opencode
 --all` or `--session <id>`; Claude Code, Gemini CLI, and Qwen Code also accept
@@ -219,40 +234,51 @@ a consumer that still has the bytes can prove they are the ones the event means.
 
 ## Adapters
 
-Supported today (built-in, per-turn, triggered by the CLI's own hook or
-plugin mechanism):
+Capture implementations are available for the following sources. Versioned native
+proof, operating-system coverage and exclusions are listed in the
+[native verification guide](docs/NATIVE_VERIFICATION.md). These implementations
+do not imply verified IDE, desktop, cloud or Windows support.
 
-Every captured event records the agent that served it — `producer.model`,
-`producer.provider`, `producer.source_version` — but only where the source
-states it; see the Roadmap entry below for what each adapter does and does
-not know.
+| Source | Automatic capture | Native evidence |
+|---|---|---|
+| Claude Code | Stop / SessionEnd hooks | JSONL turns, state, file history and subagent sessions |
+| Codex | Stop / SessionEnd hooks | Rollout JSONL, visible and sealed reasoning, linked child sessions |
+| Gemini CLI | AfterAgent / SessionEnd plus bounded tail | Conversation mutation log, rewinds, notices and sub-sessions |
+| Qwen Code | Stop / SessionEnd hooks | JSONL messages and native system records |
+| OpenCode | session.idle plugin | Native JSON export, one record per part |
+| Pi | Native extension lifecycle | Session tree, messages, compaction, custom state and attachments |
+| Mistral Vibe | Legacy post-agent hook | Legacy metadata and mutable message snapshots |
+| Copilot | Native lifecycle hooks plus bounded tail | Session event JSONL and persisted shutdown |
+| Kimi | Native hooks plus bounded tail | Agent wire logs and verified agent lineage |
+| Goose | Native plugin hooks | Native session JSON export |
+| Droid | Native hooks plus bounded tail | Session JSONL and settings snapshots |
+| Cline | Native executable hooks plus bounded tail | Task history and terminal manifests |
+| Kilo | session.idle plugin | Native JSON export and message revisions |
+| OpenHands | Native hooks | Persisted SDK events and declared completion logs |
+| Open Interpreter | Stop / SessionEnd hooks | Current Rust rollouts, including compressed archives |
+| Aider | `cledger run aider` | Structured Python IO/model/file recorder |
+| Continue | `cledger run continue` | Native session snapshots and their source order |
+| Crush | `cledger run crush` | Read-only snapshot of six native SQLite session tables |
 
-| Source | Trigger | Transcript store | Notes |
-|---|---|---|---|
-| Claude Code CLI | `Stop`/`SessionEnd` hooks | `~/.claude/projects/*/*.jsonl` | Also covers the VS Code extension and JetBrains plugin (both share `~/.claude/settings.json` hooks and transcripts), and desktop-app local/SSH/WSL sessions. Cloud "Remote" sessions and the Cowork tab run server-side — not captured. Every line type is now recorded: `system` lines that printed text become turns spoken by the system, `attachment` becomes `context_injection`, `mode`/`permission-mode`/`worktree-state`/`pr-link` and friends become `session_state`, `queue-operation` and the rest become `activity`, and `file-history-*` becomes `file_snapshot` with backup digests resolved at capture time. Sidechain (subagent) turns are captured as sub-conversations instead of dropped — including the `<session>/subagents/agent-*.jsonl` sibling files newer Claude Code writes, which the hook payload never names. The hook also sweeps other transcripts in the same project that cledger already has a cursor for and whose file grew past it, which is how a session's final lines get captured at all: the last hook reads to EOF, and Claude Code writes the closing bookkeeping (including the session's most complete file-history snapshot) afterwards. A transcript with no cursor is left alone — it was never cledger's to capture, and adopting it would backfill old conversations against today's HEAD. Run `cledger capture claude-code --all` from the exact directory used to start Claude to adopt those sessions deliberately; it follows Claude's realpath/NFC project naming and verifies each transcript's recorded `cwd` before capture. |
-| Codex CLI | `[[hooks.Stop]]` hooks engine | `~/.codex/sessions/**/rollout-*.jsonl` | Same config + session store is shared by the Codex desktop app and IDE extension, so their local sessions should capture too — but OpenAI has open bugs on the desktop app's config loading, and third-party reports say hooks may not fire from IDE sessions. Treat non-CLI surfaces as best-effort; `cledger capture codex` backfills any rollout file regardless of which surface wrote it. Cloud tasks run server-side — not captured. Provider-encrypted `reasoning` items are preserved opaquely as `reasoning`-kind events (hidden from `log`/`show` by default, see Roadmap); inter-agent messages (`agent_message`) are captured as two events at the same `seq`: the visible turn, and a sealed `reasoning`-kind sibling carrying the embedded `encrypted_content` blocks, so an inter-agent session can still be replayed back through the provider that encrypted it. Sub-agent threads get their own rollout file, indistinguishable by name, and are captured recursively as sub-conversations of the thread that spawned them by following the child thread id in sub-agent activity records (a session is keyed on `session_meta.payload.id`, since a child's `session_id` field names its *parent*). `turn_context` and `session_meta` are now recorded as `session_state` as well as read for `producer` metadata, so the sandbox policy, approval policy and reasoning effort a turn ran under are part of the record. Of the `event_msg` UI stream, only `agent_message`/`user_message` are dropped — they genuinely duplicate a `response_item`; token counts, task lifecycle, sub-agent activity, patch application and aborts have no twin and are recorded as `activity`. |
-| opencode | `session.idle` plugin event | SQLite at `~/.local/share/opencode/opencode.db` | The only adapter without an append-only transcript file. Rather than read opencode's database — whose schema is mid-migration, and which also stores API tokens — capture shells out to `opencode export --pure <id>` and converts its JSON. One event per *part*, not per message: opencode's store is mutable, and a part is the finest unit that stops changing, so a message that gains parts after an early idle appends rather than duplicating. `conversation.seq` and the capture cursor both come from the part id (a 48-bit creation timestamp opencode encodes in it), so deleting a part out of the middle renumbers nothing — a session whose ids opencode did not mint falls back to positional numbering. Unlike Codex, `reasoning` parts are plaintext, so they become ordinary visible `thinking` blocks. Unsettled (`running`) tool calls are skipped and hold the cursor back until they finish. Subagent sessions are captured as their own conversation: opencode records a child's session id in the parent's `task` tool part, which is the only way to find them at all (`opencode session list` returns top-level sessions only), so capture walks them depth-first. Requires `opencode` on `PATH`; `cledger capture opencode --all` backfills every session opencode scopes to the current project, and `--transcript` reads a saved export. |
-| Gemini CLI | `AfterAgent`/`SessionEnd` hooks | `~/.gemini/tmp/<project>/chats/session-*.jsonl` | The session file is append-only but is *not* a transcript: it is a write-ahead log of mutations to one conversation document — `$rewindTo` removals, `$set` metadata patches, whole-document `$set.messages` snapshots, and message upserts keyed by a durable id. Capture replays it with Gemini's own record precedence but deliberately does **not** honour the removals: verified on a live session, Gemini rewrote the document after a failed API call and silently dropped the prompt the user had just typed, so a faithful replay records no trace of it having been asked. The ledger keeps the union of every message the file ever held, each at its last-written value, and records each withdrawal as an `activity` naming the ids it took out — `rewind` for an explicit `$rewindTo`, `snapshot_drop` for a `$set.messages` snapshot that quietly omits what the document used to hold — so a withdrawn turn is legible as withdrawn rather than merely present. Both paths matter: the snapshot is the one the live incident above actually took. Verified against live Gemini CLI 0.54.0 sessions — including one where Gemini **deleted its own session file** after a `/rewind`, leaving the ledger's copy of that conversation the only surviving record of it. `$set` patches become `session_state` (with the message list left out of `raw`, since Gemini rewrites the *whole* conversation into every snapshot and each message is already captured as its own event), `info`/`error`/`warning` notices become turns spoken by the system (Gemini discards them; "quota exceeded" is often the only explanation for why a turn looks abandoned). Because nothing is ever removed, `seq` is assigned at first sighting and never reused, so a rewind cannot renumber later turns — the positional churn the opencode adapter accepts does not arise here. A model turn whose tool calls have not settled is withheld and holds the cursor back. Sub-sessions filed under `<chats>/<parent session id>/` are captured as sub-conversations. Gemini's harness-authored `<session_context>`/`<hook_context>` preambles are recorded but attributed to `system`, not to you. |
-| Qwen Code | `Stop`/`SessionEnd` hooks | `~/.qwen/projects/<escaped-cwd>/chats/<session-id>.jsonl` | A fork of Gemini CLI that did *not* inherit its conversation store: plain append-only JSONL with a claude-code-shaped envelope, so capture is per line with a line-index `seq`, a torn-tail-safe cursor, and the same catch-up sweep claude-code runs. Content is a Google GenAI `Part` list (shared with the Gemini CLI adapter): a `thought` part becomes a visible `thinking` block, `functionCall`/`functionResponse` become `tool_use`/`tool_result`. Everything that is not a turn arrives as a `system` line discriminated by `subtype`, and each maps to a kind: `attribution_snapshot` becomes `file_snapshot` (with per-file content hashes already in the record, so nothing needs resolving against a local cache), `custom_title`/`session_source`/`parent_session`/`goal_state` become `session_state`, `at_command` and the agent-launch prompts become `context_injection`, and everything else — including a subtype a future Qwen adds — becomes `activity` rather than being dropped or guessed at. A `parent_session` record makes a subagent chat a sub-conversation of the session that spawned it — though on Qwen Code 0.21.5 that is **not** how delegation was observed to work: a subagent runs in-process behind an `agent` tool call, writes no chat file of its own and no `parent_session` record, so the ledger stores the delegation as an ordinary `tool_use`/`tool_result` pair in the parent. Nothing about it is lost — the prompt handed to the subagent, its status, terminate reason and a per-tool execution summary all ride in `toolCallResult.resultDisplay` and are preserved in `raw` — but the subagent's own turn-by-turn conversation is never written by Qwen at all, so no adapter can recover it. Assistant lines state the serving model; `provider` is left unset because Qwen records only an *auth mode* (`openai`, `qwen-oauth`), not the inference provider the schema asks for. |
+Agent model, provider and version are attributed only when the source states
+them. Unknown records and unsupported nested parts remain explicit evidence for
+later renormalization, rather than silently disappearing. Text and binary
+retention follow the shared attachment policy.
 
-TODO adapters, roughly in order of how ledger-friendly their storage/hook
-story looks (all have local session stores; most grew Claude-Code-style hook
-systems):
+Native formats also impose limits. Continue does not persist row timestamps or
+durable IDs. Qwen can execute subagents in-process without saving their private
+turns; the available delegation tool call/result remains captured. OpenHands'
+current SDK fails to persist its own SessionEnd hook event after a visualizer
+exception; capture retains the records that exist. Vibe's unified backend and
+historical Python Open Interpreter are outside these adapters' current scope.
+Aider's historical Markdown logs do not establish reliable speaker boundaries.
+The [record coverage audit](docs/CLI_RECORD_COVERAGE.md) distinguishes these
+limitations, fixture coverage and native lifecycle proof.
 
-- **Kimi CLI** — `~/.kimi-code/sessions/**/agents/<agent>/wire.jsonl`, an append-only
-  wire log with a `protocol_version` header, one directory per agent (so subagents are
-  separated at the filesystem level); Claude-Code-inspired lifecycle hooks.
-- **Google Antigravity** — where Google now sends individual users whose Gemini CLI
-  `oauth-personal` sign-in is refused (see the Gemini CLI note below). Unexamined:
-  whether it keeps a local session store worth capturing is unknown, and this list
-  does not guess. If it does, it is a *sibling* of the Gemini CLI adapter rather than
-  a replacement — that CLI is still published, still writes the same format, and is
-  still supported here.
-- **GitHub Copilot CLI** — `~/.copilot/session-state/`; documented hooks dirs.
-- **Factory droid** — `~/.factory/` sessions; `hooks.json`.
-- **Cursor (`cursor-agent` CLI)** — `~/.cursor/chats`; hooks exist, but IDE-side chats live in editor-internal storage.
-- **aider** — plain `.aider.chat.history.md`; no hook mechanism found, would need file watching.
-- **Goose / Amp** — SQLite store / cloud-synced threads; hook stories unclear or absent.
+Cursor and Kiro are the two remaining products in the selected twenty-CLI
+roster. Their authentication and verification findings are in the
+[roster research](docs/CLI_ROSTER_RESEARCH.md). They have no implemented adapter
+or passing native proof here yet.
 
 ## Security & redaction
 

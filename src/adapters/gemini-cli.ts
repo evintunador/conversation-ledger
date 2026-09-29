@@ -53,12 +53,14 @@
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { scheduleTailCapture, runTailCapture } from "./tail.js";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "annals";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import { packageVersion, readCursor, writeCursor } from "./common.js";
-import { convertParts, ensurePartArray, isEmptyParts } from "./genai-parts.js";
+import { convertParts, ensurePartArray, isEmptyParts, partIssues } from "./genai-parts.js";
 import {
   countUnrecognized,
   mergeCaptureResult,
@@ -184,7 +186,7 @@ interface OrderedMutation {
    * "snapshot_drop" for a `$set.messages` snapshot that omitted messages the
    * document previously held.
    */
-  kind: "metadata" | "rewind" | "snapshot_drop";
+  kind: "metadata" | "rewind" | "snapshot_drop" | "unrecognized";
   fields: Record<string, unknown>;
   raw: unknown;
 }
@@ -205,7 +207,7 @@ export interface GeminiSession {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isStringProp(value: unknown, prop: string): boolean {
@@ -231,8 +233,9 @@ export function replaySession(text: string): GeminiSession {
   const mutations: OrderedMutation[] = [];
   let nextSeq = 0;
 
+  const unknown = (raw: unknown, type: string) => mutations.push({ seq: nextSeq++, kind: "unrecognized", fields: { type }, raw });
   const upsert = (candidate: unknown): void => {
-    if (!isStringProp(candidate, "id")) return;
+    if (!isStringProp(candidate, "id")) { unknown(candidate, "snapshot/malformed-message"); return; }
     const message = candidate as GeminiMessage;
     const id = message.id!;
     if (!firstSeen.has(id)) firstSeen.set(id, nextSeq++);
@@ -240,15 +243,17 @@ export function replaySession(text: string): GeminiSession {
     live.add(id);
   };
 
-  for (const line of text.split("\n")) {
+  const lines = text.split("\n");
+  for (const [index, line] of lines.entries()) {
     if (!line.trim()) continue;
     let record: unknown;
     try {
       record = JSON.parse(line);
     } catch {
-      continue; // partial line — normal at the tail of a live session
+      if (index < lines.length - 1) unknown(line, "wal/malformed-json");
+      continue; // only an unterminated malformed tail may still be being written
     }
-    if (!isRecord(record)) continue;
+    if (!isRecord(record)) { unknown(record, "wal/non-object"); continue; }
 
     if (isStringProp(record, "$rewindTo")) {
       const target = record["$rewindTo"] as string;
@@ -274,6 +279,7 @@ export function replaySession(text: string): GeminiSession {
     if (isRecord(record["$set"])) {
       const set = record["$set"] as Record<string, unknown>;
       const stored = withoutMessageList(record);
+      if ("messages" in set && !Array.isArray(set["messages"])) unknown(record, "snapshot/malformed-container");
       if (Array.isArray(set["messages"])) {
         // A snapshot replaces the live document wholesale; anything it omits
         // is dropped from the CLI's view but kept in `seen`. *Which* ids it
@@ -307,6 +313,7 @@ export function replaySession(text: string): GeminiSession {
 
     if (isStringProp(record, "sessionId") && isStringProp(record, "projectHash")) {
       Object.assign(metadata, record);
+      if ("messages" in record && !Array.isArray(record["messages"])) unknown(record, "header/malformed-messages");
       if (Array.isArray(record["messages"])) {
         for (const message of record["messages"]) upsert(message);
       }
@@ -319,7 +326,9 @@ export function replaySession(text: string): GeminiSession {
           raw: withoutMessageList(record),
         });
       }
+      continue;
     }
+    unknown(record, "wal/unknown-record");
   }
 
   const messages = [...seen.entries()]
@@ -368,6 +377,11 @@ function patchFields(record: Record<string, unknown>): Record<string, unknown> {
     if (!MESSAGE_BEARING_KEYS.has(key)) out[key] = value;
   }
   return out;
+}
+
+function malformedMessage(message: GeminiMessage): boolean {
+  return (message.toolCalls !== undefined && (!Array.isArray(message.toolCalls) || !message.toolCalls.every(isRecord))) ||
+    (message.thoughts !== undefined && (!Array.isArray(message.thoughts) || !message.thoughts.every(isRecord)));
 }
 
 /** Whether every tool call on a message has reached a state that cannot change. */
@@ -582,6 +596,7 @@ function convertMessage(
  * motivating case exactly as illegible as it was.
  */
 function convertMutation(mutation: OrderedMutation, ctx: RecordContext): EventDraft {
+  if (mutation.kind === "unrecognized") return unrecognizedDraft({ ...ctx, typeKey: String(mutation.fields.type), line: mutation.raw });
   if (mutation.kind === "rewind" || mutation.kind === "snapshot_drop") {
     // The two withdrawals differ in who performed them, and that is the whole
     // distinction the ledger draws between them: a `$rewindTo` is the person
@@ -638,7 +653,7 @@ export function renormalizeUnrecognized(
 ): EventDraft | null {
   if (!event.raw || event.stream === undefined) return null;
   const message = event.raw.data as GeminiMessage | null;
-  if (!message || typeof message !== "object") return null;
+  if (!message || typeof message !== "object" || malformedMessage(message) || partIssues(message.content).length || partIssues(message.displayContent).length) return null;
   return convertMessage(
     message,
     event.stream.seq,
@@ -711,7 +726,7 @@ async function captureSessionInto(
   if (!sessionId) return result;
 
   const baseTime =
-    session.metadata.startTime ?? session.metadata.lastUpdated ?? new Date().toISOString();
+    session.metadata.startTime ?? "1970-01-01T00:00:00.000Z";
   const version = packageVersion();
   const identity = await gitUserIdentity(repo);
 
@@ -733,7 +748,7 @@ async function captureSessionInto(
   };
 
   for (const mutation of session.mutations) {
-    if (mutation.seq < cursor) continue;
+    if (mutation.kind === "unrecognized") countUnrecognized(result.unrecognized, String(mutation.fields.type));
     const ctx = recordContext(
       baseTime,
       mutation.seq,
@@ -747,8 +762,20 @@ async function captureSessionInto(
   }
 
   for (const { message, seq } of session.messages) {
-    if (seq < cursor) continue;
+    // A settled message can later be replaced under the same native ID.
+    // Replay all current values and let content identity deduplicate them.
     const type = typeof message.type === "string" ? message.type : "(untyped)";
+    const occurred = typeof message.timestamp === "string" ? message.timestamp : baseTime;
+    if (malformedMessage(message)) {
+      countUnrecognized(result.unrecognized, "message/malformed-collections");
+      drafts.push(preserve("message/malformed-collections", message, occurred, seq, sessionId, version, sourceVersion, parentId));
+      continue;
+    }
+    if (partIssues(message.content).length || partIssues(message.displayContent).length) {
+      countUnrecognized(result.unrecognized, "message/parts");
+      drafts.push(preserve("message/parts", message, occurred, seq, sessionId, version, sourceVersion, parentId));
+    }
+
 
     // A message Gemini has already dropped from its live document can never be
     // rewritten, so a tool call left mid-flight on one is settled by
@@ -816,8 +843,9 @@ async function captureSessionFile(
   let text: string;
   try {
     text = await readFile(path, "utf8");
-  } catch {
-    return total; // not written yet
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return total; // not written yet
+    throw error;
   }
   mergeCaptureResult(
     total,
@@ -892,9 +920,10 @@ export async function captureGeminiTranscript(
  * from the basename alone would collide across checkouts.
  */
 export async function geminiProjectChatsDir(cwd: string): Promise<string | null> {
-  const tmpRoot = join(homedir(), ".gemini", "tmp");
+  const configRoot = join(process.env["GEMINI_CLI_HOME"] || homedir(), ".gemini");
+  const tmpRoot = join(configRoot, "tmp");
   try {
-    const raw = await readFile(join(homedir(), ".gemini", "projects.json"), "utf8");
+    const raw = await readFile(join(configRoot, "projects.json"), "utf8");
     const parsed = JSON.parse(raw) as { projects?: Record<string, string> };
     const name = parsed.projects?.[cwd];
     if (typeof name === "string" && name) return join(tmpRoot, name, "chats");
@@ -1008,6 +1037,9 @@ export async function runGeminiHook(stdinJson: string): Promise<void> {
       mergeCaptureResult(total, await captureSessionFile(repo, payload.transcript_path));
     }
     mergeCaptureResult(total, await sweepStaleSessions(repo, cwd, seen));
+    if (payload.transcript_path && ["AfterAgent", "SessionEnd"].includes(payload.hook_event_name ?? "")) {
+      await scheduleTailCapture(payload.transcript_path, cwd, "gemini-cli", fileURLToPath(import.meta.url));
+    }
     process.stderr.write(
       `cledger: gemini-cli +${total.appended} events (${total.deduped} deduped)\n`,
     );
@@ -1017,4 +1049,18 @@ export async function runGeminiHook(stdinJson: string): Promise<void> {
       `cledger: gemini-cli hook error: ${err instanceof Error ? err.message : String(err)}\n`,
     );
   }
+}
+
+
+// Gemini's interactive harness records hook output and final metadata after
+// the hook returns. Observe those writes without holding its hook pipes open.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2] === "--cledger-tail") {
+  const [path, cwd, lock, status] = process.argv.slice(3);
+  if (!path || !cwd || !lock || !status) throw new Error("Missing Gemini tail worker arguments");
+  await runTailCapture(lock, status, "gemini-cli", async () => {
+    const files = [path, ...await subagentSessions(path)];
+    return JSON.stringify(await Promise.all(files.map(async file => {
+      const info = await stat(file); return [file, info.size, info.mtimeMs];
+    })));
+  }, () => captureGeminiTranscript(path, cwd));
 }

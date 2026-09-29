@@ -36,7 +36,7 @@ import {
   warnUnrecognized,
   type CaptureResult,
 } from "./drift.js";
-import { activityDraft, type RecordContext } from "./records.js";
+import { activityDraft, contextInjectionDraft, liftText, recordDraft, type RecordContext } from "./records.js";
 
 const RAW_FORMAT = "opencode-export-json/1";
 
@@ -69,11 +69,12 @@ const CONVERTIBLE_PART_TYPES = new Set(["text", "reasoning", "tool"]);
  * file-history pointers are: "usually already in git" is not "always", and a
  * pointer with provenance beats a hole.
  *
- * Part types opencode's binary references but no session on hand exercises —
- * `file`, `agent`, `snapshot`, `todo` — are still left off every list here.
- * Guessing at their shape would discard content on the first session that used
- * one; leaving them out routes them through the drift path, which preserves
- * them raw, warns, and lets `cledger renormalize` upgrade them later.
+ * Audited against OpenCode v1.18.10 and dev on 2026-09-28:
+ * https://github.com/anomalyco/opencode/blob/v1.18.10/packages/schema/src/v1/session.ts
+ * The Part union has 12 variants. The six non-turn variants beyond these
+ * existing activity types are handled explicitly in convertRecordPart.
+ * There is no `todo` part: tool/todo.ts emits a `todowrite` tool with the list
+ * in its input/output/metadata. Unknown future parts still take the drift path.
  */
 const ACTIVITY_PART_TYPES = new Set(["step-start", "step-finish", "patch"]);
 
@@ -119,6 +120,7 @@ interface OpencodeMessageInfo {
 }
 
 interface OpencodePart {
+  [key: string]: unknown;
   id?: string;
   type?: string;
   messageID?: string;
@@ -134,13 +136,15 @@ interface OpencodePart {
   tokens?: Record<string, unknown>;
   cost?: number;
   state?: {
+    [key: string]: unknown;
     status?: string;
     input?: unknown;
     output?: unknown;
     error?: unknown;
+    attachments?: unknown[];
     time?: { start?: number; end?: number };
   };
-  time?: { start?: number; end?: number };
+  time?: { start?: number; end?: number; created?: number };
 }
 
 interface OpencodeMessage {
@@ -281,6 +285,7 @@ function agentContext(info: OpencodeMessageInfo, sessionVersion?: string): Produ
 function partTime(info: OpencodeMessageInfo, part: OpencodePart, baseTime: string): string {
   return (
     isoFromMs(part.time?.start) ??
+    isoFromMs(part.time?.created) ??
     isoFromMs(part.state?.time?.start) ??
     isoFromMs(info.time?.created) ??
     baseTime
@@ -371,16 +376,6 @@ function rawData(info: OpencodeMessageInfo, part: OpencodePart): unknown {
   return { info, part };
 }
 
-/**
- * True when a part carries nothing a reader would see. Empty text and
- * reasoning parts do occur (a step that produced only a tool call, say), and
- * emitting an event whose only block is an empty string adds a line to
- * `cledger log` that says nothing.
- */
-function isEmptyText(part: OpencodePart): boolean {
-  return typeof part.text !== "string" || part.text.trim() === "";
-}
-
 /** Whether a tool part has reached a state that will not change again. */
 function isSettledTool(part: OpencodePart): boolean {
   const status = part.state?.status;
@@ -402,22 +397,26 @@ function convertPart(
   if (typeof type !== "string" || !CONVERTIBLE_PART_TYPES.has(type)) return null;
 
   const role = typeof info.role === "string" ? info.role : "assistant";
-  const isHuman = role === "user" && type === "text";
+  const isHuman = role === "user" && type === "text" && part["synthetic"] !== true;
 
   const actor: Actor = isHuman ? { type: "human" } : { type: "agent" };
+  if (role === "user" && part["synthetic"] === true) actor.type = "system";
   if (isHuman) {
     if (identity.email) actor.id = identity.email;
     if (identity.name) actor.display = identity.name;
-  } else if (agent.model) {
+  } else if (actor.type === "agent" && agent.model) {
     actor.id = agent.model;
   }
 
   let blocks: unknown[];
   if (type === "text") {
-    if (isEmptyText(part)) return null;
+    // Empty text can separate signed reasoning blocks. Preserve even an
+    // empty/whitespace part; OpenCode's message-v2.ts documents this replay
+    // requirement in v1.18.10 (toModelMessagesEffect).
+    if (typeof part.text !== "string") return null;
     blocks = [{ type: "text", text: part.text }];
   } else if (type === "reasoning") {
-    if (isEmptyText(part)) return null;
+    if (typeof part.text !== "string") return null;
     blocks = [{ type: "thinking", text: part.text }];
   } else {
     // tool: opencode keeps the call and its result on one part, so both
@@ -435,6 +434,7 @@ function convertPart(
     const failed = part.state?.status === "error";
     result["content"] = failed ? (part.state?.error ?? part.state?.output) : part.state?.output;
     if (failed) result["is_error"] = true;
+    if (Array.isArray(part.state?.attachments)) result["attachments"] = part.state.attachments;
     blocks = [call, result];
   }
 
@@ -511,9 +511,24 @@ function recordContext(
  */
 function convertRecordPart(part: OpencodePart, ctx: RecordContext, info: OpencodeMessageInfo): EventDraft | null {
   const type = part.type;
-  if (typeof type !== "string" || !ACTIVITY_PART_TYPES.has(type)) return null;
+  if (typeof type !== "string") return null;
   const { type: _type, ...fields } = part as Record<string, unknown>;
-  return activityDraft(ctx, type, fields, rawData(info, part), "agent");
+  const raw = rawData(info, part);
+  if (ACTIVITY_PART_TYPES.has(type)) return activityDraft(ctx, type, fields, raw, "agent");
+  if (type === "file" || type === "agent") {
+    // FilePart names an attachment; AgentPart names an @agent reference,
+    // not a child conversation. Keep source spans/URIs verbatim. Binary
+    // payload policy is applied centrally before events are persisted.
+    return contextInjectionDraft(ctx, type, fields, raw, info.role === "user" ? "human" : "system");
+  }
+  if (type === "snapshot") {
+    // The source names a snapshot-store ref, not a set of file paths. An
+    // empty `files` array would falsely claim the snapshot contains no files.
+    return recordDraft(ctx, "file_snapshot", "system", { ...fields, operation: "snapshot" }, raw);
+  }
+  if (type === "subtask") return activityDraft(ctx, type, liftText(fields, "prompt"), raw);
+  if (type === "retry" || type === "compaction") return activityDraft(ctx, type, fields, raw);
+  return null;
 }
 
 /** Raw-only preservation event for an unrecognized opencode part (see drift.ts). */
@@ -591,7 +606,7 @@ export function renormalizeUnrecognized(
   if (turn) return turn;
   return convertRecordPart(
     stored.part,
-    recordContext(event.occurred_at, event.stream.seq, sessionId, parentId, version, agent),
+    { ...recordContext(event.occurred_at, event.stream.seq, sessionId, parentId, version, agent), identity },
     info,
   );
 }
@@ -666,7 +681,7 @@ export async function captureOpencodeExport(
 
     if (!CONVERTIBLE_PART_TYPES.has(type)) {
       const occurredAt = partTime(info, part, baseTime);
-      const ctx = recordContext(occurredAt, seq, sessionId, parentId, version, agent);
+      const ctx = { ...recordContext(occurredAt, seq, sessionId, parentId, version, agent), identity };
       const record = convertRecordPart(part, ctx, info);
       if (record) {
         drafts.push(record);
@@ -690,6 +705,11 @@ export async function captureOpencodeExport(
 
     const draft = convertPart(info, part, seq, sessionId, baseTime, version, identity, agent, parentId);
     if (draft) drafts.push(draft);
+    else {
+      const typeKey = `${type}/invalid-shape`;
+      countUnrecognized(result.unrecognized, typeKey);
+      drafts.push(preserve(typeKey, info, part, partTime(info, part, baseTime), seq, sessionId, version, agent, parentId));
+    }
   }
 
   if (drafts.length > 0) {

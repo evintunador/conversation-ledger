@@ -240,3 +240,34 @@ test("renormalize: a preserved non-turn line becomes its record kind, matching a
     await cleanupDir(transcriptDir);
   }
 });
+
+test("renormalize persists every sibling before superseding a preserved Codex record", async () => {
+  const repo = await makeTempRepo("cledger-renorm-siblings-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-renorm-siblings-tx-"));
+  try {
+    await makeCommit(repo, "init");
+    const line = { type: "response_item", timestamp: "2026-01-01T00:00:01.000Z", payload: {
+      type: "agent_message", author: "/root", recipient: "/root/child", content: [
+        { type: "input_text", text: "TESTONLY-visible task" },
+        { type: "encrypted_content", encrypted_content: "TESTONLY-opaque-ciphertext" },
+      ],
+    } };
+    await appendEvents(repo, [unrecognizedDraft({ typeKey: "response_item/agent_message", line,
+      occurredAt: line.timestamp, source: "codex", sessionId: CX_SESSION, seq: 1,
+      version: "0.0.0-blind", rawFormat: "codex-rollout-jsonl/2", conversationId: `codex:${CX_SESSION}` })]);
+    const result = await renormalize(repo);
+    assert.equal(result.turnsAppended, 2);
+    assert.equal(result.supersessionsAppended, 1);
+    const events = await readEvents(repo);
+    const interpreted = events.filter(e => e.kind === "conversation_turn" || e.kind === "reasoning");
+    const supersession = events.find(e => e.kind === "supersession")!;
+    assert.deepEqual((supersession.content as { by_all: string[] }).by_all.sort(), interpreted.map(e => e.id).sort());
+    const path = join(dir, "rollout-2026-01-01T00-00-00-renorm.jsonl");
+    await writeFile(path, [
+      { type: "session_meta", payload: { session_id: CX_SESSION } }, line,
+    ].map(l => JSON.stringify(l)).join("\n") + "\n");
+    await captureCodexTranscript(path, repo.root);
+    assert.equal((await readEvents(repo)).filter(e => e.kind === "conversation_turn" || e.kind === "reasoning").length, 2);
+    assert.equal((await renormalize(repo)).scanned, 0);
+  } finally { await cleanupRepo(repo); await cleanupDir(dir); }
+});

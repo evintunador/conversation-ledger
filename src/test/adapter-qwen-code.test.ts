@@ -505,3 +505,21 @@ test("qwen-code capture: empty-part turns produce no event", async () => {
     await cleanupRepo(repo);
   }
 });
+
+test("qwen preserves unknown nested parts as explicit replayable drift", async () => {
+  const repo = await makeTempRepo();
+  const line = { type: "assistant", timestamp: "2026-09-29T00:00:00Z", sessionId: SESSION_ID,
+    model: "TESTONLY-model", message: { role: "model", parts: [{ text: "known" }, null, { futurePart: "TESTONLY-original" }] } };
+  const { dir, path } = await writeTranscript([line]);
+  try {
+    await makeCommit(repo);
+    const result = await captureQwenTranscript(path, repo.root);
+    assert.equal(result.unrecognized["message/parts"], 1);
+    const events = await readEvents(repo);
+    const unknown = events.find(event => event.kind === "unrecognized")!;
+    assert.ok(unknown);
+    assert.deepEqual(unknown.raw?.data, line);
+    assert.equal(renormalizeUnrecognized(unknown, await gitUserIdentity(repo)), null);
+    assert.match(JSON.stringify(events.find(event => event.kind === "conversation_turn")?.content), /TESTONLY-original/);
+  } finally { await cleanupRepo(repo); await rm(dir, { recursive: true, force: true }); }
+});
