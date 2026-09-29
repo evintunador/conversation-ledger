@@ -50,7 +50,7 @@ test("Codex verification reports unavailable executable as blocked without start
 });
 
 test("Codex Responses fixture derives its answer only from a native tool result and rejects failed reads", async () => {
-  const provider = await startScriptedResponsesProvider();
+  const provider = await startScriptedResponsesProvider({ completionPrefix: "TESTONLY_OK " });
   try {
     const request = (input: unknown[]) => fetch(`${provider.endpoint}/responses`, { method: "POST",
       headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input,
@@ -61,7 +61,7 @@ test("Codex Responses fixture derives its answer only from a native tool result 
     assert.match(call, /cat evidence.txt/);
     assert.doesNotMatch(call, /file-value-aaa/);
     const answered = await request([{ type: "function_call_output", call_id: "call_probe", output: "file-value-bbb" }]);
-    assert.match(await answered.text(), /file-value-bbb/);
+    assert.match(await answered.text(), /TESTONLY_OK file-value-bbb/);
     const failed = await request([{ type: "function_call_output", call_id: "call_probe", output: "read permission denied" }]);
     assert.equal(failed.status, 400);
     assert.equal(provider.signal.aborted, true);

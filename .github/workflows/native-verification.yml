@@ -38,11 +38,12 @@ jobs:
       - name: Install SQLite (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y sqlite3
-      - name: Report Linux sandbox prerequisites
+      - name: Enable native CLI sandboxes on the disposable Linux runner
         if: runner.os == 'Linux'
         run: |
-          unshare --user --map-root-user true || true
-          sysctl kernel.apparmor_restrict_unprivileged_userns || true
+          # One-boot setting on this disposable VM; CLI read-only sandboxes stay enabled.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          unshare --user --map-root-user true
       - name: Install upstream SQLite (macOS)
         if: runner.os == 'macOS'
         run: brew install sqlite

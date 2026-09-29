@@ -1,0 +1,42 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "goose",
+  "status": "pass",
+  "certification": "native-smoke",
+  "inference": "scripted",
+  "platform": "darwin/arm64",
+  "gates": {
+    "installedHook": true,
+    "interactiveTerminal": true,
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "nativeSessionState": true,
+    "scriptedRequests": true,
+    "agentHeader": true,
+    "backfillIdempotent": true
+  },
+  "coverage": [
+    "installed native Stop + SessionEnd plugin hooks",
+    "interactive PTY terminal input",
+    "human prompt",
+    "tool call/result linkage",
+    "assistant answer",
+    "session header",
+    "backfill idempotency"
+  ],
+  "exclusions": [
+    "real provider/model behavior",
+    "attachments",
+    "branching/forks",
+    "compaction",
+    "full record coverage",
+    "ephemeral sessions"
+  ],
+  "durationMs": 3956,
+  "mode": "interactive",
+  "version": "1.52.0",
+  "requests": 2
+}

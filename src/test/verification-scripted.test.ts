@@ -21,6 +21,8 @@ test("optional auxiliary title response cannot replace tool execution and answer
     assert.equal(answer.choices[0]!.message.content, "TESTONLY-answer-complete file-value-0123-abcd");
     assert.ok(!JSON.stringify(call).includes("TESTONLY-answer-complete"));
     assert.ok(!JSON.stringify(title).includes("TESTONLY-answer-complete"));
-    assert.equal(server.state.requests, 3);
+    const titleWithHistory = await request({ stream: false, messages: [{ role: "tool", content: "file-value-0123-abcd" }, { role: "user", content: "Give this session a title" }] });
+    assert.equal(titleWithHistory.choices[0]!.message.content, "Fixture title");
+    assert.equal(server.state.requests, 4);
   } finally { await server.close(); }
 });

@@ -31,7 +31,7 @@ export interface CodexVerificationReport {
 
 /** Minimal deterministic Responses transport: emit one real shell read, then
  * answer solely from the resulting tool output. No upstream forwarding exists. */
-export async function startScriptedResponsesProvider(): Promise<{
+export async function startScriptedResponsesProvider(options: { completionPrefix?: string } = {}): Promise<{
   state: { requests: number; blocked?: string }; endpoint: string; signal: AbortSignal; close(): Promise<void>;
 }> {
   const state: { requests: number; blocked?: string } = { requests: 0 };
@@ -64,7 +64,7 @@ export async function startScriptedResponsesProvider(): Promise<{
       const name = ["exec_command", "shell_command", "shell"].find((candidate) => names.includes(candidate));
       const titleRequest = names.length === 0 && data.text?.format?.schema?.required?.includes("title") === true &&
         JSON.stringify(data.input).includes("Generate a concise, single-line task title");
-      const answer = titleRequest ? JSON.stringify({ title: "Read fixture file" }) : secret;
+      const answer = titleRequest ? JSON.stringify({ title: "Read fixture file" }) : secret ? (options.completionPrefix ?? "") + secret : undefined;
       if (!answer && !name) { reject("No supported shell tool in native Responses request"); return; }
       if (tool && !secret) {
         // This provider only serves disposable verification sessions. Keep the
@@ -186,7 +186,7 @@ export async function verifyScriptedCodex(options: CodexVerificationOptions = {}
     await writeFile(join(repo, "evidence.txt"), secret + "\n");
     await checked("git", ["add", "."]);
     await checked("git", ["commit", "--quiet", "-m", "isolated Codex verification"]);
-    provider = await startScriptedResponsesProvider();
+    provider = await startScriptedResponsesProvider(options.interactive ? { completionPrefix: "TESTONLY_OK " } : {});
     // Official custom Responses provider, confined to the loopback fixture.
     await writeFile(join(agentDir, "config.toml"), [
       'model = "gpt-5.4"', 'model_provider = "verification"', 'approval_policy = "never"',
@@ -205,7 +205,7 @@ export async function verifyScriptedCodex(options: CodexVerificationOptions = {}
     if (options.interactive) {
       const terminal = await runPty(binary, ["--dangerously-bypass-hook-trust", "--sandbox", "read-only", "--no-alt-screen", prompt], {
         cwd: repo, env: { ...env, TERM: "xterm-256color" }, timeoutMs: options.timeoutMs ?? 60_000,
-        actions: [{ waitFor: secret, send: "/exit\r" }],
+        actions: [{ waitFor: "TESTONLY_OK", send: "/exit\r", delayMs: 1000 }],
       });
       report.gates.interactiveExit = !terminal.timedOut && terminal.code === 0 && terminal.actionsCompleted === 1;
       report.coverage = report.coverage.map(value => value === "headless exec" ? "interactive PTY session and exit" : value);
@@ -217,9 +217,15 @@ export async function verifyScriptedCodex(options: CodexVerificationOptions = {}
     }
     const read = async (): Promise<EvidenceEvent[]> => (await checked(process.execPath, [cli, "export", "--all"]))
       .split("\n").filter(Boolean).map((line) => JSON.parse(line) as EvidenceEvent);
-    const nativeEvents = await read();
-    report.gates.noUnrecognizedRecords = !hasUnrecognizedEvidence(nativeEvents, "codex");
-    Object.assign(report.gates, codexEvidenceGates(nativeEvents, marker, secret));
+    let nativeEvents: EvidenceEvent[] = [];
+    const deadline = Date.now() + 10_000;
+    do {
+      nativeEvents = await read();
+      report.gates.noUnrecognizedRecords = !hasUnrecognizedEvidence(nativeEvents, "codex");
+      Object.assign(report.gates, codexEvidenceGates(nativeEvents, marker, secret));
+      if (Object.values(report.gates).every(Boolean)) break;
+      await new Promise(done => setTimeout(done, 250));
+    } while (Date.now() < deadline);
     report.gates.scriptedRequests = provider.state.requests > 0 && provider.state.requests <= 4;
 
     if (!Object.values(report.gates).every(Boolean)) {

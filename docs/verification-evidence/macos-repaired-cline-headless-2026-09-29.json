@@ -18,7 +18,7 @@
     "scriptedRequests": true,
     "agentHeader": true
   },
-  "durationMs": 20395,
+  "durationMs": 8624,
   "coverage": [
     "native headless hook capture",
     "human text",

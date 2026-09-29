@@ -114,7 +114,8 @@ export async function verifyScriptedGoose(options: GooseVerificationOptions = {}
     await writeFile(join(repo, "evidence.txt"), secret + "\n");
     await checked("git", ["add", "."]);
     await checked("git", ["commit", "--quiet", "-m", "isolated Goose verification"]);
-    provider = await startScriptedProvider({ toolName: "shell", toolArguments: { command: "cat evidence.txt" } });
+    provider = await startScriptedProvider({ toolName: "shell", toolArguments: { command: "cat evidence.txt" },
+      ...(options.interactive ? { completionPrefix: "TESTONLY_OK " } : {}) });
     guard = await startGuard(provider.endpoint, 4, Math.min(options.timeoutMs ?? 30_000, 30_000));
     const runtimeEnv = env as NodeJS.ProcessEnv;
     runtimeEnv.OPENAI_BASE_URL = guard.endpoint;
@@ -128,11 +129,12 @@ export async function verifyScriptedGoose(options: GooseVerificationOptions = {}
         cwd: repo, env, timeoutMs: options.timeoutMs ?? 60000, actions: [
           { waitFor: "Enter to send", send: prompt, delayMs: 250 },
           { waitFor: "exact contents", send: "\r", delayMs: 250 },
-          { waitFor: secret, send: "/exit", delayMs: 500 },
-          { waitFor: "/exit", send: "\r", delayMs: 250 },
+          { waitFor: "TESTONLY_OK", send: "", delayMs: 250 },
+          { waitFor: "Enter to send", send: "/exit", delayMs: 500 },
+          { waitFor: "exit", send: "\r", delayMs: 250 },
         ],
       });
-      report.gates.interactiveTerminal = terminal.actionsCompleted === 4 && !terminal.timedOut && terminal.code === 0;
+      report.gates.interactiveTerminal = terminal.actionsCompleted === 5 && !terminal.timedOut && terminal.code === 0;
       if (!report.gates.interactiveTerminal) throw Error(`Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`);
     } else await checked(binary, ["run", "--no-profile", "--with-builtin", "developer", "--provider", "openai", "--model", "gpt-4o",
       "--max-turns", "3", "--output-format", "json", "--text", prompt], options.timeoutMs ?? 60_000);

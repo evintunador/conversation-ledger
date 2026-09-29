@@ -20,7 +20,7 @@
     "scriptedRequests": true,
     "agentHeader": true
   },
-  "durationMs": 5571,
+  "durationMs": 7322,
   "coverage": [
     "interactive PTY terminal input",
     "native hook capture",

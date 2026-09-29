@@ -170,6 +170,8 @@ export async function verifyScriptedQwen(
     );
     if (options.binary)
       await symlink(resolve(options.binary), join(bin, "qwen"));
+    // An explicit candidate must never fall through to a different PATH runtime.
+    const binary = options.binary ? resolve(options.binary) : "qwen";
     const checked = async (
       command: string,
       args: string[],
@@ -188,7 +190,7 @@ export async function verifyScriptedQwen(
       return result.stdout;
     };
     try {
-      report.version = (await checked("qwen", ["--version"])).trim();
+      report.version = (await checked(binary, ["--version"])).trim();
     } catch {
       report.status = "blocked";
       report.reason = "Qwen executable unavailable or version probe failed";
@@ -250,7 +252,7 @@ export async function verifyScriptedQwen(
       report.exclusions = report.exclusions?.filter(
         (x) => x !== "interactive TUI",
       );
-      const terminal = await runPty("qwen", [], {
+      const terminal = await runPty(binary, [], {
         cwd: repo,
         env,
         timeoutMs: options.timeoutMs ?? 60000,
@@ -272,7 +274,7 @@ export async function verifyScriptedQwen(
         );
     } else
       nativeOutput = await checked(
-        "qwen",
+        binary,
         [
           "-p",
           `${marker}. Read evidence.txt using read_file and reply with its exact contents.`,

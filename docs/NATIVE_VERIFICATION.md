@@ -180,8 +180,8 @@ Mistral Vibe needs a separate Python environment with `mistral-vibe==2.25.8`;
 set `CLEDGER_VERIFY_MISTRAL_VIBE_BINARY` to that environment's `bin/vibe`.
 
 The manual GitHub workflow in `.github/workflows/native-verification.yml` uses
-this same runner on macOS and Linux with a pinned Annals revision. It has not
-yet been run on GitHub; checking in a workflow does not constitute Linux proof.
+this same runner on macOS and Linux with a pinned Annals revision. Hosted runs
+provide actual per-platform evidence; the workflow alone is not proof.
 It uploads reports and package locks, has no provider credentials, and does not
 merge changes. Local schedulers do not require GitHub or this workflow.
 
@@ -295,10 +295,12 @@ temporary proof installations are deliberately excluded. No periodic job or
 auto-merge has been enabled. Maintenance produces local review proposals and
 candidate evidence; opening/merging hosted PRs is not implemented yet.
 
-Linux has no recorded native pass yet. The GitHub workflow is running on the
-[draft review PR](https://github.com/evintunador/conversation-ledger/pull/26).
-These pending environment requirements must
-not be converted into inferred passes from macOS or parser fixtures.
+Hosted run 36588451942 recorded Linux 15/18 headless and 12/16 interactive
+passes; macOS recorded 17/18 and 14/16. All eighteen runtimes provisioned on
+both systems. Outstanding failures prompted executable-path, terminal timing,
+and disposable Linux runner namespace repairs. The next full run on the
+[draft review PR](https://github.com/evintunador/conversation-ledger/pull/26)
+must qualify those repairs. Partial runs are not full certification.
 
 
 Final regression checkpoint: 323 tests, 311 passed, 12 explicitly skipped native

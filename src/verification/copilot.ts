@@ -147,6 +147,8 @@ export async function verifyScriptedCopilot(
     );
     if (options.binary)
       await symlink(resolve(options.binary), join(bin, "copilot"));
+    // An explicit candidate must never fall through to a different PATH runtime.
+    const binary = options.binary ? resolve(options.binary) : "copilot";
     const checked = async (
       command: string,
       args: string[],
@@ -165,7 +167,7 @@ export async function verifyScriptedCopilot(
       return result.stdout;
     };
     try {
-      report.version = (await checked("copilot", ["--version"])).trim();
+      report.version = (await checked(binary, ["--version"])).trim();
     } catch {
       report.status = "blocked";
       report.reason = "Copilot executable unavailable or version probe failed";
@@ -184,6 +186,7 @@ export async function verifyScriptedCopilot(
     provider = await startScriptedProvider({
       toolName: "view",
       toolArguments: { path: join(repo, "evidence.txt") },
+      ...(options.interactive ? { completionPrefix: "TESTONLY_OK " } : {}),
     });
     guard = await startGuard(provider.endpoint);
     env.COPILOT_PROVIDER_API_KEY = "TESTONLY-local-verification";
@@ -216,7 +219,7 @@ export async function verifyScriptedCopilot(
         (x) => x !== "interactive TUI",
       );
       const terminal = await runPty(
-        "copilot",
+        binary,
         [
           "--allow-tool",
           "view",
@@ -235,7 +238,7 @@ export async function verifyScriptedCopilot(
               waitFor: "Type|Ask|> |❯",
               send: `${marker}. Read evidence.txt using view and reply with its exact contents.\r`,
             },
-            { waitFor: secret, send: "/quit\r" },
+            { waitFor: "TESTONLY_OK", send: "/quit\r", delayMs: 1000 },
           ],
         },
       );
@@ -249,7 +252,7 @@ export async function verifyScriptedCopilot(
         );
     } else
       await checked(
-        "copilot",
+        binary,
         [
           "-p",
           `${marker}. Read evidence.txt using view and reply with its exact contents.`,
@@ -278,7 +281,7 @@ export async function verifyScriptedCopilot(
       events = await read();
       report.gates.noUnrecognizedRecords = !hasUnrecognizedEvidence(
         events,
-        "copilot",
+        binary,
       );
       const tails = join(repo, ".git", "cledger-copilot-tail");
       const files = await readdir(tails).catch(() => []);

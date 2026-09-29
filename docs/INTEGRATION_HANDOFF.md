@@ -87,17 +87,19 @@ native lifecycle/data-type proof are separate from these read/write smoke tests.
 The user chose GitHub Actions if free, otherwise a local Linux VM. This repository
 is public, so standard hosted runners are eligible for free compute. Draft PR
 https://github.com/evintunador/conversation-ledger/pull/26 is open from an isolated
-code-only checkout at /tmp/cledger-ci-review/conversation-ledger. Its first hosted
-run (36585306619) recorded nine of twelve headless passes on Linux and eleven on
-macOS; interactive passes were nine of eleven on Linux and ten on macOS.
-Pending Linux diagnoses: Codex missing shell-result evidence, Qwen final capture,
-and Cline version-probe failure. Qwen's bounded final-write worker and clearer
-Codex/Cline diagnostics are prepared; Cline's fresh local install passes. Copilot
-trust setup and Continue terminal submission were repaired and passed locally.
-The next workflow provisions all eighteen runtimes, requiring eighteen headless
-and sixteen non-deferred interactive passes. Source changes in this original checkout remain
-uncommitted. Defer subscription-gated verification; do
-not repeat login/browser flows or ask the user to purchase plans for these checks.
+code-only checkout at /tmp/cledger-ci-review/conversation-ledger. The latest full
+hosted run (36588451942) provisioned all eighteen runtimes successfully on both
+platforms. Headless passes: Linux 15/18, macOS 17/18. Interactive passes:
+Linux 12/16, macOS 14/16. Linux Codex/Open Interpreter failed because AppArmor
+blocked the namespace setup needed by their native sandboxes; the disposable
+runner now permits user namespaces for this boot, keeping CLI read-only sandboxes.
+Cline's platform executable is selected directly because npm omitted its shared
+bin alias. Codex, Copilot and Goose terminal completion/exit synchronization was
+repaired. All four targeted local checks passed (Cline headless only).
+The next hosted run must demonstrate eighteen headless and sixteen non-deferred
+interactive passes on both platforms. Source changes in this original checkout
+remain uncommitted. Defer subscription-gated verification; do not repeat
+login/browser flows or ask the user to purchase plans for these checks.
 
 The recreated agents finished source work; root is consolidating evidence.
 The aggregate process exited and no matching Cline test processes remained when
@@ -112,7 +114,8 @@ state enforces fourteen days and retains baseline reports on candidate failure.
 Non-npm products have release observations and portable pinned runtime recipes
 in native-runtimes.ts, verified separately from automatic version promotion.
 Fresh locked Aider/OpenHands native checks and Crush download/hash/version probes
-passed locally; fresh Goose/Open Interpreter/Droid recipe execution awaits hosted CI.
+passed locally; all eighteen pinned runtime recipes were provisioned successfully
+on both hosted operating systems in run 36588451942.
 A portable scheduler generator now produces reviewed launchd/systemd artifacts
 and a credential-isolated runner. Machine-specific files are in scheduler-review/
 (gitignored), with intended persistent runtimes explicitly unprovisioned.

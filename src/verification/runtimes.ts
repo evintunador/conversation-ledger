@@ -19,6 +19,11 @@ export const PINNED_NPM_RUNTIMES = [
 ] as const;
 
 export function runtimeBinary(directory: string, cli: string, binary: string): string {
+  // Cline's package and optional platform package both declare the same npm
+  // bin alias. Use the pinned platform executable rather than that shared link.
+  if (cli === "cline" && ["darwin", "linux"].includes(process.platform)) {
+    return join(resolve(directory), cli, "node_modules", "@cline", `cli-${process.platform}-${process.arch}`, "bin", binary);
+  }
   return join(resolve(directory), cli, "node_modules", ".bin", binary);
 }
 

@@ -17,9 +17,10 @@ export async function startScriptedProvider(options: ScriptedOptions = {}) {
       }
       const data = JSON.parse(body) as { stream?: boolean; tools?: unknown[]; messages?: { role?: string; content?: unknown }[] };
       const tool = [...(data.messages ?? [])].reverse().find(m => m.role === "tool");
-      const secret = options.noToolsCompletionText && !data.tools?.length ? options.noToolsCompletionText
+      const auxiliary = options.noToolsCompletionText && !data.tools?.length;
+      const secret = auxiliary ? options.noToolsCompletionText
         : tool && options.completionText ? options.completionText : JSON.stringify(tool ?? "").match(/file-value-[a-f0-9-]+/)?.[0];
-      const delta = secret ? { content: tool ? (options.completionPrefix ?? "") + secret : secret } : { tool_calls: [{ index: 0, id: "call_probe", type: "function", function: {
+      const delta = secret ? { content: tool && !auxiliary ? (options.completionPrefix ?? "") + secret : secret } : { tool_calls: [{ index: 0, id: "call_probe", type: "function", function: {
         name: options.toolName ?? "read", arguments: JSON.stringify(options.toolArguments ?? { filePath: "evidence.txt" }),
       } }] };
       if (data.stream !== true) {

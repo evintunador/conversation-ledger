@@ -147,6 +147,8 @@ export async function verifyScriptedCline(
     );
     if (options.binary)
       await symlink(resolve(options.binary), join(bin, "cline"));
+    // An explicit candidate must never fall through to a different PATH runtime.
+    const binary = options.binary ? resolve(options.binary) : "cline";
     const checked = async (
       command: string,
       args: string[],
@@ -165,7 +167,7 @@ export async function verifyScriptedCline(
       return result.stdout;
     };
     try {
-      report.version = (await checked("cline", ["--version"])).trim();
+      report.version = (await checked(binary, ["--version"])).trim();
     } catch (error) {
       report.status = "blocked";
       report.reason = `Cline executable unavailable or version probe failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -186,7 +188,7 @@ export async function verifyScriptedCline(
       toolArguments: { files: [{ path: join(repo, "evidence.txt") }] },
     });
     guard = await startGuard(provider.endpoint);
-    await checked("cline", [
+    await checked(binary, [
       "auth",
       "openai-compatible",
       "--apikey",
@@ -208,13 +210,13 @@ export async function verifyScriptedCline(
       env.BROWSER = "/usr/bin/true";
       report.coverage = ["interactive PTY with CLI initial prompt", "native hook capture", "read tool call/result", "assistant text", "backfill idempotency"];
       report.exclusions = [...report.exclusions.filter(x => x !== "interactive TUI"), "initial prompt typed into welcome editor"];
-      const terminal = await runPty("cline", ["-i", "--provider", "openai-compatible", "--model", "fixture", "--retries", "1", "--timeout", "40", `${marker}. Read evidence.txt using read_files and reply with its exact contents.`], { cwd: repo, env, timeoutMs: options.timeoutMs ?? 60000, actions: [
+      const terminal = await runPty(binary, ["-i", "--provider", "openai-compatible", "--model", "fixture", "--retries", "1", "--timeout", "40", `${marker}. Read evidence.txt using read_files and reply with its exact contents.`], { cwd: repo, env, timeoutMs: options.timeoutMs ?? 60000, actions: [
         { waitFor: secret, paste: true, send: "/exit\r" },
       ] });
       report.gates.interactiveTerminal = terminal.actionsCompleted === 1 && !terminal.timedOut && terminal.code === 0;
       if (!report.gates.interactiveTerminal) throw new Error(`Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`);
     } else await checked(
-      "cline",
+      binary,
       [
         "--provider",
         "openai-compatible",
