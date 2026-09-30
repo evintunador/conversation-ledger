@@ -88,10 +88,10 @@ scenarios and sixteen of sixteen non-deferred interactive scenarios per system.
 The saved reports are in docs/verification-evidence/hosted-*.json. These are
 native CLI smoke passes, not complete proof of every record type or lifecycle.
 The hosted maintenance workflow can prepare a draft review PR every other Monday
-after merge and after its currently disabled repository PR-creation setting is
-enabled. It checks baseline CLIs on both systems, changed npm candidates in both
-modes on Linux, and observed non-npm releases. It dispatches the full matrix
-on each proposal branch and never auto-merges or uses paid inference. Candidate
+after merge; the repository PR-creation setting is enabled. It checks baseline
+CLIs on both systems, changed npm candidates in both modes on Linux, and observed
+non-npm releases. It dispatches the full matrix on each proposal branch and
+never auto-merges or uses paid inference. Candidate
 packages run without repository write credentials; a separate publisher validates
 exact code-only pin changes. The local 14-day scheduler remains disabled.
 Source changes in this original checkout remain uncommitted. Defer subscription-

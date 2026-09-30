@@ -77,11 +77,11 @@ scheduled runs. The local scheduler remains available when hosted execution is
 not desired.
 
 GitHub's repository-level "Allow GitHub Actions to create and approve pull
-requests" setting is currently disabled. It must be enabled for the hosted
-workflow to open draft PRs; enabling it also permits other suitably authorized
-workflows to approve PRs, so it is a maintainer decision. Candidate package
-tests run in a read-only job without persisted checkout credentials. A separate
-write-capable job validates the code-only proposal and opens the draft PR.
+requests" setting is enabled. The workflow opens draft PRs after merge;
+other suitably authorized workflows can also approve PRs under this setting.
+Candidate package tests run in a read-only job without persisted checkout
+credentials. A separate write-capable job validates the code-only proposal and
+opens the draft PR.
 
 Validation covers plist parsing and macOS `plutil`, shell activation-command
 syntax, literal paths with spaces/apostrophes/dollar signs/percent signs, rejected
