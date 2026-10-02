@@ -1,9 +1,70 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runPty } from "../verification/pty.js";
+
+async function waitForTrace(path: string, pattern: RegExp): Promise<string> {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    const text = await readFile(path, "utf8").catch(() => "");
+    if (pattern.test(text)) return text;
+    await new Promise(done => setTimeout(done, 20));
+  }
+  assert.fail("Live terminal trace did not become available before the deadline");
+}
+
+test("PTY exposes bounded raw terminal output before the run finishes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cledger-pty-trace-"));
+  const trace = join(root, "terminal.log"), release = join(root, "release");
+  let running: Promise<unknown> | undefined;
+  try {
+    const resultPromise = runPty("python3", ["-c", "import sys; print('TESTONLY-OLD'+('x'*300000)+'\\x1b[32mREADY\\x1b[0m',flush=True); print('GOT:'+input(),flush=True)"], {
+      cwd: root, env: { PATH: process.env.PATH }, timeoutMs: 5000, transcriptPath: trace,
+      actions: [{ waitFor: "READY", waitForPath: release, send: "TESTONLY-release\r" }],
+    });
+    running = resultPromise;
+    let settled = false;
+    void resultPromise.then(() => { settled = true; }, () => { settled = true; });
+    const live = await waitForTrace(trace, /READY/);
+    assert.equal(settled, false, "trace must be readable while the TUI is still waiting");
+    assert.ok(Buffer.byteLength(live) <= 200000);
+    assert.doesNotMatch(live, /TESTONLY-OLD/, "trace replaces old output rather than appending forever");
+    assert.match(live, /\x1b\[32mREADY\x1b\[0m/, "trace retains terminal control sequences");
+    await writeFile(release, "ready");
+    const result = await resultPromise;
+    assert.equal(result.code, 0);
+    assert.equal(await readFile(trace, "utf8"), result.output);
+  } finally {
+    await running?.catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("PTY reports live trace write failures and cleans up its terminal process", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cledger-pty-trace-error-"));
+  const trace = join(root, "terminal.log"), release = join(root, "release");
+  let running: Promise<unknown> | undefined;
+  try {
+    const resultPromise = runPty("python3", ["-c", "import os,time; print('READY PID='+str(os.getpid()),flush=True); input(); print('AFTER_INPUT',flush=True); time.sleep(30)"], {
+      cwd: root, env: { PATH: process.env.PATH }, timeoutMs: 5000, transcriptPath: trace,
+      actions: [{ waitFor: "READY", waitForPath: release, send: "TESTONLY-release\r" }],
+    });
+    running = resultPromise;
+    const rejection = assert.rejects(resultPromise, /PTY transcript write failed/);
+    const live = await waitForTrace(trace, /READY PID=\d+/);
+    const pid = Number(live.match(/PID=(\d+)/)![1]);
+    await rm(trace);
+    await mkdir(trace);
+    await writeFile(release, "ready");
+    await rejection;
+    assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+  } finally {
+    await running?.catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("PTY provides actual terminal stdin and ordered prompt response", async () => {
   const result = await runPty(

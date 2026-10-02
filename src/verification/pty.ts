@@ -30,7 +30,15 @@ fcntl.ioctl(fd,termios.TIOCSWINSZ,struct.pack('HHHH',40,160,0,0))
 signal.signal(signal.SIGTERM,lambda *_: sys.exit(143))
 output=''; pending=''; queries=''; index=0; code=1; expired=False
 end=time.monotonic()+config['timeoutMs']/1000
+def write_transcript():
+ if not config.get('transcriptPath'): return
+ try:
+  trace_fd=os.open(config['transcriptPath'],os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
+  with os.fdopen(trace_fd,'w',encoding='utf-8') as trace: trace.write(output)
+ except OSError as error:
+  raise RuntimeError('PTY transcript write failed: '+str(error)) from None
 try:
+ write_transcript()
  while True:
   if time.monotonic()>=end: expired=True; break
   ready,_,_=select.select([fd],[],[],0.05)
@@ -39,6 +47,7 @@ try:
    except OSError: chunk=b''
    if chunk:
     text=chunk.decode('utf-8',errors='replace'); output=(output+text)[-200000:]; pending=(pending+text)[-200000:]
+    write_transcript()
     # Reply to bounded terminal discovery queries, including split reads.
     # No keyboard enhancements are advertised; actions remain ordinary UTF-8.
     queries=(queries+text)[-65536:]
@@ -90,6 +99,8 @@ export async function runPty(
     answerTerminalQueries?: boolean;
     /** Stop promptly at a known prerequisite screen; keep output for classification. */
     stopWhen?: string;
+    /** Opt-in live raw terminal trace, overwritten with the latest 200,000 characters. */
+    transcriptPath?: string;
   },
 ): Promise<PtyResult> {
   if (!["darwin", "linux"].includes(process.platform))

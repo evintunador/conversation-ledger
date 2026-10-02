@@ -1,14 +1,14 @@
 {
   "schema": "cledger-live-verification/1",
-  "cli": "copilot",
-  "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates.",
+  "cli": "qwen-code",
+  "version": "0.21.5",
   "platform": "darwin/arm64",
   "date": "2026-10-02",
   "provider": "local DeepSeek gateway via OpenAI-compatible API",
   "model": "deepseek-v4-flash",
-  "repository": "/private/tmp/cledger-deepseek-copilot-20261002-retry/repo",
+  "repository": "/private/tmp/cledger-deepseek-qwen-code-20261002/repo",
   "status": "pass",
-  "requestCount": 2,
+  "requestCount": 3,
   "requestLimits": {
     "requests": 4,
     "maxOutputTokens": 2048,
@@ -16,10 +16,10 @@
   },
   "interactive": {
     "execution": "real installed TUI through PTY; isolated HOME/config; submitted synthetic prompt",
-    "prompt": "TESTONLY copilot DeepSeek verification. Use your file-reading tool to read the file /private/tmp/cledger-deepseek-copilot-20261002-retry/repo/evidence.txt, then reply with its exact entire contents. Do not edit files.",
+    "prompt": "TESTONLY qwen-code DeepSeek verification. Use your file-reading tool to read the file /private/tmp/cledger-deepseek-qwen-code-20261002/repo/evidence.txt, then reply with its exact entire contents. Do not edit files.",
     "exitCode": 0,
     "timedOut": false,
-    "actionsCompleted": 4
+    "actionsCompleted": 3
   },
   "gates": {
     "prompt": true,
@@ -29,7 +29,7 @@
     "noUnrecognizedRecords": true,
     "normalExit": true
   },
-  "automaticLedgerEventsBeforeManualBackfill": 17,
+  "automaticLedgerEventsBeforeManualBackfill": 9,
   "manualBackfillPerformed": false,
   "inferenceCostUsd": 0,
   "limitations": [

@@ -252,8 +252,8 @@ Use `CLEDGER_VERIFY_INTERACTIVE=1` with an individual verifier, or
 `node dist/verification/campaign.js --mode interactive --only qwen-code,copilot,opencode,pi`.
 The campaign reports an unavailable interactive driver as `not-run`, never as a
 headless substitute. Interactive scheduled attempts have separate cadence state
-from headless attempts. Candidate update verification remains headless; run the
-interactive campaign against candidate binaries before broader promotion.
+from headless attempts. Candidate pin updates require both headless and
+interactive verification against the candidate binaries before promotion.
 
 Cline and Droid interactive checks are enabled. Cline uses an isolated external
 provider configuration without browser onboarding. Droid's installed TUI requires
@@ -266,6 +266,14 @@ missing binaries, environment problems and actual failures remain nonzero.
 The free interactive CI uses that option and still requires 17 actual passes.
 Candidate pin updates require passing headless and interactive evidence, so a
 missing login cannot qualify an untested update.
+
+For driver debugging, pass `transcriptPath` to `runPty`, pointing to a file in
+the disposable test directory. The helper writes its latest 200,000 raw terminal
+characters while the CLI is running, retaining ANSI sequences and replacing old
+output rather than appending indefinitely. Read that trace to inspect the actual
+startup screen and repair keyboard timing or readiness matching. Trace-write
+errors fail clearly and still clean up the test process group. Tracing is opt-in;
+ordinary runs keep their existing final-output behavior.
 
 The repaired local scenarios passed for
 [Qwen headless](verification-evidence/macos-repaired-qwen-code-headless-2026-09-29.json),
@@ -292,7 +300,9 @@ Droid's public BYOK entrypoint was subsequently reverified without enterprise
 startup overrides; its separate
 [public-headless report](verification-evidence/droid-public-headless-2026-09-29.json)
 supersedes the earlier Droid startup configuration. Interactive Droid requires a
-Factory account login. No test account was authenticated or subscription bought.
+Factory account login. Its live macOS BYOK test passed with the existing normal
+login and local DeepSeek; isolated CI still has no dedicated authenticated test
+account. No subscription was bought. See [live evidence](LIVE_VERIFICATION.md).
 
 The [local scheduler generator](LOCAL_VERIFICATION_SCHEDULER.md) produces launchd
 and systemd artifacts without enabling them. This checkout's machine-specific

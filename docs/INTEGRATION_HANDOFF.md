@@ -1,6 +1,6 @@
 # CLI integration checkpoint
 
-Updated 2026-10-01. Work is active at the user's explicit request. This file is a
+Updated 2026-10-02. Work is active at the user's explicit request. This file is a
 checkpoint, not a completion claim. Changes remain uncommitted in this checkout.
 
 ## Scope and constraints
@@ -14,12 +14,13 @@ unretained embedded-only data. Paid ceiling $5/CLI initial and $5/CLI/month,
 target much lower. Current scripted-provider tests spend $0 on inference.
 Maintenance every fourteen elapsed days, review first, auto-merge later.
 
-The current local model is Ollama `ledger-test` (sub-1B Qwen): OpenAI base
-http://127.0.0.1:11434/v1, Anthropic base http://127.0.0.1:11434, dummy key ollama.
-The old DeepSeek gateway is disabled; do not use its profile, ports, or headers.
-Actual Ollama/OpenCode test captured prompt and linked read/result but failed
-exact answer. It is not a passing live-model smoke check. Scripted providers
-run the actual CLI and real tool/hook paths without relying on model ability.
+The user restored local DeepSeek. The gateway at http://127.0.0.1:9001/v1
+advertises `deepseek-v4-flash`; use bounded local guards, serial inference, and
+stop on capacity refusal or an unavailable gateway without bypassing its backend.
+It went offline during Copilot's first DeepSeek attempt, then returned at the
+user's request. Droid, OpenCode and Pi have passing real DeepSeek TUI evidence.
+Ollama `ledger-test` (sub-1B Qwen) at http://127.0.0.1:11434 remains the earlier
+test route. Scripted-provider evidence and real-model evidence remain distinct.
 
 ## Current implementation
 
@@ -54,8 +55,9 @@ Aider automatic decisions/model attribution; Cline unknown-part replay.
 
 ## Current evidence and remaining environment requirements
 
-The full hosted macOS/Linux campaign passed all eighteen headless and sixteen
-non-deferred interactive CLI scenarios on each platform; reports are saved in
+The latest full hosted macOS/Linux campaign passed eighteen headless and seventeen
+interactive CLI scenarios on each platform, with zero failed checks and one
+explicit Droid login blocker per interactive campaign. Older reports remain in
 docs/verification-evidence/hosted-*.json. Droid's public BYOK headless path was
 also reverified without enterprise startup overrides. Both Cline and Droid
 interactive checks are now enabled. Cline's isolated direct-provider TUI passed
@@ -66,8 +68,8 @@ scripted-provider passes; blocked evidence never counts as coverage or qualifies
 a candidate update. Dedicated CI test auth remains opt-in via
 CLEDGER_VERIFY_DROID_FACTORY_API_KEY. Never ask for keys in chat.
 
-Latest full regression suite: 328 total, 316 pass, 12 explicit opt-in skips,
-zero failures (/tmp/cledger-final-regression.log). Native checks ran separately.
+Latest hosted regression suite: 339 total, 327 pass, 12 explicit opt-in skips,
+zero failures on each OS in run 37039830515. Native checks ran separately.
 Review fixes added heartbeat lock recovery for Continue (proper-lockfile),
 Gemini malformed-container preservation and bounded post-hook tail capture,
 scoped TOML feature configuration, orphan-process cleanup, verification signal
@@ -83,10 +85,10 @@ is separate from these read/write smoke tests.
 The user chose GitHub Actions if free, otherwise a local Linux VM. This repository
 is public, so standard hosted runners are eligible for free compute. Draft PR
 https://github.com/evintunador/conversation-ledger/pull/26 is open from an isolated
-code-only checkout at /tmp/cledger-ci-review/conversation-ledger. Hosted run
-36628884457 passed on both macOS and Linux: eighteen of eighteen headless
-scenarios and sixteen of sixteen non-deferred interactive scenarios per system.
-The saved reports are in docs/verification-evidence/hosted-*.json. These are
+code-only checkout at /private/tmp/cledger-ci-review. Hosted run
+37039830515 passed on both macOS and Linux at commit 4db4650. The latest
+reports are its GitHub Actions artifacts; older saved reports remain in
+docs/verification-evidence/hosted-*.json. These are
 native CLI smoke passes, not complete proof of every record type or lifecycle.
 The hosted maintenance workflow can prepare a draft review PR every other Monday
 after merge; the repository PR-creation setting is enabled. It checks baseline
