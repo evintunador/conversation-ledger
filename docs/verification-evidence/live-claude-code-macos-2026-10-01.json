@@ -1,0 +1,28 @@
+{
+  "schema": "cledger-live-evidence/1",
+  "cli": "claude-code",
+  "cliVersion": "2.1.280",
+  "platform": "darwin/arm64",
+  "mode": "interactive-pty",
+  "provider": "local Ollama Anthropic compatibility endpoint",
+  "model": "ledger-test",
+  "providerChargeUSD": 0,
+  "repository": "disposable synthetic git repository without a remote",
+  "prompt": "TESTONLY_CLAUDE_RETRY_20261001. Use Read to open evidence.txt, then reply with only its exact contents.",
+  "file": "evidence.txt",
+  "fileContent": "garnet fern delta c37f5768\n",
+  "beforeManualBackfill": {
+    "eventCount": 19,
+    "unrecognizedCount": 0,
+    "humanPromptCaptured": true,
+    "toolName": "Read",
+    "toolCallId": "call_o3xap2og",
+    "toolResultLinked": true,
+    "toolResultContainsFileContent": true,
+    "assistantAnswerContainsFileContent": true,
+    "assistantAnswerExactOnly": false
+  },
+  "normalExitCode": 0,
+  "afterExitEventCount": 26,
+  "notes": "The first attempt displayed the prompt in Claude's editor but did not submit it. Sending text and Enter in separate terminal writes submitted the turn. Claude's cost-state estimated $0.025604 for unknown model ledger-test, but inference was served locally by Ollama and had no provider charge."
+}
