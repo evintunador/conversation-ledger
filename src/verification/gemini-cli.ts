@@ -164,7 +164,26 @@ export async function verifyScriptedGemini(options: { binary?: string; timeoutMs
     report.gates.scriptedRequests = provider.state.requests > 0 && provider.state.requests <= 8;
     report.status = Object.values(report.gates).every(Boolean) ? "pass" : "fail";
   } catch (error) { report.status = "fail"; report.reason = error instanceof Error ? error.message : String(error); }
-  finally { report.durationMs = Date.now() - start; report.requests = provider?.state.requests ?? 0; await provider?.close(); await rm(root, { recursive: true, force: true }); }
+  finally {
+    report.requests = provider?.state.requests ?? 0;
+    // A native tail worker can finish a write while its disposable directory is
+    // being removed. Retry the filesystem's transient cleanup errors, and keep
+    // any final cleanup failure in this report rather than masking TUI evidence.
+    const cleanupErrors: string[] = [];
+    try { await provider?.close(); }
+    catch (error) { cleanupErrors.push(`provider: ${error instanceof Error ? error.message : String(error)}`); }
+    try { await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      cleanupErrors.push(`disposable directory${code ? ` (${code})` : ""}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (cleanupErrors.length) {
+      report.status = "fail";
+      report.gates.cleanupComplete = false;
+      report.reason = [report.reason, `Verification cleanup failed: ${cleanupErrors.join("; ")}`].filter(Boolean).join("; ");
+    }
+    report.durationMs = Date.now() - start;
+  }
   return report;
 }
 
