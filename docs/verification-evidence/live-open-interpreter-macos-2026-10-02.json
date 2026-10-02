@@ -1,0 +1,79 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "open-interpreter",
+  "version": "interpreter 0.0.45",
+  "platform": "darwin/arm64",
+  "date": "2026-10-02",
+  "provider": "local DeepSeek gateway via OpenAI-compatible API",
+  "model": "deepseek-v4-flash",
+  "repository": "/private/tmp/cledger-deepseek-open-interpreter-20261002-exec/repo",
+  "status": "pass",
+  "requestCount": 4,
+  "requestLimits": {
+    "requests": 4,
+    "maxOutputTokens": 2048,
+    "requestTimeoutMs": 180000
+  },
+  "interactive": {
+    "execution": "real installed TUI through PTY; isolated HOME/config; submitted synthetic prompt",
+    "prompt": "TESTONLY open-interpreter DeepSeek verification. Use exec_command with cmd to run cat /private/tmp/cledger-deepseek-open-interpreter-20261002-exec/repo/evidence.txt, then reply with the exact file text. Do not use Read or read and do not edit files.",
+    "exitCode": 0,
+    "timedOut": false,
+    "actionsCompleted": 1
+  },
+  "gates": {
+    "prompt": true,
+    "toolCall": true,
+    "successfulLinkedToolResult": true,
+    "fileAnswer": true,
+    "noUnrecognizedRecords": true,
+    "normalExit": true
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 18,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "No live Linux or headless result; no full record-type certification."
+  ],
+  "configuration": {
+    "harness": "native",
+    "wire_api": "chat",
+    "cliFlag": "--chat-completions",
+    "sandbox": "read-only",
+    "providerCredentials": "local dummy TESTONLY key only"
+  },
+  "priorAttempts": [
+    {
+      "repository": "/private/tmp/cledger-deepseek-open-interpreter-20261002/repo",
+      "status": "blocked",
+      "requestCount": 0,
+      "reason": "DeepSeek automatic claude-code-bare harness rejected transport before any HTTP request."
+    },
+    {
+      "repository": "/private/tmp/cledger-deepseek-open-interpreter-20261002-retry/repo",
+      "status": "blocked",
+      "requestCount": 0,
+      "reason": "--chat-completions alone did not fix automatic claude-code-bare transport rejection."
+    },
+    {
+      "repository": "/private/tmp/cledger-deepseek-open-interpreter-20261002-native/repo",
+      "status": "blocked",
+      "requestCount": 4,
+      "automaticLedgerEventsBeforeManualBackfill": 25,
+      "reason": "Explicit native/chat configuration reached model and eventually read file successfully after two invalid tool calls; next request was blocked by four-request cap before answer."
+    }
+  ],
+  "primarySources": [
+    "https://www.openinterpreter.com/docs/terminal/providers",
+    "https://www.openinterpreter.com/docs/terminal/config",
+    "https://raw.githubusercontent.com/openinterpreter/openinterpreter/main/codex-rs/core/src/harness/routing.rs",
+    "https://raw.githubusercontent.com/openinterpreter/openinterpreter/main/codex-rs/core/src/client.rs"
+  ],
+  "requestMetadata": {
+    "bodyBytes": 23175,
+    "messageCount": 6,
+    "toolsCount": 13,
+    "max_tokens": 2048,
+    "route": "/v1/chat/completions"
+  }
+}

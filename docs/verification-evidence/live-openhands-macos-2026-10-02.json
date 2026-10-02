@@ -1,0 +1,85 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "openhands",
+  "version": "OpenHands CLI 1.16.0",
+  "platform": "darwin/arm64",
+  "date": "2026-10-02",
+  "provider": "local DeepSeek gateway via OpenAI-compatible API",
+  "model": "deepseek-v4-flash",
+  "repository": "/private/tmp/cledger-deepseek-openhands-20261002-early/repo",
+  "status": "pass",
+  "requestCount": 2,
+  "earlyPromptObservation": {
+    "at": "2026-10-02T18:26:33.420Z",
+    "automaticLedgerEvents": 6,
+    "requestCount": 1,
+    "providerReplies": 0,
+    "promptCapturedBeforeModelReply": true
+  },
+  "requestLimits": {
+    "requests": 4,
+    "maxOutputTokens": 2048,
+    "requestTimeoutMs": 360000,
+    "sessionTimeoutMs": 600000
+  },
+  "interactive": {
+    "execution": "Installed OpenHands TUI in a real PTY with isolated HOME/config and six native hooks; first launch plus resumption of the same native conversation for one exact benign action approval.",
+    "prompt": "TESTONLY openhands DeepSeek verification. Call file_editor with command=view, path=/private/tmp/cledger-deepseek-openhands-20261002-early/repo/evidence.txt, security_risk=LOW, then reply with its exact entire contents. Do not edit files.",
+    "exitCode": 0,
+    "timedOut": false,
+    "actionsCompleted": 0,
+    "conversationId": "3a73e55f59df415ea6c65481169a1f9c",
+    "approval": "Default AlwaysConfirm remained enabled. After observing file_editor view on the exact synthetic evidence.txt path with security_risk LOW, the same pending conversation was resumed and a typed message explicitly approved only that existing read. No Always/Auto LOW/MED setting or --always-approve was used.",
+    "approvalMessage": "Yes, execute only the existing pending file_editor view on /private/tmp/cledger-deepseek-openhands-20261002-early/repo/evidence.txt, then quote its exact contents. No edits or new tools.",
+    "driverNote": "Initial fixed PTY action list lacked the benign approval action. The CLI exited normally and resumed the same conversation in a directly controlled PTY; cumulative forwarded request count stayed bounded at four, with only two used.",
+    "exitNote": "Ctrl+Q exited normally with code 0. Upstream atexit visualizer emitted ignored RuntimeError: App is not running while recording SessionEnd, as in the prior installed CLI run."
+  },
+  "gates": {
+    "prompt": true,
+    "toolCall": true,
+    "successfulLinkedToolResult": true,
+    "fileAnswer": true,
+    "noUnrecognizedRecords": true,
+    "normalExit": true,
+    "promptBeforeModelReply": true
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 19,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "No live Linux or headless result; no full record-type certification."
+  ],
+  "nativeHooksInstalled": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "Stop",
+    "SessionEnd"
+  ],
+  "ledgerReadMethod": "Direct readEvents(findRepo(disposable repo), reachableFrom=null); no CLI export stdout truncation.",
+  "requestMetadata": {
+    "firstRequest": {
+      "bodyBytes": 61084,
+      "messageCount": 2,
+      "toolsCount": 7,
+      "max_tokens": 2048
+    },
+    "continuationRequest": {
+      "bodyBytes": 61887,
+      "messageCount": 5,
+      "toolsCount": 7,
+      "max_tokens": 2048
+    },
+    "route": "/v1/chat/completions"
+  },
+  "priorAttempt": {
+    "repository": "/private/tmp/cledger-deepseek-openhands-20261002/repo",
+    "status": "blocked",
+    "reasonCode": "request_timeout",
+    "requestCount": 1,
+    "requestTimeoutMs": 180000,
+    "automaticLedgerEventsBeforeManualBackfill": 0,
+    "reason": "Old Stop/SessionEnd-only hooks had not captured the pending prompt before the first model request timed out. Owned runner cleanup interrupted the busy CLI; additional upstream requests were denied by the proxy."
+  }
+}

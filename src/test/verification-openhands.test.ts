@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isolatedEnvironment, runProcess } from "../verification/process.js";
-import { runPty } from "../verification/pty.js";
+import { runPty, terminalTail } from "../verification/pty.js";
 import { findRepo } from "annals";
 import { readEvents } from "../store.js";
 
@@ -76,6 +76,7 @@ test("OpenHands installed TUI captures submitted prompt while its first model re
 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "cledger-openhands-stalled-"));
   const repo = join(root, "repo"), bin = join(root, "bin"), agentDir = join(root, "openhands");
+  const trace = join(root, "terminal.log");
   let requests = 0, terminal: ReturnType<typeof runPty> | undefined;
   // Deliberately send no model response at all. Native capture must not depend
   // on an assistant completion, Stop, SessionEnd, or a manual import.
@@ -109,14 +110,17 @@ test("OpenHands installed TUI captures submitted prompt while its first model re
     const marker = "TESTONLY-stalled-human-prompt";
     terminal = runPty(resolve(process.env.CLEDGER_VERIFY_OPENHANDS_BINARY!),
       ["--always-approve", "--override-with-envs", "--exit-without-confirmation"], {
-        cwd: repo, env, timeoutMs: 15000, actions: [
+        // Hosted macOS initialization and native hooks took over 40 seconds
+        // in the complete interactive smoke. Preserve the same bounded TUI
+        // budget here rather than mistaking slow startup for a capture failure.
+        cwd: repo, env, timeoutMs: 120000, transcriptPath: trace, actions: [
           { waitFor: "Loaded:.*skills,.*hooks", send: marker, delayMs: 250 },
           { waitFor: marker, send: "\r", delayMs: 250 },
         ],
       });
     let settled = false;
     void terminal.then(() => { settled = true; }, () => { settled = true; });
-    const deadline = Date.now() + 12000;
+    const deadline = Date.now() + 105000;
     const ledger = await findRepo(repo);
     assert.ok(ledger);
     let captured: EvidenceEvent[] = [];
@@ -135,7 +139,12 @@ test("OpenHands installed TUI captures submitted prompt while its first model re
     assert.equal(result.timedOut, true, "the deliberately stalled request cannot complete");
     assert.equal(result.actionsCompleted, 2);
   } finally {
-    await terminal?.catch(() => {});
+    const result = await terminal?.catch(() => undefined);
+    if (result && (requests !== 1 || result.actionsCompleted !== 2)) {
+      // Only this disposable test's synthetic terminal is printed. Preserve
+      // startup/input diagnostics even if an earlier assertion failed.
+      process.stderr.write(`OpenHands stalled TUI: requests=${requests}, actions=${result.actionsCompleted}, code=${result.code}, timeout=${result.timedOut}; tail=${terminalTail(await readFile(trace, "utf8").catch(() => ""))}\n`);
+    }
     server.closeAllConnections();
     await new Promise<void>(done => server.close(() => done()));
     await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });

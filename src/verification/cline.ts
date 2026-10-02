@@ -240,17 +240,31 @@ export async function verifyScriptedCline(
         .filter(Boolean)
         .map((s) => JSON.parse(s) as EvidenceEvent);
     let events: EvidenceEvent[] = [];
-    const deadline = Date.now() + (options.pollMs ?? 10_000);
+    // Native hooks run asynchronously. Their final capture can outlive the TUI
+    // on a busy hosted runner; keep its own bounded completion window.
+    const deadline = Date.now() + (options.pollMs ?? 30_000);
+    let tailStates: string[] = [];
     do {
       const tails = join(repo, ".git", "cledger-cline-tail"),
         files = await readdir(tails).catch(() => []);
       report.gates.tailComplete =
         files.some((f) => f.endsWith(".json")) &&
         !files.some((f) => f.endsWith(".lock"));
-      for (const file of files.filter((f) => f.endsWith(".json")))
-        report.gates.tailComplete &&=
-          JSON.parse(await readFile(join(tails, file), "utf8")).status ===
-          "complete";
+      tailStates = [];
+      for (const file of files.filter((f) => f.endsWith(".json"))) {
+        let state: { status?: string; reason?: string };
+        try {
+          state = JSON.parse(await readFile(join(tails, file), "utf8"));
+        } catch {
+          // A live follower may be replacing its small status file.
+          state = { status: "writing" };
+        }
+        tailStates.push(`${state.status ?? "unknown"}${state.reason ? ` (${state.reason})` : ""}`);
+        report.gates.tailComplete &&= state.status === "complete";
+        if (state.status === "failed")
+          throw new Error(`Native Cline follower failed: ${state.reason ?? "unspecified failure"}; no manual capture attempted`);
+      }
+      if (files.some((f) => f.endsWith(".lock"))) tailStates.push("lock present");
       // Completion includes a final native capture. Export after reading its
       // status, rather than accepting an export begun before that capture.
       events = await read();
@@ -261,7 +275,7 @@ export async function verifyScriptedCline(
     } while (Date.now() < deadline);
     if (!Object.values(report.gates).every(Boolean))
       throw new Error(
-        "Native hook evidence incomplete; no manual capture attempted",
+        `Native hook evidence incomplete; follower=${tailStates.join(", ") || "not started"}; no manual capture attempted`,
       );
     await checked(process.execPath, [cli, "capture", "cline", "--all"]);
     const first = await read();

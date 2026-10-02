@@ -1,0 +1,40 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "crush",
+  "version": "crush version v0.97.1",
+  "platform": "darwin/arm64",
+  "date": "2026-10-02",
+  "provider": "local DeepSeek gateway via OpenAI-compatible API",
+  "model": "deepseek-v4-flash",
+  "repository": "/private/tmp/cledger-deepseek-crush-20261002/repo",
+  "status": "pass",
+  "requestCount": 4,
+  "requestLimits": {
+    "requests": 4,
+    "maxOutputTokens": 2048,
+    "requestTimeoutMs": 180000
+  },
+  "interactive": {
+    "execution": "real installed TUI through PTY; isolated HOME/config; submitted synthetic prompt",
+    "prompt": "TESTONLY crush DeepSeek verification. Use your file-reading tool to read the file /private/tmp/cledger-deepseek-crush-20261002/repo/evidence.txt, then reply with its exact entire contents. Do not edit files.",
+    "exitCode": 0,
+    "timedOut": false,
+    "actionsCompleted": 3
+  },
+  "gates": {
+    "prompt": true,
+    "toolCall": true,
+    "successfulLinkedToolResult": true,
+    "fileAnswer": true,
+    "noUnrecognizedRecords": true,
+    "normalExit": true
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 18,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "No live Linux or headless result; no full record-type certification."
+  ],
+  "excludedAttempt": "A prior PTY driver typed the prompt but never submitted it because terminal redraw removed spaces from its Enter readiness matcher; zero model requests and zero ledger events. The corrected driver submitted the first actual model turn and the successful result above.",
+  "captureMode": "explicit cledger run crush watched launcher"
+}
