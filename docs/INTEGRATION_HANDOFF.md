@@ -18,7 +18,11 @@ The user restored local DeepSeek. The gateway at http://127.0.0.1:9001/v1
 advertises `deepseek-v4-flash`; use bounded local guards, serial inference, and
 stop on capacity refusal or an unavailable gateway without bypassing its backend.
 It went offline during Copilot's first DeepSeek attempt, then returned at the
-user's request. Droid, OpenCode and Pi have passing real DeepSeek TUI evidence.
+user's request. Droid, OpenCode, Pi, Copilot, Qwen, Crush, OpenHands and Open
+Interpreter have passing real DeepSeek TUI evidence. Eighteen of the selected
+twenty CLIs have installed macOS live-model TUI canary passes. Cursor lacks native
+interactive tool-result bodies; Kimi folder-trust approval is pending following
+an automatic approval-review rejection. Neither gap counts as a pass.
 Ollama `ledger-test` (sub-1B Qwen) at http://127.0.0.1:11434 remains the earlier
 test route. Scripted-provider evidence and real-model evidence remain distinct.
 
@@ -68,8 +72,9 @@ scripted-provider passes; blocked evidence never counts as coverage or qualifies
 a candidate update. Dedicated CI test auth remains opt-in via
 CLEDGER_VERIFY_DROID_FACTORY_API_KEY. Never ask for keys in chat.
 
-Latest hosted regression suite: 339 total, 327 pass, 12 explicit opt-in skips,
-zero failures on each OS in run 37039830515. Native checks ran separately.
+Latest hosted regression suite: 343 total, 330 pass, 13 explicit opt-in skips,
+zero failures on each OS in run 37057118602. Native checks ran separately, including the installed stalled-prompt regression
+(one pass, zero skips) on both systems.
 Review fixes added heartbeat lock recovery for Continue (proper-lockfile),
 Gemini malformed-container preservation and bounded post-hook tail capture,
 scoped TOML feature configuration, orphan-process cleanup, verification signal
@@ -86,7 +91,7 @@ The user chose GitHub Actions if free, otherwise a local Linux VM. This reposito
 is public, so standard hosted runners are eligible for free compute. Draft PR
 https://github.com/evintunador/conversation-ledger/pull/26 is open from an isolated
 code-only checkout at /private/tmp/cledger-ci-review. Hosted run
-37039830515 passed on both macOS and Linux at commit 4db4650. The latest
+37057118602 passed on both macOS and Linux at commit 9842af0. The latest
 reports are its GitHub Actions artifacts; older saved reports remain in
 docs/verification-evidence/hosted-*.json. These are
 native CLI smoke passes, not complete proof of every record type or lifecycle.
@@ -100,9 +105,13 @@ exact code-only pin changes. The local 14-day scheduler remains disabled.
 Source changes in this original checkout remain uncommitted. Defer subscription-
 gated verification; do not repeat login/browser flows or ask the user to buy plans.
 
-The recreated agents finished source work; root is consolidating evidence.
-The aggregate process exited and no matching Cline test processes remained when
-checked after the user's browser interruption report.
+Real TUI sessions also exposed missing early OpenHands capture. Native hooks now
+include session start, prompt submission and pre/post-tool events. Hosted checks
+stall the installed TUI's first model request and require automatic human-prompt
+capture before any response, exit or backfill. Cline/Copilot wait for assistant
+completion and follower settlement before exporting evidence. Crush submits Enter
+without matching terminal-repaint fragments; linked exact-result gates remain
+unchanged. Optional bounded PTY traces make startup and approval failures visible.
 
 ## Maintenance
 
@@ -118,15 +127,18 @@ on both hosted operating systems in run 36588451942.
 A portable scheduler generator now produces reviewed launchd/systemd artifacts
 and a credential-isolated runner. Machine-specific files are in scheduler-review/
 (gitignored), with intended persistent runtimes explicitly unprovisioned.
-Nothing is installed or enabled. No hosted repair PR bot, paid inference,
-auto-merge, automatic commit or automatic push has been enabled. Review proposals remain local.
-Runtime provisioning and scheduler deployment remain necessary before an
-actual automatic schedule is operational.
+Local scheduler deployment remains disabled. The hosted maintenance workflow is
+prepared in draft PR #26 and becomes operational after merge; its repository
+PR-creation setting is enabled. Paid inference and auto-merge remain disabled.
+A budgeted paid-provider tier is documented but not implemented; it requires
+explicit approval and durable cost enforcement before activation.
 
 ## Guardrails
 
 Never inspect/export this project's private ledger or real user transcripts.
-All native runs use disposable synthetic homes/repos/configuration. Read
+All native runs use disposable synthetic repositories and test content. Scripted
+runs isolate homes/configuration; some authorized live runs use existing normal
+account authentication without reading or exporting credentials. Read
 CLAUDE.md: secret-shaped fixture values need uppercase TESTONLY/FAKE/etc.
 Do not inspect a push scan finding; stop and tell the human. User CLI configs
 and accounts have not been changed. Preserve all existing uncommitted work.

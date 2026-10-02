@@ -66,7 +66,7 @@ Verified during implementation on macOS ARM64:
 | Kilo | 7.8.1 | Passed native plugin capture and exact pre-backfill completeness |
 | Continue | 1.5.47 | Passed explicit launch watcher; native hook call sites absent |
 | Cline | 3.0.65 | Passed native hooks plus final-manifest worker |
-| OpenHands | CLI 1.16.0 / SDK 1.21.0 | Passed native Stop hook and all persisted records; SDK fails to persist its own SessionEnd event |
+| OpenHands | CLI 1.16.0 / SDK 1.21.0 | Passed native hooks and persisted records; early prompt capture is separately verified with stalled inference; SDK fails to persist its own SessionEnd event |
 | Open Interpreter | Rust 0.0.45 | Passed native hooks, final tail and backfill; historical Python product excluded |
 | Crush | 0.97.1 | Passed explicit wrapper and read-only SQLite snapshot capture |
 
@@ -75,10 +75,12 @@ and interactive reports are linked below. Native verification needs subprocess a
 loopback socket permissions; a restricted agent sandbox may require escalation.
 Guard unit tests report skipped socket checks explicitly when bind is forbidden.
 
-## Local Ollama verification
+## Local model verification
 
-The current local model is `ledger-test` on Ollama. The previous DeepSeek gateway
-is disabled; do not send tests to its old ports.
+The restored DeepSeek gateway is `http://127.0.0.1:9001/v1`, model
+`deepseek-v4-flash`. Use guarded, bounded requests and stop on refusal; never
+bypass its backend. The earlier tiny Ollama model `ledger-test` remains an
+alternative at port 11434. The live matrix records which model each run used.
 
 ```sh
 CLEDGER_VERIFY_ENDPOINT=http://127.0.0.1:11434/v1 \
@@ -100,9 +102,9 @@ Responses and Chat Completions use the OpenAI-compatible `/v1` base. The tiny
 model may not execute a requested tool reliably. Live model task failures must
 be investigated separately from deterministic scripted-provider capture checks.
 
-Historical evidence: before retirement, the DeepSeek gateway passed the
+Historical evidence: before its temporary shutdown, the DeepSeek gateway passed the
 OpenCode native read scenario with three requests. That is not proof for the
-replacement model. On 2026-09-29, Ollama/OpenCode captured the prompt and linked
+Ollama model. On 2026-09-29, Ollama/OpenCode captured the prompt and linked
 read call/result in three requests, but the exact-answer gate failed. This live
 run is not a passing smoke check; no paid fallback or retry was attempted.
 
@@ -335,7 +337,14 @@ reports contain exact per-CLI gates. The run is green, but native smoke scenario
 do not certify every data type or lifecycle path; see CLI_RECORD_COVERAGE.md.
 
 
-Final regression checkpoint: 328 tests, 316 passed, 12 explicitly skipped native
+Historical 2026-09-29 regression checkpoint: 328 tests, 316 passed, 12 explicitly skipped native
 opt-ins, zero failures. Separate actual CLI runs provide the native reports;
 skipped opt-ins are not presented as executable proof. The private project ledger
 and normal user CLI configuration were not used as test fixtures.
+
+Latest hosted checkpoint (2026-10-02): [run 37057118602](https://github.com/evintunador/conversation-ledger/actions/runs/37057118602)
+passed on both systems at commit `9842af0`: 343 tests, 330 passed, 13 explicit
+opt-in skips, zero failures; the installed stalled-prompt test separately passed
+with zero skips. Each OS passed 18 headless and 17 interactive native scenarios,
+with one explicit Droid login blocker and zero failures. The four
+`verification-evidence/hosted-*-2026-10-02.json` reports preserve exact gates.
