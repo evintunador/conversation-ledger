@@ -1,0 +1,43 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "copilot",
+  "version": "1.0.89",
+  "platform": "darwin/arm64",
+  "provider": "Ollama on localhost",
+  "model": "ledger-test",
+  "providerMode": "offline OpenAI-compatible BYOK",
+  "repository": "isolated synthetic temporary Git repository",
+  "status": "partial",
+  "headless": {
+    "execution": "real installed binary and real model, noninteractive -p",
+    "exitCode": 0,
+    "observed": [
+      "human prompt captured automatically by native hook",
+      "assistant tool call and failed tool result captured automatically",
+      "assistant response and session shutdown captured automatically",
+      "no unrecognized persisted records"
+    ],
+    "gap": "The tiny model called glob with paths instead of the required pattern, so the file read and exact answer did not occur.",
+    "premiumRequests": 0
+  },
+  "interactive": {
+    "execution": "real terminal UI through a PTY with submitted prompt and normal /quit",
+    "exitCode": 0,
+    "observed": [
+      "human prompt captured automatically by native hook",
+      "assistant tool call and failed tool result captured automatically",
+      "assistant response and session shutdown captured automatically",
+      "no unrecognized persisted records"
+    ],
+    "gap": "The tiny model called view with file_path instead of the required path, so the file read and exact answer did not occur."
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 42,
+  "ledgerEventsAfterTwoBackfills": 42,
+  "excludedAttempt": "The first headless invocation was blocked from localhost by the process sandbox and had no model response. It was not counted as live model behavior.",
+  "limitations": [
+    "No successful tool result or exact file answer in either real-model session",
+    "No real-model Linux result",
+    "No paid Copilot account or premium requests used",
+    "No attachment, subagent, or full record-type coverage established"
+  ]
+}

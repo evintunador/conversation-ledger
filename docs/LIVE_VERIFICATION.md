@@ -32,14 +32,25 @@ implemented. Until they are, live checks run manually on disposable machines
 and their evidence is reviewed before promotion. Do not relabel the scripted
 campaign as the paid/live tier.
 
+The paid tier should be a separate manual-dispatch workflow, with a protected
+GitHub environment approval for the exact CLI, model and run. Its runner should
+give the CLI only a localhost proxy URL; the proxy holds the provider key and
+reserves the maximum possible cost before each request, with request, token and
+wall-clock limits. A per-run limit alone cannot enforce the $5 monthly
+per-CLI ceiling: that needs provider-side hard budgets or a durable, atomic
+spend ledger shared across runs. If price or usage accounting is unknown, the
+gateway must fail closed. Account-credit and subscription sessions bypass that
+proxy and remain individually reviewed manual checks. The free scheduled
+workflow never receives paid credentials.
+
 ## Current observed live evidence (2026-10-01)
 
 | CLI | Live headless | Live interactive TUI | Evidence / gap |
 | --- | --- | --- | --- |
 | Claude Code | Pending | Blocked on macOS | Installed 2.1.280 TUI accepted disposable-folder trust and sent a prompt to local Ollama; tiny model produced no answer before the deadline, so no automatic turn evidence was captured. A minimal logged-in provider check is pending. |
-| Codex | Pending | Pending | Scripted native tests alone are insufficient. |
+| Codex | Pending | Blocked on macOS | Installed 0.160.0 TUI accepted disposable-folder trust and sent a prompt to local Ollama; tiny model produced no answer before the deadline, so no automatic turn evidence was captured. A minimal logged-in provider check is pending. |
 | Gemini CLI | Pending | Pass on macOS | Installed 0.61.0 with logged-in provider: human prompt, `read_file` call/result and exact file answer appeared in disposable ledger. |
-| GitHub Copilot CLI | Pending | Pending | Scripted native tests alone are insufficient. |
+| GitHub Copilot CLI | Partial on macOS | Partial on macOS | Installed 1.0.89 with offline local Ollama `ledger-test`: real headless and interactive TUI sessions automatically captured human prompt, model response, native tool call/result, and shutdown with no unrecognized records. The tiny model supplied invalid arguments (`glob.paths` and `view.file_path`), so neither session proved a successful file read or exact answer; a sandbox-blocked first attempt was excluded. No premium requests. |
 | Cursor CLI | Pass on macOS | Partial on macOS | Installed 2026.10.01 logged-in CLI read a synthetic file in both modes. The optional headless stream-JSON wrapper captures full results; the interactive native transcript lacks tool-result bodies. |
 | Qwen Code | Pending | Pending | Scripted native tests alone are insufficient. |
 | Kimi Code | Partial on macOS | Pending | Installed 2.1.1 reached local Ollama `ledger-test` and captured human/tool/result/answer, but the tiny model chose the wrong tool. Interactive folder-trust approval remains pending. |
@@ -51,7 +62,7 @@ campaign as the paid/live tier.
 | OpenHands CLI | Pending | Pending | Scripted native tests alone are insufficient. |
 | Cline CLI | Pending | Deferred | Browser onboarding interrupted previous interactive check. |
 | Open Interpreter | Pending | Pending | Scripted native tests alone are insufficient. |
-| Goose | Pending | Pending | Scripted native tests alone are insufficient. |
+| Goose | Pending | Pass on macOS | Installed 1.52.0 TUI with local Ollama captured the human prompt, linked `shell` call/result and exact file answer through native hooks before backfill. |
 | Aider | Pending | Pending | Scripted native tests alone are insufficient. |
 | Continue CLI | Pending | Pending | Scripted native tests alone are insufficient. |
 | Crush | Pending | Pending | Scripted native tests alone are insufficient. |
