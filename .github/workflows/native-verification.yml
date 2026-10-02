@@ -65,6 +65,11 @@ jobs:
           uv pip install --python "$RUNNER_TEMP/cledger-vibe/bin/python" mistral-vibe==2.25.8
           node dist/verification/native-runtimes.js "$RUNNER_TEMP/cledger-native-runtimes"
           cat "$RUNNER_TEMP/cledger-native-runtimes/native-runtimes.env" >> "$GITHUB_ENV"
+      - name: Verify prompt capture during stalled OpenHands inference
+        working-directory: conversation-ledger
+        run: |
+          test -x "$CLEDGER_VERIFY_OPENHANDS_BINARY"
+          node --test --test-name-pattern='OpenHands installed TUI captures submitted prompt' dist/test/verification-openhands.test.js
       - name: Run real CLIs against local scripted providers
         working-directory: conversation-ledger
         env:

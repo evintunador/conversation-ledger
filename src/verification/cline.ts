@@ -186,6 +186,7 @@ export async function verifyScriptedCline(
     provider = await startScriptedProvider({
       toolName: "read_files",
       toolArguments: { files: [{ path: join(repo, "evidence.txt") }] },
+      ...(options.interactive ? { completionPrefix: "TESTONLY_OK " } : {}),
     });
     guard = await startGuard(provider.endpoint);
     await checked(binary, [
@@ -211,7 +212,9 @@ export async function verifyScriptedCline(
       report.coverage = ["interactive PTY with CLI initial prompt", "native hook capture", "read tool call/result", "assistant text", "backfill idempotency"];
       report.exclusions = [...report.exclusions.filter(x => x !== "interactive TUI"), "initial prompt typed into welcome editor"];
       const terminal = await runPty(binary, ["-i", "--provider", "openai-compatible", "--model", "fixture", "--retries", "1", "--timeout", "40", `${marker}. Read evidence.txt using read_files and reply with its exact contents.`], { cwd: repo, env, timeoutMs: options.timeoutMs ?? 60000, actions: [
-        { waitFor: secret, paste: true, send: "/exit\r" },
+        // The read tool also prints the file value. Wait for the distinct
+        // assistant answer so quitting cannot cancel the still-running turn.
+        { waitFor: "TESTONLY_OK", paste: true, send: "/exit\r", delayMs: 1000 },
       ] });
       report.gates.interactiveTerminal = terminal.actionsCompleted === 1 && !terminal.timedOut && terminal.code === 0;
       if (!report.gates.interactiveTerminal) throw new Error(`Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`);
@@ -239,8 +242,6 @@ export async function verifyScriptedCline(
     let events: EvidenceEvent[] = [];
     const deadline = Date.now() + (options.pollMs ?? 10_000);
     do {
-      events = await read();
-      report.gates.noUnrecognizedRecords = !hasUnrecognizedEvidence(events, "cline");
       const tails = join(repo, ".git", "cledger-cline-tail"),
         files = await readdir(tails).catch(() => []);
       report.gates.tailComplete =
@@ -250,6 +251,10 @@ export async function verifyScriptedCline(
         report.gates.tailComplete &&=
           JSON.parse(await readFile(join(tails, file), "utf8")).status ===
           "complete";
+      // Completion includes a final native capture. Export after reading its
+      // status, rather than accepting an export begun before that capture.
+      events = await read();
+      report.gates.noUnrecognizedRecords = !hasUnrecognizedEvidence(events, "cline");
       Object.assign(report.gates, clineEvidenceGates(events, marker, secret));
       if (Object.values(report.gates).every(Boolean)) break;
       await new Promise((r) => setTimeout(r, 250));

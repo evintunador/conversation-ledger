@@ -278,6 +278,11 @@ exited tail worker and exact repeated backfill. SDK1.21.0's visualizer raises
 `App is not running` during atexit before persisting SessionEnd self-observation;
 that missing upstream event is an explicit exclusion. Native media, forks,
 compaction, ephemeral sessions and all lifecycle variants remain unverified.
+The installer now includes session-start, prompt-submission and pre/post-tool
+hooks as well. A regression against the installed TUI holds its first inference
+request open and verifies automatic human-prompt capture before any model reply,
+Stop, exit or backfill. This repairs the gap observed during a real-provider
+timeout; it does not convert that timed-out model session into a live pass.
 
 ## Open Interpreter Rust 0.0.45
 

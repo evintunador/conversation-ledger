@@ -560,7 +560,11 @@ export async function installCline(): Promise<string> {
 }
 
 export async function installOpenHands(): Promise<string> {
-  return installJsonHooks("openhands", join(homedir(), ".openhands", "hooks.json"), ["Stop", "SessionEnd"], { timeout: 120 });
+  // Capture submitted prompts and tool activity even when inference stalls or
+  // the process is interrupted before Stop/SessionEnd. SDK hook events are
+  // persisted after the command returns, so the adapter also tails briefly.
+  return installJsonHooks("openhands", join(homedir(), ".openhands", "hooks.json"),
+    ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "SessionEnd"], { timeout: 120 });
 }
 
 /** Cursor uses its own hook schema (lowercase event names, direct command

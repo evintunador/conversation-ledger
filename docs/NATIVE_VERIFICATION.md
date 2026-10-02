@@ -275,6 +275,15 @@ startup screen and repair keyboard timing or readiness matching. Trace-write
 errors fail clearly and still clean up the test process group. Tracing is opt-in;
 ordinary runs keep their existing final-output behavior.
 
+OpenHands installs native session-start, prompt-submission, pre-tool, post-tool,
+Stop and SessionEnd hooks. An installed-TUI regression holds the first model
+request open without sending any response and requires the submitted human
+prompt to appear automatically in annals while the TUI is still running.
+The hosted workflow runs this check after provisioning on both operating systems;
+it uses a local stalled fixture and never sends an inference request to a paid
+provider. This covers the prompt-loss gap observed when a live request timed out
+before the former turn-end capture path could run.
+
 The repaired local scenarios passed for
 [Qwen headless](verification-evidence/macos-repaired-qwen-code-headless-2026-09-29.json),
 [Cline headless](verification-evidence/macos-repaired-cline-headless-2026-09-29.json),

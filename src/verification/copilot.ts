@@ -238,7 +238,10 @@ export async function verifyScriptedCopilot(
               waitFor: "Type|Ask|> |❯",
               send: `${marker}. Read evidence.txt using view and reply with its exact contents.\r`,
             },
-            { waitFor: "file-value-[\\s\\S]*open sidebar", send: "/quit", delayMs: 1000 },
+            // Ink can repaint the file value in several fragments. The fixture's
+            // answer prefix followed by the idle editor footer survives those
+            // repaints; the ledger gates still require the full exact value.
+            { waitFor: "TESTONLY_OK[\\s\\S]*open sidebar", send: "/quit", delayMs: 1000 },
             { waitFor: "/quit", send: "\r", delayMs: 1000 },
           ],
         },
@@ -279,11 +282,6 @@ export async function verifyScriptedCopilot(
     let events: EvidenceEvent[] = [];
     const deadline = Date.now() + (options.pollMs ?? 10_000);
     do {
-      events = await read();
-      report.gates.noUnrecognizedRecords = !hasUnrecognizedEvidence(
-        events,
-        binary,
-      );
       const tails = join(repo, ".git", "cledger-copilot-tail");
       const files = await readdir(tails).catch(() => []);
       report.gates.tailComplete =
@@ -293,6 +291,10 @@ export async function verifyScriptedCopilot(
         report.gates.tailComplete &&=
           JSON.parse(await readFile(join(tails, file), "utf8")).status ===
           "complete";
+      // Read after inspecting tail completion: its final capture can finish
+      // while an earlier export is running.
+      events = await read();
+      report.gates.noUnrecognizedRecords = !hasUnrecognizedEvidence(events, "copilot");
       report.gates.terminalRecord = events.some(
         (e) => (e.raw?.data as { type?: string })?.type === "session.shutdown",
       );

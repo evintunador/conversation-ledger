@@ -3,6 +3,15 @@ import assert from "node:assert/strict";
 import { openhandsEvidenceGates, verifyScriptedOpenHands } from "../verification/openhands.js";
 import { event } from "./helpers.js";
 import type { EvidenceEvent } from "../schema.js";
+import { createServer } from "node:http";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { isolatedEnvironment, runProcess } from "../verification/process.js";
+import { runPty } from "../verification/pty.js";
+import { findRepo } from "annals";
+import { readEvents } from "../store.js";
 
 function evidence(): EvidenceEvent[] {
   const producer = { tool: "cledger", source: "openhands", session_id: "fixture" };
@@ -60,4 +69,75 @@ test("OpenHands real CLI smoke runs only when an explicit isolated binary is sup
   assert.equal(report.status, "pass", JSON.stringify(report, null, 2));
   assert.ok(Object.values(report.gates).every(Boolean));
   assert.ok((report.requests ?? 0) >= 2 && (report.requests ?? 0) <= 4);
+});
+
+test("OpenHands installed TUI captures submitted prompt while its first model request is stalled", {
+  skip: !process.env.CLEDGER_VERIFY_OPENHANDS_BINARY,
+}, async () => {
+  const root = await mkdtemp(join(tmpdir(), "cledger-openhands-stalled-"));
+  const repo = join(root, "repo"), bin = join(root, "bin"), agentDir = join(root, "openhands");
+  let requests = 0, terminal: ReturnType<typeof runPty> | undefined;
+  // Deliberately send no model response at all. Native capture must not depend
+  // on an assistant completion, Stop, SessionEnd, or a manual import.
+  const server = createServer(async req => { for await (const _ of req) { /* drain */ } requests++; });
+  try {
+    await Promise.all([repo, bin, agentDir, join(root, "tmp")].map(path => mkdir(path, { recursive: true })));
+    await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const env: NodeJS.ProcessEnv = { ...isolatedEnvironment(root, `${bin}:${process.env.PATH ?? "/usr/bin:/bin"}`),
+      OPENHANDS_PERSISTENCE_DIR: agentDir, OPENHANDS_CONVERSATIONS_DIR: join(agentDir, "conversations"),
+      LLM_API_KEY: "FAKE_TESTONLY_LOCAL", LLM_MODEL: "openai/gpt-4o", LITELLM_LOCAL_MODEL_COST_MAP: "True",
+      LLM_BASE_URL: `http://127.0.0.1:${address.port}/v1`, OPENHANDS_SUPPRESS_BANNER: "1", DO_NOT_TRACK: "1" };
+    const cli = fileURLToPath(new URL("../cli.js", import.meta.url));
+    await writeFile(join(bin, "cledger"), `#!${process.execPath}\nimport(${JSON.stringify(cli)});\n`, { mode: 0o755 });
+    const checked = async (...args: string[]) => {
+      const result = await runProcess(args[0]!, args.slice(1), { cwd: repo, env, timeoutMs: 5000 });
+      assert.equal(result.code, 0, result.stderr);
+      assert.equal(result.timedOut, false);
+      return result.stdout;
+    };
+    await checked("git", "init", "--quiet");
+    await writeFile(join(repo, ".cledger.json"), JSON.stringify({ transport: { hook: false, fetchRefspec: false } }));
+    await checked("git", "add", ".");
+    await checked("git", "commit", "--quiet", "-m", "TESTONLY stalled prompt verification");
+    await checked(process.execPath, cli, "install", "openhands");
+    const hooks = JSON.parse(await readFile(join(root, ".openhands", "hooks.json"), "utf8"));
+    for (const name of ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "SessionEnd"])
+      assert.ok(hooks.hooks[name], `installed ${name} hook`);
+    delete env.CI; delete env.NO_COLOR; env.TERM = "xterm-256color";
+    const marker = "TESTONLY-stalled-human-prompt";
+    terminal = runPty(resolve(process.env.CLEDGER_VERIFY_OPENHANDS_BINARY!),
+      ["--always-approve", "--override-with-envs", "--exit-without-confirmation"], {
+        cwd: repo, env, timeoutMs: 15000, actions: [
+          { waitFor: "Loaded:.*skills,.*hooks", send: marker, delayMs: 250 },
+          { waitFor: marker, send: "\r", delayMs: 250 },
+        ],
+      });
+    let settled = false;
+    void terminal.then(() => { settled = true; }, () => { settled = true; });
+    const deadline = Date.now() + 12000;
+    const ledger = await findRepo(repo);
+    assert.ok(ledger);
+    let captured: EvidenceEvent[] = [];
+    while (Date.now() < deadline && !settled) {
+      if (requests) {
+        captured = await readEvents(ledger, { reachableFrom: null });
+        if (captured.some(item => item.producer.source === "openhands" && item.actor.type === "human" && JSON.stringify(item.content).includes(marker))) break;
+      }
+      await new Promise(done => setTimeout(done, 100));
+    }
+    assert.equal(settled, false, "capture occurs while the installed TUI is still running");
+    assert.equal(requests, 1, "only the first model request is pending");
+    assert.ok(captured.some(item => item.producer.source === "openhands" && item.actor.type === "human" && JSON.stringify(item.content).includes(marker)),
+      "submitted human prompt must already exist in annals without backfill");
+    const result = await terminal;
+    assert.equal(result.timedOut, true, "the deliberately stalled request cannot complete");
+    assert.equal(result.actionsCompleted, 2);
+  } finally {
+    await terminal?.catch(() => {});
+    server.closeAllConnections();
+    await new Promise<void>(done => server.close(() => done()));
+    await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
 });

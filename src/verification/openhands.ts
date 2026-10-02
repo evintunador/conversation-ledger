@@ -9,6 +9,8 @@ import type { EvidenceEvent } from "../schema.js";
 import { startGuard } from "./guard.js";
 import { isolatedEnvironment, runProcess } from "./process.js";
 import { startScriptedProvider } from "./scripted.js";
+import { findRepo } from "annals";
+import { readEvents } from "../store.js";
 
 export interface OpenHandsVerificationOptions { binary?: string; timeoutMs?: number; interactive?: boolean }
 export interface OpenHandsVerificationReport {
@@ -78,7 +80,7 @@ async function awaitNativeTail(repo: string): Promise<boolean> {
 }
 
 /**
- * Real OpenHands executable, real installed Stop + SessionEnd hook, real git ledger, synthetic
+ * Real OpenHands executable, real installed prompt/tool/session hooks, real git ledger, synthetic
  * loopback inference only. No authentication/subscription or gateway needed.
  * No manual import can repair the hook before the evidence gates pass.
  */
@@ -87,7 +89,7 @@ export async function verifyScriptedOpenHands(options: OpenHandsVerificationOpti
   const report: OpenHandsVerificationReport = {
     schema: "cledger-verification/1", cli: "openhands", status: "not-run", certification: "native-smoke",
     inference: "scripted", platform: `${process.platform}/${process.arch}`, gates: {},
-    coverage: ["installed native Stop + SessionEnd hooks", "bounded tail worker", "final hook self-observation", "headless CLI", "human prompt", "tool call/result linkage", "assistant answer", "session header", "backfill idempotency"],
+    coverage: ["installed native prompt/tool/session hooks", "bounded tail worker", "final hook self-observation", "headless CLI", "human prompt", "tool call/result linkage", "assistant answer", "session header", "backfill idempotency"],
     exclusions: ["real provider/model behavior", "interactive TUI", "attachments", "branching/forks", "compaction", "full record coverage", "ephemeral sessions",
       "CLI 1.16.0 / SDK 1.21.0 fails to persist SessionEnd self-observation at atexit: visualizer raises App is not running; persisted Stop self-observation is required"], durationMs: 0,
   };
@@ -146,7 +148,8 @@ export async function verifyScriptedOpenHands(options: OpenHandsVerificationOpti
     runtimeEnv.LLM_BASE_URL = guard.endpoint;
     await checked(process.execPath, [cli, "install", "openhands"]);
     const hook = await readFile(join((env as NodeJS.ProcessEnv).HOME!, ".openhands", "hooks.json"), "utf8");
-    report.gates.installedHook = hook.includes("Stop") && hook.includes("SessionEnd") && hook.includes("hook openhands");
+    report.gates.installedHook = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "SessionEnd"]
+      .every(event => hook.includes(`"${event}"`)) && hook.includes("hook openhands");
     const prompt = `${marker}. Read evidence.txt using file_editor view and reply with its exact contents.`;
     if (options.interactive) {
       delete runtimeEnv.CI; delete runtimeEnv.NO_COLOR; runtimeEnv.TERM = "xterm-256color";
@@ -161,15 +164,19 @@ export async function verifyScriptedOpenHands(options: OpenHandsVerificationOpti
       if (!report.gates.interactiveTerminal) throw Error(`Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`);
     } else await checked(binary, ["--headless", "--json", "--always-approve", "--override-with-envs", "--task", prompt], options.timeoutMs ?? 60_000);
     report.gates.tailWorkerCompleteAndExited = await awaitNativeTail(repo);
-    const read = async (): Promise<EvidenceEvent[]> => (await checked(process.execPath, [cli, "export", "--all"]))
-      .split("\n").filter(Boolean).map((line) => JSON.parse(line) as EvidenceEvent);
+    // Early hooks retain additional full native state snapshots. Read the
+    // actual ledger through annals rather than truncating a large JSONL export
+    // at the subprocess driver's diagnostic-output limit.
+    const ledger = await findRepo(repo);
+    if (!ledger) throw new Error("Disposable OpenHands verification repository unavailable");
+    const read = async (): Promise<EvidenceEvent[]> => readEvents(ledger, { reachableFrom: null });
     const nativeEvents = await read();
     report.gates.noUnrecognizedRecords = !hasUnrecognizedEvidence(nativeEvents, "openhands");
     Object.assign(report.gates, openhandsEvidenceGates(nativeEvents, marker, secret));
     report.gates.scriptedRequests = provider.state.requests > 0 && provider.state.requests <= 4;
     report.gates.agentHeader = provider.state.headersValid;
     if (!Object.values(report.gates).every(Boolean)) {
-      throw new Error("OpenHands native Stop + SessionEnd hook evidence incomplete; manual backfill was not attempted");
+      throw new Error("OpenHands native prompt/tool/session hook evidence incomplete; manual backfill was not attempted");
     }
     await checked(process.execPath, [cli, "capture", "openhands", "--all"]);
     const backfilled = await read();
