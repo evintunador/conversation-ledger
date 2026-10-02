@@ -243,6 +243,47 @@ test("Cline final follower waits for settled terminal manifest and preserves com
   }
 });
 
+test("Cline interactive follower waits past the turn deadline for TUI exit", async () => {
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "base");
+    const directory = join(repo.root, "fixture"),
+      lock = join(repo.root, "tail.lock"),
+      status = join(repo.root, "tail.json");
+    await mkdir(directory);
+    await mkdir(lock);
+    const manifest = {
+      version: 1,
+      session_id: "fixture",
+      cwd: repo.root,
+      started_at: "2026-09-29T12:00:00Z",
+      status: "running",
+      interactive: true,
+      pid: process.pid,
+    };
+    await writeFile(join(directory, "fixture.json"), JSON.stringify(manifest));
+    const update = setTimeout(() => {
+      writeFile(join(directory, "fixture.json"), JSON.stringify({
+        ...manifest,
+        status: "completed",
+        ended_at: "2026-09-29T12:01:00Z",
+      })).catch(() => {});
+    }, 200);
+    await runClineTail(directory, repo.root, lock, status, {
+      initialDeadlineMs: 75,
+      interactiveDeadlineMs: 1_000,
+      settleMs: 30,
+      pollMs: 20,
+    });
+    clearTimeout(update);
+    assert.equal(JSON.parse(await readFile(status, "utf8")).status, "complete");
+    assert.ok((await readEvents(repo)).some((event) =>
+      (event.content as Record<string, unknown>).status === "completed"));
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
 import { renormalizeUnrecognizedMany } from "../adapters/cline.js";
 
 test("Cline unknown parts retain replay envelope, parent/model provenance and processed attachments", async () => {

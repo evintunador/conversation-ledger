@@ -1,0 +1,34 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "cline",
+  "version": "3.0.65",
+  "platform": "darwin/arm64",
+  "provider": "isolated OpenAI-compatible configuration to local Ollama",
+  "model": "ledger-test",
+  "repository": "isolated synthetic temporary Git repository without a remote",
+  "status": "pass",
+  "headless": "not run with a real model",
+  "interactive": {
+    "execution": "installed Cline TUI in a real PTY with isolated HOME, CLINE_DIR, configuration, and data directory; initial prompt passed as a CLI argument",
+    "prompt": "TESTONLY cobalt-kite followup. Use read_files to read evidence.txt and repeat its exact contents. Do not edit files.",
+    "syntheticFileContent": "The cobalt kite remembers seven rivers.",
+    "observedTool": "read_files({\"path\":\"evidence.txt\"})",
+    "exit": "Ctrl-C twice exited normally with code 0 and a session summary after remaining open about 40 seconds past agent_end",
+    "browserOrProductAccountRequired": false
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 9,
+  "humanPromptCount": 1,
+  "readCallCount": 1,
+  "successfulLinkedReadCount": 1,
+  "exactAnswerCount": 1,
+  "unrecognizedRecordCount": 0,
+  "tailStatus": "complete after the interactive terminal manifest settled; observed running more than 30 seconds after agent_end",
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "The first live run exposed a seven-second tail deadline that failed while the TUI stayed open; a repair was verified by leaving a second real TUI open about 40 seconds after agent_end until the terminal manifest arrived",
+    "Prompt entry through the welcome editor was not tested",
+    "No real-model headless or Linux result",
+    "Attachment, branching, compaction, subagent, resume, and full record-type coverage were not established"
+  ]
+}

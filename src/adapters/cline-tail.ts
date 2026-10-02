@@ -14,6 +14,13 @@ import { fileURLToPath } from "node:url";
 import { findRepo, sha256Hex } from "annals";
 import { captureClineTranscript } from "./cline.js";
 export const CLINE_TAIL_DIRECTORY = "cledger-cline-tail";
+interface TailTiming {
+  initialDeadlineMs?: number;
+  interactiveDeadlineMs?: number;
+  settleMs?: number;
+  pollMs?: number;
+  exitGraceMs?: number;
+}
 export async function scheduleClineTail(
   directory: string,
   cwd: string,
@@ -90,6 +97,7 @@ export async function runClineTail(
   cwd: string,
   lock: string,
   status: string,
+  timing: TailTiming = {},
 ): Promise<void> {
   const save = (state: string, reason?: string) =>
     writeFileSync(
@@ -101,6 +109,10 @@ export async function runClineTail(
       }),
       { mode: 0o600 },
     );
+  const initialDeadlineMs = timing.initialDeadlineMs ?? 7_000;
+  const interactiveDeadlineMs = timing.interactiveDeadlineMs ?? 12 * 60 * 60_000;
+  const settleMs = timing.settleMs ?? 500;
+  const exitGraceMs = timing.exitGraceMs ?? 5_000;
   const hard = setTimeout(() => {
     try {
       save("failed", "hard deadline");
@@ -110,12 +122,14 @@ export async function runClineTail(
     } catch {
       process.exit(1);
     }
-  }, 10_000);
+  }, Math.max(initialDeadlineMs, interactiveDeadlineMs) + 10_000);
   try {
-    const deadline = Date.now() + 7_000;
+    const started = Date.now();
     let previous = "",
-      stableSince = Date.now();
-    while (Date.now() < deadline) {
+      stableSince = started,
+      interactivePid: number | undefined,
+      deadSince: number | undefined;
+    while (Date.now() < started + (interactivePid ? interactiveDeadlineMs : initialDeadlineMs)) {
       const files = (await readdir(directory).catch(() => []))
         .filter((f) => f.endsWith(".json"))
         .sort();
@@ -131,6 +145,11 @@ export async function runClineTail(
         ) {
           try {
             const m = JSON.parse(bytes);
+            if (
+              m.interactive === true &&
+              Number.isSafeInteger(m.pid) &&
+              m.pid > 0
+            ) interactivePid = m.pid;
             terminal ||=
               typeof m.ended_at === "string" &&
               ["completed", "failed", "cancelled", "aborted"].includes(
@@ -144,15 +163,30 @@ export async function runClineTail(
         previous = current;
         stableSince = Date.now();
       }
-      if (terminal && Date.now() - stableSince >= 500) {
+      if (terminal && Date.now() - stableSince >= settleMs) {
         await captureClineTranscript(directory, cwd);
         save("complete");
         return;
       }
-      await new Promise((done) => setTimeout(done, 100));
+      if (interactivePid && !terminal) {
+        try {
+          process.kill(interactivePid, 0);
+          deadSince = undefined;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ESRCH")
+            deadSince ??= Date.now();
+        }
+        // The manifest can be written shortly after the TUI process exits.
+        if (deadSince && Date.now() - deadSince >= exitGraceMs) break;
+      }
+      await new Promise((done) =>
+        setTimeout(done, timing.pollMs ?? (interactivePid ? 1_000 : 100)),
+      );
     }
     await captureClineTranscript(directory, cwd);
-    save("failed", "terminal manifest did not settle");
+    save("failed", interactivePid
+      ? "interactive session ended without a settled terminal manifest"
+      : "terminal manifest did not settle");
   } catch {
     save("failed", "tail capture failed");
   } finally {
