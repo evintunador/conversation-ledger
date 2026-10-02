@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findRepo } from "annals";
 import { readEvents } from "../store.js";
-import { runPty } from "./pty.js";
+import { runPty, terminalTail } from "./pty.js";
 import { runProcess } from "./process.js";
 
 export interface KiroLiveReport {
@@ -58,7 +58,7 @@ export async function verifyLiveKiro(options: { binary?: string; timeoutMs?: num
     const own = events.filter(e => e.producer.source === "kiro");
     const blocks = (e: typeof own[number]) => (e.content as { blocks?: unknown[] })?.blocks ?? [];
     const matching = own.find(e => e.actor.type === "human" && JSON.stringify(blocks(e)).includes(marker));
-    if (!matching && /(?:you are not logged in|please (?:log ?in|sign in)|run [`'"]?kiro-cli login)/i.test(terminal.output)) {
+    if (!matching && /(?:you are not logged in|please (?:log ?in|sign in)|run [`'"]?kiro-cli login)/i.test(terminalTail(terminal.output))) {
       report.status = "blocked";
       report.reasonCode = "login-required";
       report.reason = "Log into the installed Kiro CLI, then rerun live verification; no conversation was verified";

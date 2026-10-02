@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { droidEvidenceGates, verifyScriptedDroid } from "../verification/droid.js";
+import { droidEvidenceGates, droidLoginRequired, verifyScriptedDroid } from "../verification/droid.js";
 import { event } from "./helpers.js";
 import type { EvidenceEvent } from "../schema.js";
 
@@ -14,6 +14,12 @@ function evidence(): EvidenceEvent[] {
     event({ producer, actor: { type: "system" }, stream: { id: "droid:fixture", seq: 4 }, kind: "session_state", content: { state_type: "session_start", id: "fixture" } }),
   ];
 }
+
+test("Droid login prerequisite remains blocked when the TUI styles the sentence", () => {
+  assert.equal(droidLoginRequired("Please login with your Factory account to continue"), true);
+  assert.equal(droidLoginRequired("Please login with your \x1b[1mFactory\x1b[0m account to continue"), true);
+  assert.equal(droidLoginRequired("TESTONLY model response or an unrelated startup error"), false);
+});
 
 test("Droid native certification requires linked tool evidence and normalized answer in the prompt's session", () => {
   const valid = evidence();

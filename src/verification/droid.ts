@@ -1,4 +1,4 @@
-import { runPty } from "./pty.js";
+import { runPty, terminalTail } from "./pty.js";
 import { hasUnrecognizedEvidence } from "./drift.js";
 import { DROID_TAIL_DIRECTORY } from "../adapters/droid.js";
 import { randomUUID } from "node:crypto";
@@ -28,6 +28,10 @@ export interface DroidVerificationReport {
   coverage: string[];
   exclusions: string[];
   durationMs: number;
+}
+
+export function droidLoginRequired(output: string): boolean {
+  return /Please login with your Factory account to continue/.test(terminalTail(output));
 }
 
 /** The secret is never in the prompt: only a real tool result can supply it. */
@@ -155,7 +159,7 @@ export async function verifyScriptedDroid(options: DroidVerificationOptions = {}
         actions:[{waitFor:secret,send:"/quit",delayMs:1000},{waitFor:"/quit",send:"\r",delayMs:250}]});
       report.gates.interactiveExit=!terminal.timedOut&&terminal.code===0&&terminal.actionsCompleted===2;
       report.coverage=report.coverage.map(value=>value==="headless CLI"?"interactive PTY session and exit (initial argv prompt)":value);report.exclusions=report.exclusions.filter(value=>value!=="interactive TUI");
-      if (/Please login with your Factory account to continue/.test(terminal.output)) {
+      if (droidLoginRequired(terminal.output)) {
         report.status = "blocked";
         report.reasonCode = "login-required";
         report.reason = "Public Droid interactive mode requires Factory account login. Headless BYOK works without it; no isolated test-account authentication has been supplied. Configure CLEDGER_VERIFY_DROID_FACTORY_API_KEY outside chat with an authorized test key; the verifier maps it to documented FACTORY_API_KEY only for Droid in the isolated profile.";
