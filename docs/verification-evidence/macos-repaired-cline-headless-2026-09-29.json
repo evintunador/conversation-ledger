@@ -1,0 +1,44 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "cline",
+  "status": "pass",
+  "certification": "native-smoke",
+  "inference": "scripted",
+  "platform": "darwin/arm64",
+  "gates": {
+    "installedHooks": true,
+    "noUnrecognizedRecords": true,
+    "tailComplete": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "backfillIdempotent": true,
+    "hookEvidenceRetained": true,
+    "scriptedRequests": true,
+    "agentHeader": true
+  },
+  "durationMs": 8624,
+  "coverage": [
+    "native headless hook capture",
+    "human text",
+    "read tool call/result",
+    "assistant text",
+    "backfill idempotency"
+  ],
+  "exclusions": [
+    "individual TaskComplete versus SessionShutdown timing",
+    "interactive TUI",
+    "ACP/daemon",
+    "attachments",
+    "subagents",
+    "compaction/rewind",
+    "legacy VS Code history",
+    "yolo mode (native hooks disabled)",
+    "real model/provider behavior",
+    "full record coverage"
+  ],
+  "mode": "headless",
+  "version": "3.0.65",
+  "requests": 2
+}

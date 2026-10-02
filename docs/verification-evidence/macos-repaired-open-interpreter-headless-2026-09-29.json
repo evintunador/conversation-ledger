@@ -1,0 +1,45 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "open-interpreter",
+  "status": "pass",
+  "certification": "native-smoke",
+  "mode": "headless",
+  "inference": "scripted",
+  "platform": "darwin/arm64",
+  "gates": {
+    "installedHook": true,
+    "tailWorkerCompleteAndExited": true,
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "nativeSessionState": true,
+    "scriptedRequests": true,
+    "hookCapturedFinalTail": true,
+    "backfillIdempotent": true,
+    "hookEvidenceRetained": true
+  },
+  "coverage": [
+    "installed native Stop + SessionEnd hooks with isolated invocation trust bypass",
+    "headless exec",
+    "human prompt",
+    "tool call/result linkage",
+    "assistant answer",
+    "session header",
+    "backfill idempotency"
+  ],
+  "exclusions": [
+    "real provider/model behavior",
+    "interactive TUI",
+    "attachments",
+    "branching/forks",
+    "compaction",
+    "full record coverage",
+    "ephemeral sessions",
+    "interactive hook trust review"
+  ],
+  "durationMs": 2702,
+  "version": "interpreter 0.0.45",
+  "requests": 2
+}

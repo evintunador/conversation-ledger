@@ -1,0 +1,47 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "kilo",
+  "version": "7.8.1",
+  "platform": "darwin/arm64",
+  "provider": "local Ollama through the OpenAI-compatible loopback API",
+  "model": "ledger-test",
+  "repository": "retained disposable synthetic Git repository, no remote",
+  "status": "pass",
+  "headless": "not run with a real model",
+  "firstInteractiveAttempt": {
+    "execution": "installed Kilo binary in a PTY with isolated HOME and XDG directories, generated native plugin, and initial --prompt argument",
+    "prompt": "cledger-probe-80f87b54-6ca9-4966-9cfc-d3f302636d51. Use the read tool to read evidence.txt. Reply with its exact contents. Do not call any other tool.",
+    "requests": 1,
+    "observed": "The model returned a generic answer without the file contents. The verifier timed out at 120 seconds waiting for the exact answer and removed the disposable repo before ledger inspection.",
+    "result": "inconclusive for automatic capture"
+  },
+  "interactive": {
+    "execution": "installed Kilo binary in a real PTY with isolated HOME and XDG directories, generated native plugin, and initial --prompt argument",
+    "prompt": "TESTONLY cobalt lantern probe. Use the read tool to read evidence.txt, then quote its exact contents. Do not edit files.",
+    "syntheticFileContent": "TESTONLY cobalt lantern counts eight seals.",
+    "observed": [
+      "Kilo displayed a successful Read evidence.txt call and a response containing the synthetic file text",
+      "the native ledger before any manual capture contained the human prompt, a read tool_use with id call_5hg6eqh4, its linked non-error tool_result containing the exact file text, and an assistant text answer containing that text",
+      "the native ledger also contained session state, two thinking turns and four activity events, with no unrecognized records",
+      "the /exit command required selecting the command with a second Enter and then exited with code 0"
+    ],
+    "exitCode": 0
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 10,
+  "automaticLedgerKindsBeforeManualBackfill": {
+    "session_state": 1,
+    "conversation_turn": 5,
+    "activity": 4
+  },
+  "manualBackfill": {
+    "first": "+1 event, 9 deduped; added an updated session title after the native idle hook",
+    "second": "+0 events, 10 deduped",
+    "allAutomaticEventIdsRetained": true
+  },
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "The native idle hook did not capture a later session-title metadata update until manual backfill",
+    "No real-model headless or Linux result",
+    "No attachment, branching, compaction, or full record-type coverage established"
+  ]
+}

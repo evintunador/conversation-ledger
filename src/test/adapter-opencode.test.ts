@@ -5,13 +5,120 @@ import { delimiter, join } from "node:path";
 import {
   captureOpencodeExport,
   runOpencodeHook,
+  renormalizeUnrecognized,
   type OpencodeExport,
 } from "../adapters/opencode.js";
 import { readEvents } from "../store.js";
+import { writeCursor } from "../adapters/common.js";
+import { eventId, type EvidenceEvent } from "../schema.js";
 import { cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
 
 const SESSION_ID = "ses_test000000000000000000000";
 const SESSION_CREATED = 1785583070532; // 2026-08-01T...Z, epoch ms as opencode stores it
+
+test("OpenCode 1.18.10 Part union: all 12 variants normalize and retain native fields", async () => {
+  // Source contract, also checked against dev on 2026-09-28:
+  // https://github.com/anomalyco/opencode/blob/v1.18.10/packages/schema/src/v1/session.ts
+  // Todos are tool calls, not a thirteenth Part variant:
+  // https://github.com/anomalyco/opencode/blob/v1.18.10/packages/opencode/src/tool/todo.ts
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "initial");
+    const todos = [{ content: "Verify adapter", status: "in_progress", priority: "high" }];
+    const source = { type: "file", path: "/tmp/note.txt", text: { value: "@note.txt", start: 0, end: 9 } };
+    const file = { type: "file", mime: "text/plain", filename: "note.txt", url: "file:///tmp/note.txt", source };
+    const variants = [
+      { type: "text", text: "", metadata: { structural: true } },
+      { type: "reasoning", text: "Consider the task", time: { start: SESSION_CREATED + 1 }, metadata: { provider: "example" } },
+      { type: "tool", tool: "todowrite", callID: "call_todo", state: {
+        status: "completed", input: { todos }, output: JSON.stringify(todos), title: "1 todo",
+        metadata: { todos }, time: { start: SESSION_CREATED + 2, end: SESSION_CREATED + 3 }, attachments: [file],
+      } },
+      { type: "step-start", snapshot: "snapshot-before" },
+      { type: "step-finish", snapshot: "snapshot-after", reason: "stop", cost: 0.001,
+        tokens: { input: 1, output: 2, reasoning: 3, cache: { read: 4, write: 5 } } },
+      { type: "patch", hash: "patch-ref", files: ["note.txt"] },
+      file,
+      { type: "agent", name: "explore", source: { value: "@explore", start: 0, end: 8 } },
+      { type: "snapshot", snapshot: "snapshot-ref" },
+      { type: "subtask", prompt: "Inspect the project", description: "Project exploration", agent: "explore",
+        model: { providerID: "example", modelID: "example-model" }, command: "inspect" },
+      { type: "retry", attempt: 2, error: { name: "APIError", data: { message: "Please retry", isRetryable: true } },
+        time: { created: SESSION_CREATED + 4000 } },
+      { type: "compaction", auto: true, overflow: true, tail_start_id: "msg_retained" },
+    ];
+    const kinds = ["conversation_turn", "conversation_turn", "conversation_turn", "activity", "activity", "activity",
+      "context_injection", "context_injection", "file_snapshot", "activity", "activity", "activity"];
+    const parts = variants.map((part, i) => ({ ...part, id: `prt_${i}`, messageID: "msg_contract", sessionID: SESSION_ID }));
+    const info = { id: "msg_contract", role: "assistant", agent: "build", time: { created: SESSION_CREATED } };
+    const data: OpencodeExport = { info: { id: SESSION_ID, version: "1.18.10", time: { created: SESSION_CREATED } },
+      messages: [{ info, parts }] };
+    const result = await captureOpencodeExport(data, repo.root);
+    assert.equal(result.appended, 12);
+    assert.deepEqual(result.unrecognized, {});
+    const events = (await readEvents(repo)).sort((a, b) => a.stream!.seq - b.stream!.seq);
+    assert.deepEqual(events.map((event) => event.kind), kinds);
+    for (let i = 0; i < parts.length; i++) {
+      assert.deepEqual(events[i]!.raw!.data, { info, part: parts[i] });
+      assert.equal(events[i]!.producer.source_version, "1.18.10");
+      const preserved = { ...events[i]!, kind: "unrecognized", content: { unrecognized_type: parts[i]!.type } } as EvidenceEvent;
+      const normalized = renormalizeUnrecognized(preserved, { name: "Test User", email: "test@example.com" });
+      assert.ok(normalized, `${parts[i]!.type} must re-normalize`);
+      assert.equal(eventId(normalized), events[i]!.id, `${parts[i]!.type} re-normalization has live-capture identity`);
+    }
+    const tool = events[2]!.content as { blocks: Record<string, unknown>[] };
+    assert.deepEqual(tool.blocks[0]!["input"], { todos });
+    assert.equal(tool.blocks[1]!["content"], JSON.stringify(todos));
+    assert.deepEqual(tool.blocks[1]!["attachments"], [file]);
+    assert.deepEqual((events[0]!.content as { blocks: unknown[] }).blocks, [{ type: "text", text: "" }]);
+    const snapshot = events[8]!.content as Record<string, unknown>;
+    assert.equal(snapshot["snapshot"], "snapshot-ref");
+    assert.equal(snapshot["operation"], "snapshot");
+    assert.equal("files" in snapshot, false, "a snapshot ref does not assert an empty file set");
+    assert.deepEqual((events[9]!.content as { blocks: unknown[] }).blocks, [{ type: "text", text: "Inspect the project" }]);
+    assert.equal(events[10]!.occurred_at, new Date(SESSION_CREATED + 4000).toISOString());
+    await writeCursor(repo, SESSION_ID, "parts", 0);
+    const replay = await captureOpencodeExport(data, repo.root);
+    assert.equal(replay.appended, 0);
+    assert.equal(replay.deduped, 12);
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
+
+test("file/symbol/resource references, agent mentions and synthetic user text keep their provenance", async () => {
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo, "initial");
+    const text = { value: "@reference", start: 0, end: 10 };
+    const sources = [
+      { type: "file", text, path: "/tmp/note.txt" },
+      { type: "symbol", text, path: "/tmp/note.ts", name: "helper", kind: 12,
+        range: { start: { line: 0, character: 0 }, end: { line: 1, character: 0 } } },
+      { type: "resource", text, clientName: "docs", uri: "example://reference" },
+    ];
+    const parts = [
+      ...sources.map((source, i) => ({ type: "file", id: `prt_${i}`, mime: "text/plain", url: "file:///tmp/note.txt", source })),
+      { type: "agent", id: "prt_3", name: "explore", source: { value: "@explore", start: 0, end: 8 } },
+      { type: "text", id: "prt_4", synthetic: true, text: "Harness-added context" },
+      { type: "todo", id: "prt_5", todos: [] },
+    ];
+    const info = { role: "user", time: { created: SESSION_CREATED } };
+    const data: OpencodeExport = { info: { id: SESSION_ID, time: { created: SESSION_CREATED } }, messages: [{ info, parts }] };
+    const result = await captureOpencodeExport(data, repo.root);
+    assert.deepEqual(result.unrecognized, { todo: 1 }, "do not invent a native todo Part schema");
+    const events = (await readEvents(repo)).sort((a, b) => a.stream!.seq - b.stream!.seq);
+    for (let i = 0; i < 4; i++) {
+      assert.equal(events[i]!.kind, "context_injection");
+      assert.deepEqual(events[i]!.actor, { type: "human", id: "test@example.com", display: "Test User" });
+      assert.deepEqual(events[i]!.raw!.data, { info, part: parts[i] });
+    }
+    assert.deepEqual(events[4]!.actor, { type: "system" });
+    assert.deepEqual(events[5]!.raw!.data, { info, part: parts[5] });
+  } finally {
+    await cleanupRepo(repo);
+  }
+});
 
 /**
  * A session shaped like a real `opencode export`: a user message, then an
@@ -85,7 +192,7 @@ function sessionExport(): OpencodeExport {
           },
           // seq 5 — visible assistant text
           { id: "prt_5", type: "text", text: "It says hello.", time: { start: SESSION_CREATED + 5 } },
-          // seq 6 — empty text produces no event
+          // seq 6 — whitespace is preserved, including its structural role
           { id: "prt_6", type: "text", text: "   " },
           // seq 7 — unknown to this adapter version: preserved raw-only
           { id: "prt_7", type: "some-future-part", text: "from a newer opencode" },
@@ -105,16 +212,16 @@ test("captures visible parts, records step boundaries, preserves unknown part ty
 
     assert.equal(
       result.appended,
-      7,
-      "user text, two step boundaries, reasoning, tool, assistant text, unrecognized",
+      8,
+      "user text, two step boundaries, reasoning, tool, assistant text, empty text, unrecognized",
     );
     assert.deepEqual(result.unrecognized, { "some-future-part": 1 });
 
     const events = await readEvents(repo);
     const bySeq = new Map(events.map((e) => [e.stream?.seq, e]));
 
-    // Only the empty and unsettled parts produce nothing.
-    for (const seq of [4, 6]) {
+    // Only the unsettled tool produces nothing.
+    for (const seq of [4]) {
       assert.equal(bySeq.has(seq), false, `seq ${seq} should not be captured`);
     }
 
@@ -207,7 +314,7 @@ test("re-capturing is idempotent, and an unsettled tool call is picked up once i
   try {
     await makeCommit(repo, "initial");
     const first = await captureOpencodeExport(sessionExport(), repo.root);
-    assert.equal(first.appended, 7);
+    assert.equal(first.appended, 8);
 
     // Same export again: the cursor was held at the running tool part, so
     // everything after it is re-examined and must dedup rather than duplicate.
@@ -224,7 +331,7 @@ test("re-capturing is idempotent, and an unsettled tool call is picked up once i
 
     const events = await readEvents(repo);
     const seqs = events.map((e) => e.stream?.seq).sort((a, b) => (a ?? 0) - (b ?? 0));
-    assert.deepEqual(seqs, [0, 1, 2, 3, 4, 5, 7, 8]);
+    assert.deepEqual(seqs, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
   } finally {
     await cleanupRepo(repo);
   }
@@ -238,7 +345,7 @@ test("subagent sessions are captured as their own conversation, pointing at the 
     const parentId = "ses_parent00000000000000000";
     child.info!.parentID = parentId;
     const result = await captureOpencodeExport(child, repo.root);
-    assert.equal(result.appended, 7, "a subagent's own steps are the point of capturing it");
+    assert.equal(result.appended, 8, "a subagent's own steps are the point of capturing it");
 
     const events = await readEvents(repo);
     for (const e of events) {

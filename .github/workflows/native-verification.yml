@@ -1,0 +1,108 @@
+name: Scripted native CLI smoke (free)
+# This installs real CLI binaries and drives real terminal interfaces, but the
+# model responses are scripted. Live-provider/TUI certification is a separate,
+# opt-in gate recorded in docs/LIVE_VERIFICATION.md. This workflow spends no
+# inference credits.
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'package*.json'
+      - 'tsconfig.json'
+      - '.github/workflows/native-verification.yml'
+permissions:
+  contents: read
+concurrency:
+  group: native-verification-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: conversation-ledger
+      - uses: actions/checkout@v4
+        with:
+          repository: evintunador/annals
+          ref: dcd06c0f724cf3509b2d61dce7d0b537d4d86340
+          path: annals
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - uses: astral-sh/setup-uv@v6
+      - name: Install SQLite (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+      - name: Enable native CLI sandboxes on the disposable Linux runner
+        if: runner.os == 'Linux'
+        run: |
+          # One-boot setting on this disposable VM; CLI read-only sandboxes stay enabled.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          unshare --user --map-root-user true
+      - name: Install upstream SQLite (macOS)
+        if: runner.os == 'macOS'
+        run: brew install sqlite
+      - name: Build sibling dependency
+        working-directory: annals
+        run: npm ci
+      - name: Test ledger
+        working-directory: conversation-ledger
+        run: npm ci && npm test
+      - name: Provision isolated pinned CLIs
+        id: provision
+        working-directory: conversation-ledger
+        run: |
+          node dist/verification/runtimes.js "$RUNNER_TEMP/cledger-runtimes"
+          uv venv --python 3.12 "$RUNNER_TEMP/cledger-vibe"
+          uv pip install --python "$RUNNER_TEMP/cledger-vibe/bin/python" mistral-vibe==2.25.8
+          node dist/verification/native-runtimes.js "$RUNNER_TEMP/cledger-native-runtimes"
+          cat "$RUNNER_TEMP/cledger-native-runtimes/native-runtimes.env" >> "$GITHUB_ENV"
+      - name: Verify prompt capture during stalled OpenHands inference
+        working-directory: conversation-ledger
+        run: |
+          test -x "$CLEDGER_VERIFY_OPENHANDS_BINARY"
+          node --test --test-name-pattern='OpenHands installed TUI captures submitted prompt' dist/test/verification-openhands.test.js
+      - name: Run real CLIs against local scripted providers
+        working-directory: conversation-ledger
+        env:
+          CLEDGER_VERIFY_MISTRAL_VIBE_BINARY: ${{ runner.temp }}/cledger-vibe/bin/vibe
+        run: node dist/verification/campaign.js --runtime-dir "$RUNNER_TEMP/cledger-runtimes" --output "$RUNNER_TEMP/cledger-campaign.json"
+      - name: Run supported interactive terminal scenarios
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' }}
+        working-directory: conversation-ledger
+        env:
+          CLEDGER_VERIFY_MISTRAL_VIBE_BINARY: ${{ runner.temp }}/cledger-vibe/bin/vibe
+        run: node dist/verification/campaign.js --mode interactive --allow-login-required --runtime-dir "$RUNNER_TEMP/cledger-runtimes" --output "$RUNNER_TEMP/cledger-interactive-campaign.json"
+      - name: Require the agreed executable coverage
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          for (const [name, minimum] of [['cledger-campaign.json', 18], ['cledger-interactive-campaign.json', 17]]) {
+            const report = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/${name}`, 'utf8'));
+            if (report.coverage.nativeSmokePassed < minimum) {
+              throw new Error(`${report.mode}: ${report.coverage.nativeSmokePassed} native passes; required ${minimum}`);
+            }
+          }
+          JS
+      - name: Retain compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-evidence-${{ matrix.os }}
+          retention-days: 1
+          path: |
+            ${{ runner.temp }}/cledger-campaign.json
+            ${{ runner.temp }}/cledger-interactive-campaign.json
+            ${{ runner.temp }}/cledger-runtimes/runtimes.json
+            ${{ runner.temp }}/cledger-runtimes/*/package-lock.json
+            ${{ runner.temp }}/cledger-native-runtimes/native-runtimes.json
+            ${{ runner.temp }}/cledger-native-runtimes/*/cledger-installed.txt

@@ -1,15 +1,50 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureQwenTranscript, renormalizeUnrecognized } from "../adapters/qwen-code.js";
+import { captureQwenTranscript, renormalizeUnrecognized, runQwenHook } from "../adapters/qwen-code.js";
 import { readEvents } from "../store.js";
 import { gitUserIdentity } from "annals";
 import { cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
 
 const SESSION_ID = "93335a04-fdc7-4462-b333-16b7f64290b9";
 const QWEN_VERSION = "0.21.5";
+
+test("Qwen final capture follows delayed transcript writes and the bounded worker exits", async () => {
+  const repo = await makeTempRepo("qwen-final-tail-");
+  const directory = await mkdtemp(join(tmpdir(), "qwen-final-source-"));
+  try {
+    await makeCommit(repo, "init");
+    const path = join(directory, "session-TESTONLY.jsonl");
+    const row = (id: string, text: string) => JSON.stringify({
+      uuid: id, sessionId: "session-TESTONLY", cwd: repo.root,
+      timestamp: "2026-09-29T12:00:00Z", type: "assistant", model: "fixture",
+      message: { role: "model", parts: [{ text }] },
+    }) + "\n";
+    await writeFile(path, row("initial", "TESTONLY-before-hook"));
+    await runQwenHook(JSON.stringify({ cwd: repo.root, transcript_path: path, hook_event_name: "SessionEnd" }));
+    await new Promise(done => setTimeout(done, 200));
+    await appendFile(path, row("final", "TESTONLY-after-hook"));
+    const statusDirectory = join(repo.commonDir, "cledger-qwen-code-tail");
+    let finished = false;
+    for (let i = 0; i < 70 && !finished; i++) {
+      const names = await readdir(statusDirectory);
+      for (const name of names.filter(name => name.endsWith(".json"))) {
+        const status = JSON.parse(await readFile(join(statusDirectory, name), "utf8"));
+        assert.notEqual(status.status, "failed", status.error);
+        if (status.status === "complete" && !names.some(name => name.endsWith(".lock"))) {
+          try { process.kill(status.pid, 0); } catch { finished = true; }
+        }
+      }
+      if (!finished) await new Promise(done => setTimeout(done, 100));
+    }
+    assert.ok(finished, "bounded worker completed and exited");
+    const events = await readEvents(repo);
+    assert.ok(events.some(event => JSON.stringify(event.content).includes("TESTONLY-after-hook")));
+    assert.equal((await captureQwenTranscript(path, repo.root)).appended, 0);
+  } finally { await cleanupRepo(repo); await rm(directory, { recursive: true, force: true }); }
+});
 
 /**
  * Lines shaped like a real Qwen Code 0.21.5 transcript: the envelope fields,
@@ -504,4 +539,22 @@ test("qwen-code capture: empty-part turns produce no event", async () => {
     await rm(dir, { recursive: true, force: true });
     await cleanupRepo(repo);
   }
+});
+
+test("qwen preserves unknown nested parts as explicit replayable drift", async () => {
+  const repo = await makeTempRepo();
+  const line = { type: "assistant", timestamp: "2026-09-29T00:00:00Z", sessionId: SESSION_ID,
+    model: "TESTONLY-model", message: { role: "model", parts: [{ text: "known" }, null, { futurePart: "TESTONLY-original" }] } };
+  const { dir, path } = await writeTranscript([line]);
+  try {
+    await makeCommit(repo);
+    const result = await captureQwenTranscript(path, repo.root);
+    assert.equal(result.unrecognized["message/parts"], 1);
+    const events = await readEvents(repo);
+    const unknown = events.find(event => event.kind === "unrecognized")!;
+    assert.ok(unknown);
+    assert.deepEqual(unknown.raw?.data, line);
+    assert.equal(renormalizeUnrecognized(unknown, await gitUserIdentity(repo)), null);
+    assert.match(JSON.stringify(events.find(event => event.kind === "conversation_turn")?.content), /TESTONLY-original/);
+  } finally { await cleanupRepo(repo); await rm(dir, { recursive: true, force: true }); }
 });

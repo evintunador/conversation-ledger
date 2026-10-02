@@ -1,0 +1,39 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "gemini-cli",
+  "status": "pass",
+  "certification": "native-smoke",
+  "inference": "scripted",
+  "platform": "darwin/arm64",
+  "gates": {
+    "installedHooks": true,
+    "interactiveTerminal": true,
+    "tailWorkerCompleteAndExited": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "noUnrecognizedRecords": true,
+    "backfillIdempotent": true,
+    "hookEvidenceRetained": true,
+    "scriptedRequests": true
+  },
+  "durationMs": 6409,
+  "coverage": [
+    "interactive PTY terminal input and native hooks",
+    "human text",
+    "read tool call/result",
+    "assistant text",
+    "backfill idempotency"
+  ],
+  "exclusions": [
+    "subagents",
+    "attachments",
+    "compaction/rewind",
+    "real provider authentication",
+    "full record coverage"
+  ],
+  "mode": "interactive",
+  "version": "0.61.0",
+  "requests": 2
+}

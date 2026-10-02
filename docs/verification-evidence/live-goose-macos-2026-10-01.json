@@ -1,0 +1,31 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "goose",
+  "version": "1.52.0",
+  "platform": "darwin/arm64",
+  "provider": "Ollama on localhost via OpenAI-compatible API",
+  "model": "ledger-test",
+  "repository": "isolated synthetic temporary Git repository",
+  "status": "pass",
+  "headless": "not run with a real model",
+  "interactive": {
+    "execution": "official SHA256-verified release binary in a PTY, native Stop and SessionEnd plugin, typed prompt and normal /exit",
+    "exitCode": 0,
+    "prompt": "TESTONLY second goose phrase copper wave lunar cedar. Use your shell tool to run cat evidence.txt, then repeat its exact text.",
+    "observed": [
+      "human prompt captured automatically",
+      "shell tool call for the synthetic evidence file captured automatically",
+      "tool result linked to the call ID and containing GOOSE LIVE TESTONLY VALUE: jade fox violet mountain captured automatically",
+      "assistant text repeated the exact file value and was captured automatically",
+      "native session state captured; no unrecognized records"
+    ]
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 6,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "excludedAttempt": "The first live session was not captured because the isolated test launcher omitted the Goose binary from PATH, which the hook uses for session export. The launcher was fixed before the passing session; no backfill was used to claim automatic capture.",
+  "limitations": [
+    "No real-model headless or Linux result",
+    "No attachment, approval, branching, compaction, or full record-type coverage established"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "droid",
+  "status": "pass",
+  "certification": "native-smoke",
+  "mode": "headless",
+  "inference": "scripted",
+  "platform": "darwin/arm64",
+  "gates": {
+    "installedHook": true,
+    "tailWorkerCompleteAndExited": true,
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "nativeSessionState": true,
+    "scriptedRequests": true,
+    "agentHeader": true,
+    "backfillIdempotent": true
+  },
+  "coverage": [
+    "public BYOK startup (no enterprise overrides)",
+    "installed native hooks",
+    "headless CLI",
+    "human prompt",
+    "tool call/result linkage",
+    "assistant answer",
+    "session header",
+    "backfill idempotency",
+    "bounded tail worker exit"
+  ],
+  "exclusions": [
+    "Factory account authentication",
+    "real provider/model behavior",
+    "interactive TUI",
+    "attachments",
+    "branching/forks",
+    "compaction",
+    "full record coverage",
+    "ephemeral sessions"
+  ],
+  "durationMs": 8204,
+  "version": "0.229.0",
+  "requests": 2
+}

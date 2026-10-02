@@ -1,0 +1,32 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "aider",
+  "version": "0.86.2",
+  "platform": "darwin/arm64",
+  "provider": "Ollama on localhost via OpenAI-compatible API",
+  "model": "ledger-test",
+  "repository": "isolated synthetic temporary Git repository",
+  "status": "pass",
+  "headless": "not run with a real model",
+  "interactive": {
+    "execution": "hash-locked aider-chat Python environment through cledger run aider in a real PTY; typed prompt and normal /exit",
+    "exitCode": 0,
+    "prompt": "TESTONLY plum telescope river: read evidence.txt and reply with its exact single line. Do not edit any files.",
+    "observed": [
+      "human prompt captured automatically",
+      "read_text operation and result linked by call ID, with TESTONLY plum telescope river in the text attachment",
+      "model context contained the synthetic file text",
+      "assistant output contained TESTONLY plum telescope river",
+      "session end recorded with recorder_failed false and no unrecognized records"
+    ],
+    "modelBehavior": "The tiny model emitted an Aider file listing rather than only the requested line and attempted to write the unchanged file; the tracked evidence.txt content remained unchanged."
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 26,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "No real-model headless or Linux result",
+    "Unwrapped Aider sessions are not captured by this explicit launch recorder",
+    "No attachment, branching, summarization, subagent, or full record-type coverage established"
+  ]
+}

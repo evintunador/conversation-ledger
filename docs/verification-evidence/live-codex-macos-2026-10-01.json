@@ -1,0 +1,42 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "codex",
+  "version": "0.160.0",
+  "platform": "darwin/arm64",
+  "provider": "existing logged-in Codex account",
+  "model": "GPT-6.1-Sol",
+  "repository": "disposable synthetic Git repository with project-scoped generated hooks and no remote",
+  "status": "pass",
+  "headless": "provider answered an ephemeral diagnostic prompt; automatic capture was not tested in that mode",
+  "interactive": {
+    "execution": "installed binary in a PTY; native project Stop and SessionEnd hooks; typed prompt with a separate submit Enter; read-only sandbox; normal /exit",
+    "exitCode": 0,
+    "prompt": "TESTONLY_CODEX_LIVE_FILE_20261001. Read evidence.txt with a shell tool, then reply with the exact file content and nothing else.",
+    "syntheticFileContent": "cerulean cedar stone b132513c",
+    "gates": {
+      "humanPromptCaptured": true,
+      "shellToolCallCaptured": true,
+      "toolInputMentionsFile": true,
+      "toolResultCaptured": true,
+      "toolResultLinkedById": true,
+      "toolResultContainsFileContent": true,
+      "exactAssistantAnswerCaptured": true,
+      "sessionStateCaptured": true,
+      "noUnrecognizedRecords": true
+    }
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 20,
+  "eventKinds": {
+    "session_state": 3,
+    "activity": 9,
+    "conversation_turn": 8
+  },
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": null,
+  "costNote": "The logged-in CLI did not report a dollar charge; terminal usage was 3,552 input tokens, 29,056 cached input tokens, and 48 output tokens (3,600 total excluding cached input).",
+  "harnessFinding": "The PTY driver's text-plus-Enter burst left text in the Codex composer. A free scripted provider received zero requests until a second standalone Enter was sent after the text rendered; that sequence was used for this live pass.",
+  "limitations": [
+    "No live headless automatic-capture proof",
+    "No Linux, attachments, branching, compaction, or full native record-type coverage established"
+  ]
+}

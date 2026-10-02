@@ -1,0 +1,34 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "open-interpreter",
+  "version": "0.0.45",
+  "platform": "darwin/arm64",
+  "provider": "local Ollama through OpenAI-compatible Responses API",
+  "model": "ledger-test",
+  "repository": "isolated synthetic temporary Git repository",
+  "status": "partial",
+  "headless": "not run with a real model",
+  "interactive": {
+    "execution": "installed Open Interpreter binary in a PTY with isolated HOME and INTERPRETER_HOME, generated native Stop and SessionEnd hooks, typed prompts and normal /exit",
+    "exitCode": 0,
+    "prompts": [
+      "TESTONLY amber otter probe. Use the shell tool to read evidence.txt, then reply with its exact contents. Do not edit any files.",
+      "Run the shell command `cat evidence.txt` and quote its stdout exactly. TESTONLY second probe.",
+      "Use exec_command now: {\"cmd\":\"cat evidence.txt\"}. Then tell me the output. TESTONLY third probe."
+    ],
+    "observed": [
+      "three human prompts, session state, a view_image tool call and its linked unsupported-image result appeared in the native ledger before backfill",
+      "a later assistant answer appeared in the native ledger, but its alleged stdout was unrelated to the synthetic file",
+      "the native notes ref exists and its tail worker reported completion"
+    ],
+    "gap": "The tiny model called view_image on evidence.txt, failed to read the text file, and later hallucinated (12345678901234567890) rather than answering with TESTONLY amber otter counts seven lanterns."
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 36,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "No successful file-read result or exact-answer pass",
+    "No real-model headless or Linux result",
+    "No attachment, branching, compaction, or full record-type coverage established"
+  ]
+}

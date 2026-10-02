@@ -1,0 +1,38 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "copilot",
+  "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates.",
+  "platform": "darwin/arm64",
+  "date": "2026-10-02",
+  "provider": "local DeepSeek gateway via OpenAI-compatible API",
+  "model": "deepseek-v4-flash",
+  "repository": "/private/tmp/cledger-deepseek-copilot-20261002-retry/repo",
+  "status": "pass",
+  "requestCount": 2,
+  "requestLimits": {
+    "requests": 4,
+    "maxOutputTokens": 2048,
+    "requestTimeoutMs": 180000
+  },
+  "interactive": {
+    "execution": "real installed TUI through PTY; isolated HOME/config; submitted synthetic prompt",
+    "prompt": "TESTONLY copilot DeepSeek verification. Use your file-reading tool to read the file /private/tmp/cledger-deepseek-copilot-20261002-retry/repo/evidence.txt, then reply with its exact entire contents. Do not edit files.",
+    "exitCode": 0,
+    "timedOut": false,
+    "actionsCompleted": 4
+  },
+  "gates": {
+    "prompt": true,
+    "toolCall": true,
+    "successfulLinkedToolResult": true,
+    "fileAnswer": true,
+    "noUnrecognizedRecords": true,
+    "normalExit": true
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 17,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "No live Linux or headless result; no full record-type certification."
+  ]
+}

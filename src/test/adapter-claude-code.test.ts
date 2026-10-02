@@ -10,6 +10,7 @@ import {
   runClaudeCodeHook,
 } from "../adapters/claude-code.js";
 import { readEvents } from "../store.js";
+import { writeCursor } from "../adapters/common.js";
 import { cleanupDir, cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
 
 const SESSION_ID = "sess-1";
@@ -136,6 +137,7 @@ test("captureClaudeTranscript: converts a synthetic transcript end to end", asyn
     });
 
     const line2 = bySeq.get(2)!;
+    assert.deepStrictEqual(line2.actor, { type: "system" });
     const line2Content = line2.content as { role: string; blocks: unknown[] };
     assert.deepStrictEqual(line2Content.blocks[0], {
       type: "tool_result",
@@ -178,6 +180,64 @@ test("captureClaudeTranscript: converts a synthetic transcript end to end", asyn
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(transcriptDir);
+  }
+});
+
+test("captureClaudeTranscript: tool and composite user envelopes never claim human authorship", async () => {
+  const repo = await makeTempRepo("cledger-cc-actors-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-cc-actors-"));
+  try {
+    await makeCommit(repo, "init");
+    const tool = { type: "tool_result", tool_use_id: "call-1", content: "tool output" };
+    const contents = ["human prompt", [tool], [{ type: "text", text: "human clarification" }, tool]];
+    const lines = contents.map((content, i) => ({
+      type: "user", sessionId: SESSION_ID, timestamp: `2026-01-01T00:00:0${i}.000Z`,
+      message: { role: "user", content },
+    }));
+    const path = join(dir, `${SESSION_ID}.jsonl`);
+    await writeFile(path, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+    await captureClaudeTranscript(path, repo.root);
+    const events = (await readEvents(repo)).sort((a, b) => a.stream!.seq - b.stream!.seq);
+    assert.deepStrictEqual(events[0]!.actor, { type: "human", id: "test@example.com", display: "Test User" });
+    for (const i of [1, 2]) {
+      assert.deepStrictEqual(events[i]!.actor, { type: "system" }, "composite authorship is not a named human");
+      assert.deepStrictEqual(events[i]!.content, { role: "user", blocks: contents[i] });
+      assert.deepStrictEqual(events[i]!.raw!.data, lines[i]);
+    }
+    await writeCursor(repo, SESSION_ID, "lines", 0);
+    const replay = await captureClaudeTranscript(path, repo.root);
+    assert.strictEqual(replay.appended, 0);
+    assert.strictEqual(replay.deduped, 3);
+    assert.deepStrictEqual((await readEvents(repo)).map((e) => e.id).sort(), events.map((e) => e.id).sort());
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
+  }
+});
+
+test("captureClaudeTranscript: malformed known turns are preserved as shape drift", async () => {
+  const repo = await makeTempRepo("cledger-cc-shape-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-cc-shape-"));
+  try {
+    await makeCommit(repo, "init");
+    const lines = [
+      { type: "user", sessionId: SESSION_ID, timestamp: "2026-01-01T00:00:00.000Z" },
+      { type: "assistant", sessionId: SESSION_ID, message: { content: "missing timestamp" } },
+      { type: "user", sessionId: SESSION_ID, message: { content: { future: "shape" } } },
+    ];
+    const path = join(dir, `${SESSION_ID}.jsonl`);
+    await writeFile(path, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+    const result = await captureClaudeTranscript(path, repo.root);
+    assert.deepStrictEqual(result.unrecognized, { "user/invalid-shape": 2, "assistant/invalid-shape": 1 });
+    const events = (await readEvents(repo)).sort((a, b) => a.stream!.seq - b.stream!.seq);
+    assert.strictEqual(events.length, 3);
+    assert.ok(events.every((event) => event.kind === "unrecognized" && event.actor.type === "system"));
+    assert.deepStrictEqual(events.map((event) => event.raw!.data), lines);
+    await writeCursor(repo, SESSION_ID, "lines", 0);
+    assert.strictEqual((await captureClaudeTranscript(path, repo.root)).deduped, 3);
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
   }
 });
 
@@ -943,4 +1003,36 @@ test("captureClaudeAll: mirrors Claude's validated project-directory override an
     await cleanupRepo(repo);
     await cleanupDir(configDir);
   }
+});
+
+test("Claude native cost/latch state and withheld thinking preserve replay identity", async () => {
+  const { renormalizeUnrecognizedMany } = await import("../adapters/claude-code.js");
+  const { eventId } = await import("../schema.js");
+  const repo = await makeTempRepo("cledger-cc-new-records-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-cc-new-records-"));
+  try {
+    await makeCommit(repo, "init");
+    const line = { type: "assistant", sessionId: SESSION_ID, timestamp: "2026-01-01T00:00:00.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "visible" }, { type: "redacted_thinking", data: "TESTONLY_cipher_one" }] } };
+    const records = [line, { type: "atis-latch", sessionId: SESSION_ID, atis: "" },
+      { type: "cost-state", sessionId: SESSION_ID, totalCostUSD: 0.000036, hasUnknownModelCost: false,
+        modelUsage: { fixture: { inputTokens: 2, outputTokens: 2, costUSD: 0.000036 } } }];
+    const path = join(dir, `${SESSION_ID}.jsonl`);
+    await writeFile(path, records.map(record => JSON.stringify(record)).join("\n") + "\n");
+    await captureClaudeTranscript(path, repo.root);
+    const events = await readEvents(repo);
+    assert.equal(events.length, 4);
+    assert.equal(events.filter(e => e.kind === "session_state").length, 2);
+    const visible = events.find(e => e.kind === "conversation_turn")!;
+    const sealed = events.find(e => e.kind === "reasoning")!;
+    assert(!JSON.stringify(visible).includes("TESTONLY_cipher_one"));
+    assert(JSON.stringify(sealed.raw).includes("TESTONLY_cipher_one"));
+    const replay = renormalizeUnrecognizedMany({ ...visible, raw: { format: "claude-code-jsonl/1", data: line } }, { name: null, email: null })!;
+    assert.deepEqual(replay.map(eventId).sort(), [visible.id, sealed.id].sort());
+    const changed = structuredClone(line); changed.message.content[1]!.data = "TESTONLY_cipher_two";
+    const revised = renormalizeUnrecognizedMany({ ...visible, raw: { format: "claude-code-jsonl/1", data: changed } }, { name: null, email: null })!;
+    assert.notEqual(eventId(revised[1]!), sealed.id, "opaque bytes participate in identity through a digest");
+    await writeCursor(repo, SESSION_ID, "lines", 0);
+    assert.equal((await captureClaudeTranscript(path, repo.root)).appended, 0);
+  } finally { await cleanupRepo(repo); await cleanupDir(dir); }
 });

@@ -7,6 +7,7 @@ import * as A from "annals";
 import type { RepoContext, RepoInfo } from "annals";
 import { asLedger, CLEDGER_NAMESPACE } from "./ledger.js";
 import { fromAnnals, toAnnals, type EventDraft, type EvidenceEvent } from "./schema.js";
+import { applyAttachmentPolicy } from "./attachments.js";
 
 export { ScanBlockedError, RedactAfterShareError, parsePrePushRefs } from "annals";
 export type { SyncResult, TransportPushResult } from "annals";
@@ -48,7 +49,7 @@ export async function appendEvents(
   events: EventDraft[],
   opts: { context?: RepoContext; anchor?: string } = {},
 ): Promise<AppendResult> {
-  const result = await A.appendEvents(asLedger(repo), events.map(toAnnals), opts);
+  const result = await A.appendEvents(asLedger(repo), events.map(applyAttachmentPolicy).map(toAnnals), opts);
   return { ...result, appended: result.appended.map(fromAnnals) };
 }
 

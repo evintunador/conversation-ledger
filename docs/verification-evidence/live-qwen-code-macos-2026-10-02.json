@@ -1,0 +1,38 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "qwen-code",
+  "version": "0.21.5",
+  "platform": "darwin/arm64",
+  "date": "2026-10-02",
+  "provider": "local DeepSeek gateway via OpenAI-compatible API",
+  "model": "deepseek-v4-flash",
+  "repository": "/private/tmp/cledger-deepseek-qwen-code-20261002/repo",
+  "status": "pass",
+  "requestCount": 3,
+  "requestLimits": {
+    "requests": 4,
+    "maxOutputTokens": 2048,
+    "requestTimeoutMs": 180000
+  },
+  "interactive": {
+    "execution": "real installed TUI through PTY; isolated HOME/config; submitted synthetic prompt",
+    "prompt": "TESTONLY qwen-code DeepSeek verification. Use your file-reading tool to read the file /private/tmp/cledger-deepseek-qwen-code-20261002/repo/evidence.txt, then reply with its exact entire contents. Do not edit files.",
+    "exitCode": 0,
+    "timedOut": false,
+    "actionsCompleted": 3
+  },
+  "gates": {
+    "prompt": true,
+    "toolCall": true,
+    "successfulLinkedToolResult": true,
+    "fileAnswer": true,
+    "noUnrecognizedRecords": true,
+    "normalExit": true
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 9,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "No live Linux or headless result; no full record-type certification."
+  ]
+}

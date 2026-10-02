@@ -37,6 +37,12 @@ export {
 } from "annals";
 export type { GitUserIdentity, RepoInfo } from "annals";
 export { captureClaudeTranscript, runClaudeCodeHook } from "./adapters/claude-code.js";
+export { capturePiTranscript, capturePiAll, runPiHook } from "./adapters/pi.js";
+export { captureCopilotTranscript, captureCopilotAll, runCopilotHook } from "./adapters/copilot.js";
+export { captureCursorTranscript, runCursorHook, runCursor } from "./adapters/cursor.js";
+export { captureKimiTranscript, captureKimiAll, runKimiHook } from "./adapters/kimi.js";
+export { captureKiroTranscript, captureKiroAll, captureKiroV3Transcript, captureKiroV3All, runKiroHook, runKiro } from "./adapters/kiro.js";
+export { captureMistralVibeTranscript, captureMistralVibeAll, runMistralVibeHook } from "./adapters/mistral-vibe.js";
 export { captureCodexTranscript, runCodexHook } from "./adapters/codex.js";
 export {
   captureOpencodeAll,
@@ -62,3 +68,15 @@ export { suggestMappings } from "annals";
 export type { BranchSuggestions, Suggestion } from "annals";
 export { forgeForRepo } from "annals";
 export type { ForgeDriver, ForgePullRequest } from "annals";
+
+export { captureGooseTranscript, captureGooseAll, captureGooseSession } from "./adapters/goose.js";
+export { captureDroidTranscript, captureDroidAll } from "./adapters/droid.js";
+export { runAider, captureAiderTranscript, captureAiderAll } from "./adapters/aider.js";
+export { captureClineTranscript, captureClineAll } from "./adapters/cline.js";
+export { runContinue, captureContinueTranscript, captureContinueAll } from "./adapters/continue.js";
+export { captureOpenHandsTranscript, captureOpenHandsAll } from "./adapters/openhands.js";
+export { captureKiloExportFile, captureKiloSession, captureKiloAll } from "./adapters/kilo.js";
+
+export { runCrush, captureCrushDatabase, captureCrushAll } from "./adapters/crush.js";
+
+export { captureOpenInterpreterTranscript, captureOpenInterpreterAll } from "./adapters/open-interpreter.js";

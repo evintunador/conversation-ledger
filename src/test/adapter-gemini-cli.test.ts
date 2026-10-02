@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  runGeminiHook,
   captureGeminiSession,
   captureGeminiTranscript,
   renormalizeUnrecognized,
@@ -543,4 +544,101 @@ test("gemini-cli capture: a subagent session is captured and points at its paren
     await rm(dir, { recursive: true, force: true });
     await cleanupRepo(repo);
   }
+});
+
+test("gemini-cli WAL preserves corrupt complete records and malformed snapshot members", async () => {
+  const repo = await makeTempRepo("gemini-wal-drift-");
+  try {
+    await makeCommit(repo, "init");
+    const text = log(header(), { futureRecord: "TESTONLY-future" }, ["TESTONLY-array"], { $set: { messages: [null, { id: "good", type: "user", content: "visible" }] } }) + '{broken}\n' + '{partial';
+    const result = await capture(text, repo.root);
+    assert.equal(Object.values(result.unrecognized).reduce((a, b) => a + b, 0), 4);
+    const events = await readEvents(repo);
+    assert.equal(events.filter(e => e.kind === "unrecognized").length, 4);
+    assert.ok(events.some(e => JSON.stringify(e.content).includes("visible")));
+    assert.ok(!JSON.stringify(events).includes("{partial"));
+    assert.equal((await capture(text, repo.root)).appended, 0);
+  } finally { await cleanupRepo(repo); }
+});
+
+test("gemini-cli later replacement of a settled message is captured with stable missing time", async () => {
+  const repo = await makeTempRepo("gemini-replaced-");
+  try {
+    await makeCommit(repo, "init");
+    const start = log({ sessionId: SESSION_ID, projectHash: PROJECT_HASH }, { id: "answer", type: "gemini", content: "TESTONLY-first" });
+    await capture(start, repo.root);
+    const next = start + log({ $set: { lastUpdated: "2026-09-29T15:00:00Z" } }, { id: "answer", type: "gemini", content: "TESTONLY-revised" });
+    await capture(next, repo.root);
+    const turns = (await readEvents(repo)).filter(e => e.kind === "conversation_turn");
+    assert.equal(turns.length, 2);
+    assert.ok(turns.every(e => e.occurred_at === "1970-01-01T00:00:00.000Z"));
+    assert.equal((await capture(next, repo.root)).appended, 0);
+  } finally { await cleanupRepo(repo); }
+});
+
+
+test("gemini-cli nested unknown content fails drift gates while preserving full source", async () => {
+  const repo = await makeTempRepo("gemini-nested-drift-");
+  try {
+    await makeCommit(repo, "init");
+    const rows = log(header(),
+      { id: "future-parts", type: "user", content: [{ text: "visible" }, { TESTONLY_futurePart: "value" }, 42] },
+      { id: "bad-tools", type: "gemini", content: "TESTONLY-content", toolCalls: [null] });
+    const result = await capture(rows, repo.root);
+    assert.equal(result.unrecognized["message/parts"], 1);
+    assert.equal(result.unrecognized["message/malformed-collections"], 1);
+    const unknown = (await readEvents(repo)).filter(e => e.kind === "unrecognized");
+    assert.equal(unknown.length, 2);
+    assert.ok(JSON.stringify(unknown).includes("TESTONLY_futurePart"));
+    for (const event of unknown) assert.equal(renormalizeUnrecognized(event, await gitUserIdentity(repo)), null);
+    assert.equal((await capture(rows, repo.root)).appended, 0);
+  } finally { await cleanupRepo(repo); }
+});
+
+
+test("gemini-cli bounded worker captures native records written after SessionEnd returns", async () => {
+  const repo = await makeTempRepo("gemini-final-tail-");
+  const directory = await mkdtemp(join(tmpdir(), "gemini-final-source-"));
+  try {
+    await makeCommit(repo, "init");
+    const path = join(directory, "session-TESTONLY.jsonl"), initial = log(header(), { id: "prompt", type: "user", content: "TESTONLY-prompt" });
+    await writeFile(path, initial);
+    await runGeminiHook(JSON.stringify({ cwd: repo.root, transcript_path: path, hook_event_name: "SessionEnd" }));
+    await new Promise(done => setTimeout(done, 200));
+    await writeFile(path, initial + log({ id: "final-notice", type: "info", content: "TESTONLY-after-hook" }));
+    const statusDirectory = join(repo.commonDir, "cledger-gemini-cli-tail");
+    let finished = false;
+    for (let i = 0; i < 70 && !finished; i++) {
+      const names = await readdir(statusDirectory);
+      for (const name of names.filter(value => value.endsWith(".json"))) {
+        const status = JSON.parse(await readFile(join(statusDirectory, name), "utf8"));
+        if (status.status === "failed") assert.fail(status.error);
+        if (status.status === "complete" && !names.some(value => value.endsWith(".lock"))) {
+          try { process.kill(status.pid, 0); } catch { finished = true; }
+        }
+      }
+      if (!finished) await new Promise(done => setTimeout(done, 100));
+    }
+    assert.ok(finished, "bounded worker completed and exited");
+    const events = await readEvents(repo);
+    assert.ok(events.some(event => JSON.stringify(event.content).includes("TESTONLY-after-hook")));
+    assert.equal((await captureGeminiTranscript(path, repo.root)).appended, 0);
+  } finally { await cleanupRepo(repo); await rm(directory, { recursive: true, force: true }); }
+});
+
+
+test("gemini-cli invalid message containers are explicit drift, including an otherwise empty patch", async () => {
+  const repo = await makeTempRepo("gemini-invalid-containers-");
+  try {
+    await makeCommit(repo, "init");
+    const text = log({ ...header() as object, messages: { content: "TESTONLY-header-lost" } },
+      { $set: { messages: { content: "TESTONLY-patch-lost" } } });
+    const result = await capture(text, repo.root);
+    assert.equal(result.unrecognized["header/malformed-messages"], 1);
+    assert.equal(result.unrecognized["snapshot/malformed-container"], 1);
+    const raw = JSON.stringify((await readEvents(repo)).filter(e => e.kind === "unrecognized"));
+    assert.ok(raw.includes("TESTONLY-header-lost"));
+    assert.ok(raw.includes("TESTONLY-patch-lost"));
+    assert.equal((await capture(text, repo.root)).appended, 0);
+  } finally { await cleanupRepo(repo); }
 });

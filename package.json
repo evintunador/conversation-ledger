@@ -35,6 +35,7 @@
   ],
   "files": [
     "dist",
+    "verification/requirements",
     "!dist/test",
     "README.md",
     "LICENSE"
@@ -42,14 +43,39 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
     "test": "npm run build && node --test \"dist/test/**/*.test.js\"",
+    "verify:opencode": "npm run build && node dist/verification/opencode.js --scripted",
+    "verify:opencode:local": "npm run build && node dist/verification/opencode.js",
+    "verify:qwen": "npm run build && node dist/verification/qwen-code.js",
+    "verify:pi": "npm run build && node dist/verification/pi.js",
+    "verify:campaign": "npm run build && node dist/verification/campaign.js",
     "prepublishOnly": "npm test",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "verify:claude-code": "npm run build && node dist/verification/claude-code.js",
+    "verify:codex": "npm run build && node dist/verification/codex.js",
+    "verify:gemini-cli": "npm run build && node dist/verification/gemini-cli.js",
+    "verify:copilot": "npm run build && node dist/verification/copilot.js",
+    "verify:kimi": "npm run build && node dist/verification/kimi.js",
+    "verify:mistral-vibe": "npm run build && node dist/verification/mistral-vibe.js",
+    "verify:goose": "npm run build && node dist/verification/goose.js",
+    "verify:aider": "npm run build && node dist/verification/aider.js",
+    "verify:droid": "npm run build && node dist/verification/droid.js",
+    "verify:continue": "npm run build && node dist/verification/continue.js",
+    "verify:kilo": "npm run build && node dist/verification/kilo.js",
+    "verify:cline": "npm run build && node dist/verification/cline.js",
+    "verify:maintenance": "npm run build && node dist/verification/maintenance.js",
+    "verify:crush": "npm run build && node dist/verification/crush.js",
+    "verify:openhands": "npm run build && node dist/verification/openhands.js",
+    "verify:open-interpreter": "npm run build && node dist/verification/open-interpreter.js",
+    "verify:schedule": "npm run build && node dist/verification/schedule.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/proper-lockfile": "^4.1.4",
     "typescript": "^5.5.0"
   },
   "dependencies": {
-    "annals": "file:../annals"
+    "annals": "file:../annals",
+    "fzstd": "^0.1.1",
+    "proper-lockfile": "^4.1.2"
   }
 }

@@ -3,8 +3,10 @@ import assert from "node:assert";
 import { appendFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureCodexTranscript } from "../adapters/codex.js";
+import { captureCodexTranscript, renormalizeUnrecognizedMany, normalizeCodexRolloutRecord } from "../adapters/codex.js";
+import { eventId } from "../schema.js";
 import { readEvents } from "../store.js";
+import { writeCursor } from "../adapters/common.js";
 import { cleanupDir, cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
 
 const SESSION_ID = "codex-sess-1";
@@ -12,6 +14,66 @@ const SESSION_ID = "codex-sess-1";
 // can extract; the session_meta line (index 0) then overrides the id, which
 // is the more common real-world case and worth exercising too.
 const FILENAME = "rollout-2026-01-01T00-00-00-123e4567-e89b-12d3-a456-426614174000.jsonl";
+
+test("captureCodexTranscript: only explicit user messages have human attribution", async () => {
+  const repo = await makeTempRepo("cledger-codex-actors-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-actors-"));
+  try {
+    await makeCommit(repo, "init");
+    const roles = ["user", "assistant", "system", "developer", "tool", "future-role"];
+    const lines = [
+      { type: "session_meta", payload: { id: SESSION_ID } },
+      ...roles.map((role, i) => ({
+        type: "response_item", timestamp: `2026-01-01T00:00:0${i}.000Z`,
+        payload: { type: "message", role, content: [{ type: "input_text", text: `${role} content` }] },
+      })),
+    ];
+    const path = join(dir, FILENAME);
+    await writeFile(path, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+    await captureCodexTranscript(path, repo.root);
+    const events = (await readEvents(repo)).filter((e) => e.kind === "conversation_turn").sort((a, b) => a.stream!.seq - b.stream!.seq);
+    assert.strictEqual(events.length, roles.length);
+    assert.deepStrictEqual(events[0]!.actor, { type: "human", id: "test@example.com", display: "Test User" });
+    assert.deepStrictEqual(events[1]!.actor, { type: "agent" });
+    for (let i = 2; i < roles.length; i++) {
+      assert.deepStrictEqual(events[i]!.actor, { type: "system" });
+      assert.deepStrictEqual(events[i]!.raw!.data, lines[i + 1]);
+      assert.strictEqual((events[i]!.content as { role: string }).role, roles[i]);
+    }
+    await writeCursor(repo, SESSION_ID, "lines", 0);
+    const replay = await captureCodexTranscript(path, repo.root);
+    assert.strictEqual(replay.appended, 0);
+    assert.strictEqual(replay.deduped, lines.length);
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
+  }
+});
+
+test("captureCodexTranscript: malformed message bodies remain available as shape drift", async () => {
+  const repo = await makeTempRepo("cledger-codex-shape-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-codex-shape-"));
+  try {
+    await makeCommit(repo, "init");
+    const lines = [
+      { type: "session_meta", payload: { id: SESSION_ID } },
+      { type: "response_item", payload: { type: "message", content: [{ type: "input_text", text: "unknown author" }] } },
+      { type: "response_item", payload: { type: "message", role: "user", content: { future: "shape" } } },
+    ];
+    const path = join(dir, FILENAME);
+    await writeFile(path, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+    const result = await captureCodexTranscript(path, repo.root);
+    assert.deepStrictEqual(result.unrecognized, { "response_item/message/invalid-shape": 2 });
+    const preserved = (await readEvents(repo)).filter((e) => e.kind === "unrecognized").sort((a, b) => a.stream!.seq - b.stream!.seq);
+    assert.deepStrictEqual(preserved.map((e) => e.raw!.data), lines.slice(1));
+    assert.ok(preserved.every((e) => e.actor.type === "system"));
+    await writeCursor(repo, SESSION_ID, "lines", 0);
+    assert.strictEqual((await captureCodexTranscript(path, repo.root)).deduped, lines.length);
+  } finally {
+    await cleanupRepo(repo);
+    await cleanupDir(dir);
+  }
+});
 
 /** Index 0 is session_meta (recorded as `session_state`, not a turn); 1-4 are
  * real content; 5 is a reasoning item (preserved opaquely as a `reasoning`
@@ -131,7 +193,8 @@ test("captureCodexTranscript: converts a synthetic rollout end to end", async ()
     const reasoning = bySeq.get(5)!;
     assert.strictEqual(reasoning.kind, "reasoning");
     assert.strictEqual(reasoning.actor.type, "agent");
-    assert.deepStrictEqual(reasoning.content, { opaque: true });
+    assert.strictEqual((reasoning.content as { opaque?: boolean }).opaque, true);
+    assert.match((reasoning.content as { raw_sha256: string }).raw_sha256, /^[a-f0-9]{64}$/);
     assert.strictEqual(
       (reasoning.raw!.data as { payload?: { encrypted_content?: string } }).payload?.encrypted_content,
       "opaque-blob-must-never-be-stored",
@@ -221,9 +284,13 @@ test("captureCodexTranscript: a populated reasoning summary becomes a visible co
       role: "reasoning_summary",
       blocks: [{ type: "text", text: "Considering the test suite.\n\nDeciding to run pytest." }],
     });
-    assert.deepStrictEqual(opaque.content, { opaque: true });
+    assert.strictEqual((opaque.content as { opaque?: boolean }).opaque, true);
+    assert.match((opaque.content as { raw_sha256: string }).raw_sha256, /^[a-f0-9]{64}$/);
     const serialized = JSON.stringify(visible);
     assert.ok(!serialized.includes("opaque-blob"), "the ciphertext must never leak into the visible turn");
+    const upgraded = renormalizeUnrecognizedMany({ ...opaque, kind: "unrecognized", raw: { format: opaque.raw!.format, data: lines[1] } },
+      { name: "Test User", email: "test@example.com" });
+    assert.deepStrictEqual(upgraded?.map(eventId).sort(), [visible.id, opaque.id].sort(), "raw reasoning upgrade recreates both native sibling IDs");
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(dir);
@@ -408,13 +475,20 @@ test("captureCodexTranscript: agent_message keeps visible text and seals encrypt
     const sealed = events.find((ev) => ev.kind === "reasoning")!;
     assert.ok(sealed, "the encrypted blocks are preserved as a reasoning event");
     assert.strictEqual(sealed.stream?.seq, e.stream?.seq, "same source line, same seq");
-    assert.deepStrictEqual(sealed.content, { opaque: true }, "content carries only the opacity marker");
+    assert.strictEqual((sealed.content as { opaque?: boolean }).opaque, true);
+    assert.match((sealed.content as { raw_sha256: string }).raw_sha256, /^[a-f0-9]{64}$/);
     const sealedBlocks = (sealed.raw?.data as { payload?: { content?: unknown[] } }).payload?.content ?? [];
     assert.strictEqual(sealedBlocks.length, 1, "only the encrypted blocks, not the visible text");
     assert.deepStrictEqual(sealedBlocks[0], {
       type: "encrypted_content",
       encrypted_content: "gAAAAAB-opaque-blob-must-never-be-stored",
     });
+    const preserved = { ...e, kind: "unrecognized" as const, raw: { format: e.raw!.format, data: lines[1] } };
+    const upgraded = renormalizeUnrecognizedMany(preserved, { name: "Test User", email: "test@example.com" });
+    assert.deepStrictEqual(upgraded?.map(eventId).sort(), [e.id, sealed.id].sort(), "raw inter-agent upgrade retains ciphertext sibling");
+    const child = renormalizeUnrecognizedMany({ ...preserved, stream: { ...preserved.stream!, parent: "codex:parent" } },
+      { name: "Test User", email: "test@example.com" });
+    assert.ok(child?.every((draft) => draft.stream?.parent === "codex:parent"), "all upgraded siblings retain native parentage");
   } finally {
     await cleanupRepo(repo);
     await cleanupDir(dir);
@@ -807,4 +881,40 @@ test("captureCodexTranscript: parent and child do not share a capture cursor", a
     await cleanupRepo(repo);
     await cleanupDir(dir);
   }
+});
+
+test("pure Codex-derived normalization preserves native Codex IDs and selects fork namespace before storage", async () => {
+  const repo=await makeTempRepo(), dir=await mkdtemp(join(tmpdir(),"cledger-codex-pure-"));
+  try {
+    await makeCommit(repo,"initial");
+    const lines=[{type:"session_meta",timestamp:"2026-01-01T00:00:00Z",payload:{id:SESSION_ID}},
+      {type:"response_item",timestamp:"2026-01-01T00:00:01Z",payload:{type:"message",role:"user",content:[{type:"input_text",text:"Prompt"}]}},
+      {type:"response_item",timestamp:"2026-01-01T00:00:02Z",payload:{type:"function_call",name:"read",call_id:"call",arguments:'{"path":"file"}'}},
+      {type:"event_msg",timestamp:"2026-01-01T00:00:03Z",payload:{type:"token_count",info:{total_tokens:12}}}];
+    const path=join(dir,FILENAME);await writeFile(path,lines.map(line => JSON.stringify(line)).join("\n")+"\n");await captureCodexTranscript(path,repo.root);
+    const events=await readEvents(repo);
+    for (const original of events) {
+      const ctx={source:"codex",sessionId:SESSION_ID,conversationId:`codex:${SESSION_ID}`,seq:original.stream!.seq,occurredAt:original.occurred_at,
+        version:original.producer.version!,rawFormat:original.raw!.format,identity:{name:original.actor.display??null,email:original.actor.id??null}};
+      assert.equal(eventId(normalizeCodexRolloutRecord(original.raw!.data,ctx)![0]!),original.id);
+      const fork=normalizeCodexRolloutRecord(original.raw!.data,{...ctx,source:"open-interpreter",conversationId:`open-interpreter:${SESSION_ID}`,rawFormat:"open-interpreter-rollout-jsonl/1"})![0]!;
+      assert.equal(fork.producer.source,"open-interpreter");assert.equal(fork.stream!.id,`open-interpreter:${SESSION_ID}`);assert.notEqual(eventId(fork),original.id);
+      assert.deepEqual(fork.content,original.content);
+    }
+  }finally{await cleanupRepo(repo);await cleanupDir(dir);}
+});
+
+test("Codex 0.159 token usage records and revised ciphertext retain distinct identities", () => {
+  const ctx = { source: "codex", sessionId: SESSION_ID, seq: 3, version: "test", rawFormat: "codex-rollout-jsonl/2",
+    conversationId: `codex:${SESSION_ID}`, occurredAt: "2026-01-01T00:00:00.000Z" };
+  const line = { type: "token_usage_record", timestamp: ctx.occurredAt, ordinal: 9,
+    payload: { response_id: "resp_TESTONLY", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+      turn_token_usage: { total_tokens: 2 }, thread_token_usage: { total_tokens: 4 } } };
+  const [draft] = normalizeCodexRolloutRecord(line, ctx)!;
+  assert.equal(draft!.kind, "activity");
+  assert.deepEqual(draft!.raw!.data, line);
+  assert.equal((draft!.content as { activity_type: string }).activity_type, "token_usage_record");
+  const opaque = (encrypted_content: string) => normalizeCodexRolloutRecord({ type: "response_item",
+    payload: { type: "reasoning", encrypted_content, summary: [] } }, ctx)![0]!;
+  assert.notEqual(eventId(opaque("TESTONLY_one")), eventId(opaque("TESTONLY_two")));
 });

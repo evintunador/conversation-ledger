@@ -1,0 +1,31 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "continue",
+  "version": "1.5.47",
+  "platform": "darwin/arm64",
+  "provider": "Ollama on localhost via OpenAI-compatible API",
+  "model": "ledger-test",
+  "repository": "isolated synthetic temporary Git repository without a remote",
+  "status": "pass",
+  "headless": "not run with a real model",
+  "interactive": {
+    "execution": "installed Continue CLI TUI in a real PTY with isolated HOME and CONTINUE_GLOBAL_DIR; typed a prompt through the explicit cledger run continue watched launcher",
+    "prompt": "TESTONLY silver otter prompt. Use the Read tool to read evidence.txt and tell me its exact contents. Do not edit files.",
+    "syntheticFileContent": "TESTONLY silver otter maps amber stars.",
+    "observedTool": "Read(evidence.txt)",
+    "exit": "the /exit command completed with code 0"
+  },
+  "automaticLedgerEventsBeforeExitOrManualBackfill": 11,
+  "humanPromptCount": 1,
+  "readCallCount": 1,
+  "successfulLinkedReadCount": 1,
+  "exactAnswerCount": 1,
+  "unrecognizedRecordCount": 0,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "Capture requires the explicit watched launcher because Continue 1.5.47 does not invoke native lifecycle hooks",
+    "No real-model headless or Linux result",
+    "Attachment, branching, compaction, resume, and full record-type coverage were not established"
+  ]
+}

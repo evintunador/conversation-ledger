@@ -1,0 +1,30 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "crush",
+  "version": "0.97.1",
+  "platform": "darwin/arm64",
+  "provider": "Ollama on localhost via OpenAI-compatible API",
+  "model": "ledger-test",
+  "repository": "isolated synthetic temporary Git repository without a remote",
+  "status": "partial",
+  "headless": "not run with a real model",
+  "interactive": {
+    "execution": "installed Crush TUI in a real PTY with isolated HOME; typed a prompt through the explicit cledger run crush watched launcher",
+    "prompt": "TESTONLY indigo crane prompt. Use the view tool to read evidence.txt, then reply with the exact complete file contents. Do not edit files.",
+    "syntheticFileContent": "TESTONLY indigo cranes count seven lanterns.",
+    "observedTool": "none; model discussed using view but never called it",
+    "exit": "quit confirmation completed with code 0"
+  },
+  "automaticLedgerEventsBeforeExitOrManualBackfill": 9,
+  "humanPromptCount": 1,
+  "readCallCount": 0,
+  "successfulLinkedReadCount": 0,
+  "exactAnswerCount": 0,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "Capture requires the explicit watched launcher because Crush 0.97.1 has no native lifecycle hook used by this adapter",
+    "The tiny local model emitted thinking text but no tool call or final answer",
+    "No real-model headless or Linux result; attachment, branching, compaction, resume, and full record-type coverage were not established"
+  ]
+}
