@@ -63,6 +63,19 @@ test("PTY deadline stops blocked native process and does not pretend input occur
   assert.ok(Date.now() - start < 3000);
 });
 
+test("PTY stops at a login prerequisite without waiting for deadline or sending a prompt", async () => {
+  const result = await runPty("python3",
+    ["-c", "import time; print('LOGIN_REQUIRED',flush=True); time.sleep(30)"], {
+      cwd: process.cwd(), env: { PATH: process.env.PATH }, timeoutMs: 3000,
+      stopWhen: "LOGIN_REQUIRED",
+      actions: [{ waitFor: "LOGIN_REQUIRED", send: "TESTONLY-must-not-send\r" }],
+    });
+  assert.equal(result.timedOut, false);
+  assert.equal(result.actionsCompleted, 0);
+  assert.match(result.output, /LOGIN_REQUIRED/);
+  assert.doesNotMatch(result.output, /TESTONLY-must-not-send/);
+});
+
 test("PTY answers terminal discovery without enabling extended keyboard input", async () => {
   const result = await runPty("python3", ["-c", String.raw`
 import os,sys,tty,select,time

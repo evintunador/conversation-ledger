@@ -255,13 +255,17 @@ headless substitute. Interactive scheduled attempts have separate cadence state
 from headless attempts. Candidate update verification remains headless; run the
 interactive campaign against candidate binaries before broader promotion.
 
-Cline and Droid interactive checks are currently deferred, including explicit
-campaign selections and scheduled runs. Cline's welcome flow opened browser tabs
-during terminal automation; its external-API headless check requires no Cline
-subscription and remains enabled. Droid's interactive flow requires Factory
-authentication, which the maintainer deferred. Subscription-gated checks should
-remain deferred. Prior individual Cline PTY evidence does not establish reliable
-unattended interactive verification.
+Cline and Droid interactive checks are enabled. Cline uses an isolated external
+provider configuration without browser onboarding. Droid's installed TUI requires
+Factory authentication even with BYOK; an empty CI profile reports
+`blocked` with `reasonCode: "login-required"` and a visible warning.
+It is unverified, never a pass or an integration failure. Standalone campaign
+exit codes are 0 for success, 1 for verification failure, and 2 for unmet
+prerequisites. `--allow-login-required` tolerates only that specific blocker;
+missing binaries, environment problems and actual failures remain nonzero.
+The free interactive CI uses that option and still requires 17 actual passes.
+Candidate pin updates require passing headless and interactive evidence, so a
+missing login cannot qualify an untested update.
 
 The repaired local scenarios passed for
 [Qwen headless](verification-evidence/macos-repaired-qwen-code-headless-2026-09-29.json),

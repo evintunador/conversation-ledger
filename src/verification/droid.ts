@@ -22,6 +22,7 @@ export interface DroidVerificationReport {
   mode?: "interactive" | "headless";
   version?: string;
   reason?: string;
+  reasonCode?: "login-required" | "cli-unavailable" | "unsupported-platform";
   gates: Record<string, boolean>;
   requests?: number;
   coverage: string[];
@@ -91,7 +92,7 @@ export async function verifyScriptedDroid(options: DroidVerificationOptions = {}
     exclusions: ["Factory account authentication", "real provider/model behavior", "interactive TUI", "attachments", "branching/forks", "compaction", "full record coverage", "ephemeral sessions"], durationMs: 0,
   };
   if (!["darwin", "linux"].includes(process.platform)) {
-    report.status = "blocked"; report.reason = "Native Droid verification currently supports macOS and Linux";
+    report.status = "blocked"; report.reasonCode = "unsupported-platform"; report.reason = "Native Droid verification currently supports macOS and Linux";
     return report;
   }
   const root = await mkdtemp(join(tmpdir(), "cledger-droid-native-"));
@@ -126,6 +127,7 @@ export async function verifyScriptedDroid(options: DroidVerificationOptions = {}
     try { report.version = (await checked(binary, ["--version"])).trim(); }
     catch {
       report.status = "blocked";
+      report.reasonCode = "cli-unavailable";
       report.reason = "Droid executable unavailable or version probe failed; install a supported CLI separately and supply its path";
       return report;
     }
@@ -146,12 +148,16 @@ export async function verifyScriptedDroid(options: DroidVerificationOptions = {}
     const prompt = `${marker}. Read evidence.txt using the Read tool and reply with its exact contents. Do not use any other tools.`;
     if(options.interactive){
       const { CI: _ci, NO_COLOR: _noColor, ...terminalEnv } = env;
-      const terminal=await runPty(binary,["--disable-builtin-skills","--model","custom:Verification-0",prompt],{cwd:repo,env:{...terminalEnv,...nativeAuth,TERM:"xterm-256color"},timeoutMs:options.timeoutMs??45_000,
+      // Interactive Droid selects settings.model; --model is an exec-only
+      // option and the TUI otherwise treats it as part of the human prompt.
+      const terminal=await runPty(binary,["--disable-builtin-skills",prompt],{cwd:repo,env:{...terminalEnv,...nativeAuth,TERM:"xterm-256color"},timeoutMs:options.timeoutMs??45_000,
+        stopWhen:"Please login with your Factory account to continue",
         actions:[{waitFor:secret,send:"/quit",delayMs:1000},{waitFor:"/quit",send:"\r",delayMs:250}]});
       report.gates.interactiveExit=!terminal.timedOut&&terminal.code===0&&terminal.actionsCompleted===2;
       report.coverage=report.coverage.map(value=>value==="headless CLI"?"interactive PTY session and exit (initial argv prompt)":value);report.exclusions=report.exclusions.filter(value=>value!=="interactive TUI");
       if (/Please login with your Factory account to continue/.test(terminal.output)) {
         report.status = "blocked";
+        report.reasonCode = "login-required";
         report.reason = "Public Droid interactive mode requires Factory account login. Headless BYOK works without it; no isolated test-account authentication has been supplied. Configure CLEDGER_VERIFY_DROID_FACTORY_API_KEY outside chat with an authorized test key; the verifier maps it to documented FACTORY_API_KEY only for Droid in the isolated profile.";
         return report;
       }
@@ -193,5 +199,6 @@ export async function verifyScriptedDroid(options: DroidVerificationOptions = {}
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const report = await verifyScriptedDroid(process.env.CLEDGER_VERIFY_BINARY ? { binary: process.env.CLEDGER_VERIFY_BINARY } : {});
   process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+  if (report.status === "blocked") process.stderr.write(`WARNING: droid verification blocked (${report.reasonCode ?? "prerequisite-unavailable"}): ${report.reason}\n`);
   process.exitCode = report.status === "fail" ? 1 : report.status === "blocked" ? 2 : 0;
 }

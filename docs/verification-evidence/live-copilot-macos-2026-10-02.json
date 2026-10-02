@@ -1,0 +1,35 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "copilot",
+  "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates.",
+  "platform": "darwin/arm64",
+  "date": "2026-10-02",
+  "provider": "local DeepSeek gateway via OpenAI-compatible API",
+  "model": "deepseek-v4-flash",
+  "repository": "/private/tmp/cledger-deepseek-copilot-20261002/repo",
+  "status": "blocked",
+  "interactive": {
+    "execution": "real installed TUI through PTY; isolated HOME/config; submitted synthetic prompt",
+    "prompt": "TESTONLY copilot DeepSeek verification. Use your file-reading tool to read the file /private/tmp/cledger-deepseek-copilot-20261002/repo/evidence.txt, then reply with its exact entire contents. Do not edit files.",
+    "exitCode": 0,
+    "timedOut": false,
+    "actionsCompleted": 4
+  },
+  "gates": {
+    "prompt": true,
+    "toolCall": false,
+    "successfulLinkedToolResult": false,
+    "fileAnswer": false,
+    "noUnrecognizedRecords": true,
+    "normalExit": true
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 10,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "No live Linux or headless result; no full record-type certification.",
+    "Tool/answer gates were not exercised because the configured local gateway was unavailable; this is not an adapter regression verdict."
+  ],
+  "reason": "The installed Copilot TUI reported it could not connect to local provider http://127.0.0.1:9001/v1. A later host listener check confirmed the gateway was no longer listening. No retry or direct-backend fallback was attempted.",
+  "reasonCode": "provider-unavailable"
+}

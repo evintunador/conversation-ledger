@@ -148,7 +148,7 @@ jobs:
             candidate modes pass. Non-npm updates require source-specific review.
 
             The full macOS/Linux workflow is dispatched on this review branch. Its result
-            must pass before merging. Cline and Droid interactive checks remain deferred.
+            must pass before merging. Missing login is reported as blocked and never qualifies a candidate.
             No paid inference or automatic merge is enabled.
           add-paths: |
             src/verification/runtimes.ts

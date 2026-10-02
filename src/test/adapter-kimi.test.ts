@@ -196,9 +196,15 @@ test("kimi Stop schedules one bounded worker that captures post-return tail and 
     const locks = (await readdir(workerDir)).filter(n => n.endsWith(".lock"));
     assert.equal(locks.length, 1);
     const owner = JSON.parse(await readFile(join(workerDir, locks[0]!, "owner.json"), "utf8"));
-    await Promise.all([runKimiHook(payload), captureKimiTranscript(f.directory, f.repo.root)]);
-    assert.equal(JSON.parse(await readFile(join(workerDir, locks[0]!, "owner.json"), "utf8")).pid, owner.pid);
-    await appendFile(f.wire, JSON.stringify(line("prompt.completed", { promptId: "late", reason: "completed" })) + "\n");
+    // Hold this test-owned worker alive while competing captures run. Under
+    // heavy local inference those calls can outlast its normal settle window;
+    // spawning a new worker after the first exits is correct behavior.
+    process.kill(owner.pid, "SIGSTOP");
+    try {
+      await Promise.all([runKimiHook(payload), captureKimiTranscript(f.directory, f.repo.root)]);
+      assert.equal(JSON.parse(await readFile(join(workerDir, locks[0]!, "owner.json"), "utf8")).pid, owner.pid);
+      await appendFile(f.wire, JSON.stringify(line("prompt.completed", { promptId: "late", reason: "completed" })) + "\n");
+    } finally { process.kill(owner.pid, "SIGCONT"); }
     const deadline = Date.now() + 12_000;
     let done = false;
     while (Date.now() < deadline) {

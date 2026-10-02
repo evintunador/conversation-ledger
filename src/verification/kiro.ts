@@ -19,6 +19,7 @@ export interface KiroLiveReport {
   version?: string;
   gates: Record<string, boolean>;
   reason?: string;
+  reasonCode?: "login-required" | "cli-unavailable" | "unsupported-platform";
   durationMs: number;
 }
 
@@ -26,7 +27,7 @@ export async function verifyLiveKiro(options: { binary?: string; timeoutMs?: num
   const started = Date.now();
   const report: KiroLiveReport = { schema: "cledger-verification/1", cli: "kiro", status: "blocked", inference: "live-account",
     mode: "interactive", platform: `${process.platform}/${process.arch}`, gates: {}, durationMs: 0 };
-  if (!["darwin", "linux"].includes(process.platform)) { report.reason = "Kiro TUI verification supports macOS and Linux"; return report; }
+  if (!["darwin", "linux"].includes(process.platform)) { report.reasonCode = "unsupported-platform"; report.reason = "Kiro TUI verification supports macOS and Linux"; return report; }
   const root = await mkdtemp(join(tmpdir(), "cledger-kiro-live-"));
   try {
     const repoPath = join(root, "repo"); await mkdir(repoPath);
@@ -39,7 +40,7 @@ export async function verifyLiveKiro(options: { binary?: string; timeoutMs?: num
       return r.stdout;
     };
     try { report.version = (await checked(bin, ["--version"])).trim(); }
-    catch { report.reason = "Installed Kiro CLI unavailable; pass --binary with its path"; return report; }
+    catch { report.reasonCode = "cli-unavailable"; report.reason = "Installed Kiro CLI unavailable; pass --binary with its path"; return report; }
     await checked("git", ["init", "--quiet"]);
     await writeFile(join(repoPath, ".cledger.json"), JSON.stringify({ transport: { hook: false, fetchRefspec: false } }));
     const marker = `TESTONLY-${randomUUID()}`, secret = `TESTONLY-${randomUUID()}`;
@@ -57,6 +58,12 @@ export async function verifyLiveKiro(options: { binary?: string; timeoutMs?: num
     const own = events.filter(e => e.producer.source === "kiro");
     const blocks = (e: typeof own[number]) => (e.content as { blocks?: unknown[] })?.blocks ?? [];
     const matching = own.find(e => e.actor.type === "human" && JSON.stringify(blocks(e)).includes(marker));
+    if (!matching && /(?:you are not logged in|please (?:log ?in|sign in)|run [`'"]?kiro-cli login)/i.test(terminal.output)) {
+      report.status = "blocked";
+      report.reasonCode = "login-required";
+      report.reason = "Log into the installed Kiro CLI, then rerun live verification; no conversation was verified";
+      return report;
+    }
     const same = matching ? own.filter(e => e.stream?.id === matching.stream?.id) : [];
     const use = same.flatMap(blocks).find((b): b is { type: string; id?: string; name?: string } =>
       !!b && typeof b === "object" && (b as { type?: string }).type === "tool_use");
@@ -81,5 +88,6 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   const i = process.argv.indexOf("--binary");
   const report = await verifyLiveKiro({ ...(i >= 0 && process.argv[i + 1] ? { binary: process.argv[i + 1] } : {}) });
   process.stdout.write(JSON.stringify(report, null, 2) + "\n");
-  if (report.status !== "pass") process.exitCode = 1;
+  if (report.status === "blocked") process.stderr.write(`WARNING: kiro verification blocked (${report.reasonCode ?? "prerequisite-unavailable"}): ${report.reason}\n`);
+  process.exitCode = report.status === "fail" ? 1 : report.status === "blocked" ? 2 : 0;
 }

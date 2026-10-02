@@ -33,11 +33,12 @@ binary paths directly to verification functions. Native and npm runtime
 provisioners can use distinct directories. `campaign.js --runtime-dir` handles
 the npm recipes; the emitted native overrides take precedence for these six.
 
-Run all six in the headless campaign. Interactive Cline and Droid remain deferred
-until their authentication/setup requirements are resolved; do not include them
-in an unattended TUI campaign. Provisioning Droid does not set an enterprise
-mode or borrow a Factory credential. Supported public BYOK headless startup has
-been verified separately.
+Run all six in the headless campaign and their supported interactive scenarios.
+Cline's direct-provider TUI runs without browser onboarding. Droid's isolated
+TUI reports `blocked: login-required` when no dedicated test authentication is
+supplied; `--allow-login-required` warns without treating it as coverage.
+Provisioning Droid does not set an enterprise mode or borrow a Factory
+credential. Its public BYOK headless startup needs no account login.
 
 ## Integrity and dependency evidence
 

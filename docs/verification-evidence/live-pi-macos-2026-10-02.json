@@ -1,0 +1,46 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "pi",
+  "version": "0.87.1",
+  "date": "2026-10-02",
+  "platform": "darwin/arm64",
+  "mode": "interactive",
+  "inference": "local-deepseek",
+  "model": "deepseek-v4-flash",
+  "marker": "TESTONLY-pi-deepseek-blue-lantern-20261002",
+  "fileText": "TESTONLY The silver otter carries seven amber notebooks.",
+  "repo": "/private/tmp/cledger-pi-live-20261001/repo",
+  "gates": {
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "nativeSessionState": true,
+    "interactiveExit": true
+  },
+  "status": "pass",
+  "terminal": {
+    "code": 0,
+    "timedOut": false,
+    "actions": 3
+  },
+  "eventCount": 8,
+  "requests": 2,
+  "capturedBeforeBackfill": true,
+  "manualBackfillAttempted": false,
+  "paidSpendUsd": 0,
+  "prompt": "TESTONLY-pi-deepseek-blue-lantern-20261002. Read evidence.txt using the read tool and reply with its exact contents. Do not use any other tools or edit files.",
+  "eventIds": [
+    "ev2-34bcc53eb4e29ebdfa44bcf4ca9b585ed54e2ba2a8d6cc844d41b335960c0c95",
+    "ev2-ad0739383ca86113965942f52aca6402d630e19b29880292ec9d08a69f70eb1b",
+    "ev2-2d63abbc22488f609f4bb90e03d39251dc1ff7fd9ec57d01f278b209c28334f7",
+    "ev2-570d19e89ff97a8e7efc2883f6db5286c8d0ed2c0bbfc5b32ec8922be53c3d70",
+    "ev2-d7e47762c9dc1a8451053ed14642799670c814b1583d7d0b481724695bc4f183",
+    "ev2-1e2bd685b2ca18eeb372022252be9c4f8ca94445e3f048a281620ce85226363b",
+    "ev2-71bbb5189acc357ee8c41546a0ac035cf204794359448d0b2b7b193db7f340aa",
+    "ev2-731ddb734c9d4766bb5787a2498f9f1472d5c550b30dc9ec83b3050d76771b68"
+  ],
+  "toolCallId": "call_e30b6d822407af9f0f7c3685785cc7eb",
+  "assistantAnswer": "TESTONLY The silver otter carries seven amber notebooks."
+}

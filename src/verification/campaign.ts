@@ -54,6 +54,8 @@ export function coverageSummary(reports: { cli: string; status: string }[]) {
   return {
     target: TARGET_CLIS.length,
     nativeSmokePassed: new Set(reports.filter(r => r.status === "pass").map(r => r.cli)).size,
+    nativeSmokeBlocked: new Set(reports.filter(r => r.status === "blocked").map(r => r.cli)).size,
+    nativeSmokeFailed: new Set(reports.filter(r => r.status === "fail").map(r => r.cli)).size,
     fullyCertified: 0,
     fullyCertifiedPercent: 0,
     reason: "No CLI yet has recorded passes for every record type and both headless/interactive modes on macOS and Linux",
@@ -62,13 +64,6 @@ export function coverageSummary(reports: { cli: string; status: string }[]) {
 
 export type VerificationMode = "headless" | "interactive";
 export const INTERACTIVE_DRIVERS = new Set(["claude-code", "codex", "gemini-cli", "opencode", "qwen-code", "pi", "copilot", "aider", "cline", "continue", "crush", "kimi", "kilo", "droid", "goose", "openhands", "mistral-vibe", "open-interpreter"]);
-// Keep implemented drivers separate from checks the maintainer has deferred.
-// This also applies to explicit selections and generated scheduled campaigns.
-export const DEFERRED_INTERACTIVE: Readonly<Record<string, string>> = {
-  cline: "Deferred: interactive welcome screen opened the browser; direct-API headless verification remains enabled",
-  droid: "Deferred by maintainer: interactive Factory account authentication; public BYOK headless verification remains enabled",
-};
-
 export async function runCampaign(upstream = false, runtimeDirectory?: string, selected?: string[], ignoreBinaryOverrides = false, mode: VerificationMode = "headless") {
   const unknown = selected?.filter(id => !TARGET_CLIS.some(cli => cli.id === id)) ?? [];
   if (unknown.length) throw new Error(`Unknown CLI IDs: ${unknown.join(", ")}`);
@@ -78,8 +73,14 @@ export async function runCampaign(upstream = false, runtimeDirectory?: string, s
   if (upstream) for (const cli of TARGET_CLIS) observations[cli.id] = await latestRelease(cli.repository);
   const safely = async <T>(cli: string, action: () => Promise<T>) => {
     try { return await action(); }
-    catch {
-      return { cli, status: "blocked", certification: "none", reason: "Native verification could not initialize; check local executable and loopback permissions" };
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (["ENOENT", "EACCES", "EPERM"].includes(code ?? "")) return {
+        cli, status: "blocked", certification: "none",
+        reasonCode: code === "ENOENT" ? "cli-unavailable" : "environment-unavailable",
+        reason: code === "ENOENT" ? "Install the selected CLI executable before verification" : "Allow the local process/loopback access required by verification",
+      };
+      return { cli, status: "fail", certification: "none", reason: "Unexpected verification initialization error; investigate the driver" };
     }
   };
   const drivers = [
@@ -92,7 +93,6 @@ export async function runCampaign(upstream = false, runtimeDirectory?: string, s
   const nativeReports: { cli: string; status: string }[] = [];
   for (const [cli, driver] of drivers) {
     if (selected && !selected.includes(cli)) continue;
-    if (mode === "interactive" && DEFERRED_INTERACTIVE[cli]) continue;
     if (mode === "interactive" && !INTERACTIVE_DRIVERS.has(cli)) continue;
     const recipe = PINNED_NPM_RUNTIMES.find(r => r.cli === cli);
     const binary = (ignoreBinaryOverrides ? undefined : process.env[`CLEDGER_VERIFY_${cli.replaceAll("-", "_").toUpperCase()}_BINARY`]) ??
@@ -100,7 +100,8 @@ export async function runCampaign(upstream = false, runtimeDirectory?: string, s
     process.stderr.write(`Verifying ${cli} (${mode})...\n`);
     const report = await safely<{ cli: string; status: string }>(cli, () => driver({ ...(binary ? { binary } : {}), ...(mode === "interactive" ? { interactive: true } : {}) }));
     nativeReports.push(report);
-    process.stderr.write(`${cli} (${mode}): ${report.status}\n`);
+    const detail = report as { reason?: string; reasonCode?: string };
+    process.stderr.write(`${report.status === "blocked" ? "WARNING: " : ""}${cli} (${mode}): ${report.status}${detail.reasonCode ? " (" + detail.reasonCode + ")" : ""}${detail.reason ? ": " + detail.reason : ""}\n`);
   }
   return {
     schema: "cledger-campaign/1", started, completed: new Date().toISOString(),
@@ -115,7 +116,7 @@ export async function runCampaign(upstream = false, runtimeDirectory?: string, s
         cli.id === "cursor" ? "native-hooks; optional-headless-result-wrapper" :
         ["aider", "continue", "crush"].includes(cli.id) ? "explicit-launch-wrapper" : "native-hook-or-plugin" } : {}),
       verification: nativeReports.find(report => report.cli === cli.id) ?? {
-        status: "not-run", reason: selected && !selected.includes(cli.id) ? "Excluded by requested CLI selection" : mode === "interactive" ? DEFERRED_INTERACTIVE[cli.id] ?? "Interactive scenario driver not implemented" : "Native scenario driver not implemented", certification: "none",
+        status: "not-run", reason: selected && !selected.includes(cli.id) ? "Excluded by requested CLI selection" : mode === "interactive" ? "Interactive scenario driver not implemented" : "Native scenario driver not implemented", certification: "none",
       },
       ...(upstream ? { upstream: observations[cli.id] } : {}),
     })),
@@ -196,13 +197,17 @@ export async function scheduledCampaign(stateDir: string, upstream: boolean, run
 
 /** Proposals need review, while unsuccessful verification needs a failing
  * scheduler status. A baseline pass cannot conceal a failed update candidate. */
-export function campaignExitCode(result: unknown): number {
+export function campaignExitCode(result: unknown, options: { allowLoginRequired?: boolean } = {}): number {
   if (!result || typeof result !== "object") return 1;
   const report = result as Record<string, unknown>;
-  if (report.status === "blocked") return 2;
+  if (report.status === "blocked") return options.allowLoginRequired && report.reasonCode === "login-required" ? 0 : 2;
   if (report.status === "failed" || report.status === "fail") return 1;
   if (Array.isArray(report.targets) && report.targets.some(target => target && typeof target === "object" &&
-    ["fail", "blocked"].includes(String((target as { verification?: { status?: unknown } }).verification?.status)))) return 1;
+    (target as { verification?: { status?: unknown } }).verification?.status === "fail")) return 1;
+  if (Array.isArray(report.targets) && report.targets.some(target => {
+    const outcome = (target as { verification?: { status?: unknown; reasonCode?: unknown } })?.verification;
+    return outcome?.status === "blocked" && !(options.allowLoginRequired && outcome.reasonCode === "login-required");
+  })) return 2;
   if (Array.isArray(report.observations) && report.observations.some(item => item?.status === "unavailable")) return 1;
   if (report.maintenance && campaignExitCode(report.maintenance) !== 0) return 1;
   if (report.campaign && campaignExitCode(report.campaign) !== 0) return 1;
@@ -217,7 +222,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (values.has(argument)) {
       if (!args[index + 1] || args[index + 1]!.startsWith("--")) throw new Error(`${argument} requires a value`);
       index++;
-    } else if (!["--upstream", "--verify-updates"].includes(argument)) throw new Error(`Unknown campaign argument: ${argument}`);
+    } else if (!["--upstream", "--verify-updates", "--allow-login-required"].includes(argument)) throw new Error(`Unknown campaign argument: ${argument}`);
   }
   if (args.includes("--verify-updates") && !args.includes("--state-dir")) throw new Error("--verify-updates requires --state-dir; for an immediate update review use maintenance.js");
   const modeIndex = args.indexOf("--mode");
@@ -245,5 +250,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     await writeFile(path, json, { mode: 0o600 });
   }
   process.stdout.write(json);
-  process.exitCode = campaignExitCode(result);
+  process.exitCode = campaignExitCode(result, { allowLoginRequired: args.includes("--allow-login-required") });
 }

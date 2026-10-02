@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { candidatesQualified } from "../verification/hosted-review.js";
-import { DEFERRED_INTERACTIVE } from "../verification/campaign.js";
 
 const report = (id: string, status: string, reason?: string) => ({ targets: [{ id, verification: { status, ...(reason ? { reason } : {}) } }] });
 test("maintenance pin proposals require a passing baseline and both candidate modes", () => {
@@ -19,9 +18,11 @@ test("maintenance pin proposals require a passing baseline and both candidate mo
   assert.equal(candidatesQualified("success", [], pass, pass), false);
   assert.equal(candidatesQualified("success", ["codex"], { targets: [...pass.targets, ...pass.targets] }, pass), false);
 });
-test("only an explicit maintainer deferral permits an unrun interactive candidate", () => {
-  const pass = report("cline", "pass");
-  assert.equal(candidatesQualified("success", ["cline"], pass, report("cline", "not-run", DEFERRED_INTERACTIVE.cline)), true);
-  assert.equal(candidatesQualified("success", ["cline"], pass, report("cline", "not-run", "Executable absent")), false);
-  assert.equal(candidatesQualified("success", ["cline"], pass, report("cline", "blocked", DEFERRED_INTERACTIVE.cline)), false);
+test("Cline and Droid candidates must pass their resumed interactive checks", () => {
+  for (const id of ["cline", "droid"]) {
+    const pass = report(id, "pass");
+    assert.equal(candidatesQualified("success", [id], pass, pass), true);
+    for (const status of ["not-run", "blocked", "fail"])
+      assert.equal(candidatesQualified("success", [id], pass, report(id, status, "Login required")), false);
+  }
 });

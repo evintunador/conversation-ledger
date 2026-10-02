@@ -2,7 +2,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFERRED_INTERACTIVE, latestRelease, runCampaign } from "./campaign.js";
+import { latestRelease, runCampaign } from "./campaign.js";
 import { prepareMaintenance } from "./maintenance.js";
 import { TARGET_CLIS } from "./roster.js";
 
@@ -14,8 +14,7 @@ export function candidatesQualified(baseline: string, changed: string[], headles
   return changed.every(id => {
     const h = headless.targets.filter(t => t.id === id), i = interactive.targets.filter(t => t.id === id);
     return h.length === 1 && h[0]!.verification.status === "pass" && i.length === 1 &&
-      (i[0]!.verification.status === "pass" || (Boolean(DEFERRED_INTERACTIVE[id]) &&
-        i[0]!.verification.status === "not-run" && i[0]!.verification.reason === DEFERRED_INTERACTIVE[id]));
+      i[0]!.verification.status === "pass";
   });
 }
 

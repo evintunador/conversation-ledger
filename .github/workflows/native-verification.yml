@@ -75,13 +75,13 @@ jobs:
         working-directory: conversation-ledger
         env:
           CLEDGER_VERIFY_MISTRAL_VIBE_BINARY: ${{ runner.temp }}/cledger-vibe/bin/vibe
-        run: node dist/verification/campaign.js --mode interactive --runtime-dir "$RUNNER_TEMP/cledger-runtimes" --output "$RUNNER_TEMP/cledger-interactive-campaign.json"
+        run: node dist/verification/campaign.js --mode interactive --allow-login-required --runtime-dir "$RUNNER_TEMP/cledger-runtimes" --output "$RUNNER_TEMP/cledger-interactive-campaign.json"
       - name: Require the agreed executable coverage
         if: ${{ !cancelled() && steps.provision.outcome == 'success' }}
         run: |
           node --input-type=module <<'JS'
           import { readFileSync } from 'node:fs';
-          for (const [name, minimum] of [['cledger-campaign.json', 18], ['cledger-interactive-campaign.json', 16]]) {
+          for (const [name, minimum] of [['cledger-campaign.json', 18], ['cledger-interactive-campaign.json', 17]]) {
             const report = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/${name}`, 'utf8'));
             if (report.coverage.nativeSmokePassed < minimum) {
               throw new Error(`${report.mode}: ${report.coverage.nativeSmokePassed} native passes; required ${minimum}`);

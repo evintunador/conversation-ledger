@@ -57,14 +57,14 @@ Aider automatic decisions/model attribution; Cline unknown-part replay.
 The full hosted macOS/Linux campaign passed all eighteen headless and sixteen
 non-deferred interactive CLI scenarios on each platform; reports are saved in
 docs/verification-evidence/hosted-*.json. Droid's public BYOK headless path was
-also reverified without enterprise startup overrides. Cline's interactive
-welcome flow repeatedly opened the user's browser, so interactive testing is
-deferred in all campaigns, including explicit selections. Cline supports direct
-API credentials and its headless check remains enabled.
-Droid's public TUI asks for Factory login; the user explicitly deferred that
-interactive check. Neither deferral is a parser/capture pass.
-Test auth is explicitly opt-in via CLEDGER_VERIFY_DROID_FACTORY_API_KEY; no key,
-account login or subscription purchase occurred. Never ask for keys in chat.
+also reverified without enterprise startup overrides. Both Cline and Droid
+interactive checks are now enabled. Cline's isolated direct-provider TUI passed
+without browser onboarding. Droid's existing normal login reaches its BYOK TUI;
+empty CI profiles instead report a visible `blocked: login-required` warning.
+Free interactive CI tolerates that auth prerequisite but requires 17 real
+scripted-provider passes; blocked evidence never counts as coverage or qualifies
+a candidate update. Dedicated CI test auth remains opt-in via
+CLEDGER_VERIFY_DROID_FACTORY_API_KEY. Never ask for keys in chat.
 
 Latest full regression suite: 328 total, 316 pass, 12 explicit opt-in skips,
 zero failures (/tmp/cledger-final-regression.log). Native checks ran separately.

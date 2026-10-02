@@ -54,6 +54,7 @@ try:
      os.write(fd,reply.encode()); consumed=match.end()
     queries=queries[consumed:][-64:]
   plain=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]','',pending)
+  if config.get('stopWhen') and re.search(config['stopWhen'],plain): break
   if index<len(config['actions']):
    action=config['actions'][index]
    if re.search(action['waitFor'],plain) and (not action.get('waitForPath') or os.path.isfile(action['waitForPath'])):
@@ -87,6 +88,8 @@ export async function runPty(
     actions: PtyAction[];
     python?: string;
     answerTerminalQueries?: boolean;
+    /** Stop promptly at a known prerequisite screen; keep output for classification. */
+    stopWhen?: string;
   },
 ): Promise<PtyResult> {
   if (!["darwin", "linux"].includes(process.platform))

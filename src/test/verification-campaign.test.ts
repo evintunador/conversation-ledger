@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { campaignExitCode, coverageSummary, INTERVAL_MS, isDue, latestRelease, releaseChanges } from "../verification/campaign.js";
+import { campaignExitCode, coverageSummary, INTERACTIVE_DRIVERS, INTERVAL_MS, isDue, latestRelease, releaseChanges } from "../verification/campaign.js";
 import { TARGET_CLIS } from "../verification/roster.js";
 import { mkdtemp, access, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -17,15 +17,21 @@ test("campaign has a fixed balanced roster and never promotes smoke evidence to 
   assert.equal(coverage.fullyCertifiedPercent, 0);
 });
 
-test("deferred interactive checks never launch, even when explicitly selected", async () => {
-  const report = await runCampaign(false, "/TESTONLY-no-runtimes", ["cline", "droid"], true, "interactive");
-  for (const id of ["cline", "droid"]) {
-    const target = report.targets.find(target => target.id === id)!;
-    assert.equal(target.verification.status, "not-run");
-    assert.match((target.verification as { reason: string }).reason, /^Deferred/);
-  }
-  assert.equal(report.coverage.nativeSmokePassed, 0);
-  assert.equal(campaignExitCode(report), 0);
+test("missing login can warn without concealing failures or counting as coverage", () => {
+  assert.ok(INTERACTIVE_DRIVERS.has("cline"));
+  assert.ok(INTERACTIVE_DRIVERS.has("droid"));
+  const blocked = { cli: "droid", status: "blocked", reasonCode: "login-required" };
+  const report = { targets: [{ verification: blocked }] };
+  assert.equal(campaignExitCode(report), 2);
+  assert.equal(campaignExitCode(report, { allowLoginRequired: true }), 0);
+  assert.equal(coverageSummary([blocked]).nativeSmokePassed, 0);
+  assert.equal(coverageSummary([blocked]).nativeSmokeBlocked, 1);
+  assert.equal(campaignExitCode({ targets: [{ verification: { ...blocked, reasonCode: "cli-unavailable" } }] },
+    { allowLoginRequired: true }), 2);
+  assert.equal(campaignExitCode({ targets: [...report.targets, { verification: { status: "fail" } }] },
+    { allowLoginRequired: true }), 1);
+  assert.equal(campaignExitCode({ maintenance: { campaign: report } }, { allowLoginRequired: true }), 1,
+    "optional baseline auth never qualifies an unverified update candidate");
 });
 
 test("unavailable release checks retain last observation and new tags require review", () => {
