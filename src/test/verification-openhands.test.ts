@@ -10,8 +10,6 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isolatedEnvironment, runProcess } from "../verification/process.js";
 import { runPty, terminalTail } from "../verification/pty.js";
-import { findRepo } from "annals";
-import { readEvents } from "../store.js";
 
 function evidence(): EvidenceEvent[] {
   const producer = { tool: "cledger", source: "openhands", session_id: "fixture" };
@@ -73,6 +71,7 @@ test("OpenHands real CLI smoke runs only when an explicit isolated binary is sup
 
 test("OpenHands installed TUI captures submitted prompt while its first model request is stalled", {
   skip: !process.env.CLEDGER_VERIFY_OPENHANDS_BINARY,
+  timeout: 180000,
 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "cledger-openhands-stalled-"));
   const repo = join(root, "repo"), bin = join(root, "bin"), agentDir = join(root, "openhands");
@@ -121,29 +120,41 @@ test("OpenHands installed TUI captures submitted prompt while its first model re
     let settled = false;
     void terminal.then(() => { settled = true; }, () => { settled = true; });
     const deadline = Date.now() + 105000;
-    const ledger = await findRepo(repo);
-    assert.ok(ledger);
-    let captured: EvidenceEvent[] = [];
+    // Run the real ledger reader in a bounded child process: annals' Git reads
+    // have no timeout of their own. Emit only the evidence predicate rather
+    // than truncating full native state snapshots at runProcess's output cap.
+    const readScript = `
+      const { findRepo } = await import(${JSON.stringify(import.meta.resolve("annals"))});
+      const { readEvents } = await import(${JSON.stringify(new URL("../store.js", import.meta.url).href)});
+      const repo = await findRepo(process.argv[1]);
+      if (!repo) throw new Error("Disposable OpenHands repository unavailable");
+      const events = await readEvents(repo, { reachableFrom: null });
+      process.stdout.write(JSON.stringify({ promptCaptured: events.some(item =>
+        item.producer.source === "openhands" && item.actor.type === "human" &&
+        JSON.stringify(item.content).includes(process.argv[2])) }));
+    `;
+    let promptCaptured = false;
     while (Date.now() < deadline && !settled) {
       if (requests) {
-        captured = await readEvents(ledger, { reachableFrom: null });
-        if (captured.some(item => item.producer.source === "openhands" && item.actor.type === "human" && JSON.stringify(item.content).includes(marker))) break;
+        const observed = JSON.parse(await checked(process.execPath, "--input-type=module", "-e", readScript, repo, marker));
+        promptCaptured = observed.promptCaptured === true;
+        if (promptCaptured) break;
       }
       await new Promise(done => setTimeout(done, 100));
     }
     assert.equal(settled, false, "capture occurs while the installed TUI is still running");
     assert.equal(requests, 1, "only the first model request is pending");
-    assert.ok(captured.some(item => item.producer.source === "openhands" && item.actor.type === "human" && JSON.stringify(item.content).includes(marker)),
+    assert.ok(promptCaptured,
       "submitted human prompt must already exist in annals without backfill");
     const result = await terminal;
     assert.equal(result.timedOut, true, "the deliberately stalled request cannot complete");
     assert.equal(result.actionsCompleted, 2);
   } finally {
     const result = await terminal?.catch(() => undefined);
-    if (result && (requests !== 1 || result.actionsCompleted !== 2)) {
+    if (terminal && (!result || requests !== 1 || result.actionsCompleted !== 2)) {
       // Only this disposable test's synthetic terminal is printed. Preserve
       // startup/input diagnostics even if an earlier assertion failed.
-      process.stderr.write(`OpenHands stalled TUI: requests=${requests}, actions=${result.actionsCompleted}, code=${result.code}, timeout=${result.timedOut}; tail=${terminalTail(await readFile(trace, "utf8").catch(() => ""))}\n`);
+      process.stderr.write(`OpenHands stalled TUI: requests=${requests}, actions=${result?.actionsCompleted ?? "unavailable"}, code=${result?.code ?? "unavailable"}, timeout=${result?.timedOut ?? "unavailable"}; tail=${terminalTail(await readFile(trace, "utf8").catch(() => ""))}\n`);
     }
     server.closeAllConnections();
     await new Promise<void>(done => server.close(() => done()));

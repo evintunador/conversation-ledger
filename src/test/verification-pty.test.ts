@@ -15,6 +15,46 @@ async function waitForTrace(path: string, pattern: RegExp): Promise<string> {
   assert.fail("Live terminal trace did not become available before the deadline");
 }
 
+test("PTY forcibly stops an unresponsive helper and its owned terminal group", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cledger-pty-stuck-helper-"));
+  const helper = join(root, "stuck-helper"), pids = join(root, "owned-pids");
+  try {
+    // Simulate a helper stuck during cleanup: ignore TERM in both owned
+    // processes. The parent's separate PTY group still needs to be reaped by
+    // the Node fallback rather than keeping verification alive indefinitely.
+    await writeFile(helper, `#!/usr/bin/env python3
+import json,os,pty,signal,sys,time
+config=json.loads(sys.stdin.read())
+pid,fd=pty.fork()
+if pid==0:
+ signal.signal(signal.SIGTERM,signal.SIG_IGN)
+ while True: time.sleep(1)
+signal.signal(signal.SIGTERM,signal.SIG_IGN)
+with open(${JSON.stringify(pids)},'w') as output: output.write(str(os.getpid())+' '+str(pid))
+sys.stderr.write('CLEDGER_PTY_GROUP:'+str(pid)+'\\n');sys.stderr.flush()
+while True: time.sleep(1)
+`, { mode: 0o755 });
+    const started = Date.now();
+    await assert.rejects(runPty("unused", [], {
+      cwd: root, env: { PATH: process.env.PATH }, timeoutMs: 100,
+      actions: [], python: helper,
+    }), /PTY helper exceeded cleanup deadline/);
+    assert.ok(Date.now() - started < 14000, "cleanup has a bounded hard deadline");
+    const owned = (await readFile(pids, "utf8")).split(" ").map(Number);
+    const deadline = Date.now() + 2000;
+    for (const pid of owned) {
+      while (Date.now() < deadline) {
+        try { process.kill(pid, 0); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code === "ESRCH") break; throw error; }
+        await new Promise(done => setTimeout(done, 20));
+      }
+      assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("PTY exposes bounded raw terminal output before the run finishes", async () => {
   const root = await mkdtemp(join(tmpdir(), "cledger-pty-trace-"));
   const trace = join(root, "terminal.log"), release = join(root, "release");

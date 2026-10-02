@@ -26,6 +26,9 @@ pid,fd=pty.fork()
 if pid==0:
  os.chdir(config['cwd'])
  os.execvpe(config['command'],config['args'],config['env'])
+# Only the helper writes this channel; native stderr remains inside the PTY.
+# Let Node clean up this owned group if the helper itself stops responding.
+sys.stderr.write('CLEDGER_PTY_GROUP:'+str(pid)+'\n'); sys.stderr.flush()
 fcntl.ioctl(fd,termios.TIOCSWINSZ,struct.pack('HHHH',40,160,0,0))
 signal.signal(signal.SIGTERM,lambda *_: sys.exit(143))
 output=''; pending=''; queries=''; index=0; code=1; expired=False
@@ -114,24 +117,43 @@ export async function runPty(
     const unregister = registerVerificationCleanup(() => child.kill("SIGTERM"));
     let output = "",
       error = "";
+    let ownedGroup: number | undefined;
+    const killOwnedGroup = () => {
+      if (ownedGroup) { try { process.kill(-ownedGroup, "SIGKILL"); } catch { /* already exited */ } }
+    };
     const timer = setTimeout(
       () => child.kill("SIGTERM"),
       options.timeoutMs + 5000,
     );
+    // SIGTERM normally invokes Python's finally block. A stuck helper must
+    // still have a finite lifetime, including its own PTY process group.
+    const hardTimer = setTimeout(() => {
+      killOwnedGroup();
+      child.kill("SIGKILL");
+      unregister();
+      child.stdin.destroy(); child.stdout.destroy(); child.stderr.destroy();
+      child.unref();
+      reject(new Error("PTY helper exceeded cleanup deadline"));
+    }, options.timeoutMs + 10000);
     child.stdout.on("data", (data) => {
       output = (output + String(data)).slice(-1_000_000);
     });
     child.stderr.on("data", (data) => {
-      error = (error + String(data)).slice(-2000);
+      const nextError = error + String(data);
+      const group = nextError.match(/(?:^|\n)CLEDGER_PTY_GROUP:(\d+)\n/);
+      if (group) ownedGroup = Number(group[1]);
+      error = nextError.slice(-2000);
     });
     child.on("error", (err) => {
       unregister();
       clearTimeout(timer);
+      clearTimeout(hardTimer);
       reject(err);
     });
     child.on("close", (code) => {
       unregister();
       clearTimeout(timer);
+      clearTimeout(hardTimer);
       if (code !== 0)
         return reject(new Error(`PTY helper failed (${code}): ${error}`));
       try {
