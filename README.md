@@ -244,6 +244,8 @@ do not imply verified IDE, desktop, cloud or Windows support.
 | Claude Code | Stop / SessionEnd hooks | JSONL turns, state, file history and subagent sessions |
 | Codex | Stop / SessionEnd hooks | Rollout JSONL, visible and sealed reasoning, linked child sessions |
 | Gemini CLI | AfterAgent / SessionEnd plus bounded tail | Conversation mutation log, rewinds, notices and sub-sessions |
+| Cursor CLI | Native stop/sessionEnd hooks; optional `cledger run cursor` for headless results | Native transcripts and stream-JSON tool results |
+| Kiro CLI | V3 hooks; `cledger run kiro` for default V2 | Native V2/V3 sessions, tool calls and results |
 | Qwen Code | Stop / SessionEnd hooks | JSONL messages and native system records |
 | OpenCode | session.idle plugin | Native JSON export, one record per part |
 | Pi | Native extension lifecycle | Session tree, messages, compaction, custom state and attachments |
@@ -275,10 +277,10 @@ Aider's historical Markdown logs do not establish reliable speaker boundaries.
 The [record coverage audit](docs/CLI_RECORD_COVERAGE.md) distinguishes these
 limitations, fixture coverage and native lifecycle proof.
 
-Cursor and Kiro are the two remaining products in the selected twenty-CLI
-roster. Their authentication and verification findings are in the
-[roster research](docs/CLI_ROSTER_RESEARCH.md). They have no implemented adapter
-or passing native proof here yet.
+The [live verification record](docs/LIVE_VERIFICATION.md) tracks installed CLI
+and real-provider sessions separately from the scripted native smoke campaign.
+Cursor and Kiro have macOS live interactive evidence, but their broader
+macOS/Linux and lifecycle gates remain open.
 
 ## Security & redaction
 
@@ -326,7 +328,7 @@ The local, git-invisible store at `.git/conversation-ledger/known-secrets.json` 
 - Threat addressed: the capture/scan feedback loop — a value the broad sync scan catches but the conservative capture tier misses gets re-ingested raw every time you revisit it while fixing it. Once redacted, capture learns it and it can never be re-captured raw again.
 - Cost of enabling: like env masking, capture becomes machine-dependent for remembered values. Re-capturing a source line whose value is now remembered yields *scrubbed* content and therefore a different event id, so it no longer dedups against the pre-existing event — you get a second, also-scrubbed copy rather than a resurrected secret. Id churn, not leakage. The store is not reversible, but exact lengths, four bucket bits, and digests make it a guess-checking oracle: low-entropy human passwords remain dictionary-attackable. Per-store salting prevents reusable cross-store/rainbow-table work; generated high-entropy tokens remain the intended case.
 
-**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push, but the default output contains only aggregate counts and safe next-step guidance — no fingerprints or event coordinates. A human can deliberately request the coordinate-only report with `cledger records sync --report` (or `cledger scan --report` for the standalone scan). That report prints event id, rule, JSON path + offset, and fingerprint, but never a character of the flagged text or its surroundings. It is **grouped by fingerprint**: the same span recurring across an event's `content` and `raw` mirrors, or across every edit of one file, is one decision, and the report's size tracks decisions rather than match sites (this repo's own dogfood backlog was 153 sites that collapse to 11 spans). Coding agents should not request the report: even contentless credential-shaped coordinates can feed back into captured work. Readable content lives behind `cledger records review` (interactive, one screen per span) and `cledger records inspect --output FILE` (writes a `0600` file); both refuse to run inside a coding-agent session. The pre-push hook always uses concise output; a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
+**Sync-time scan** (default on, tiered): Before any push, scans only new events with medium/high-precision rules (capture ruleset re-run, keyword assignments like `password=`, URL credentials). Findings abort the ledger push, but the default output contains only aggregate counts and directs humans to `cledger review` in a plain terminal to allow false positives or redact secrets — no fingerprints or event coordinates. A human can deliberately request the coordinate-only report with `cledger records sync --report` (or `cledger scan --report` for the standalone scan). That report prints event id, rule, JSON path + offset, and fingerprint, but never a character of the flagged text or its surroundings. It is **grouped by fingerprint**: the same span recurring across an event's `content` and `raw` mirrors, or across every edit of one file, is one decision, and the report's size tracks decisions rather than match sites (this repo's own dogfood backlog was 153 sites that collapse to 11 spans). Coding agents should not request the report: even contentless credential-shaped coordinates can feed back into captured work. Readable content lives behind `cledger records review` (interactive, one screen per span) and `cledger records inspect --output FILE` (writes a `0600` file); both refuse to run inside a coding-agent session. The pre-push hook always uses concise output; a finding holds back only the ledger and lets your code push proceed unless `{"transport": {"strict": true}}`.
 - Threat addressed: secrets from older capture rules or new tool formats slipping through.
 - Cost of disabling: `{"scan": {"tier": "off"}}` — secrets in tool output push silently.
 - Remediation paths: `cledger records review` (walk every outstanding span), `cledger records redact EVENT_ID --pattern REGEX` (real secrets), `cledger records allow FINGERPRINT` (false positives), `cledger records sync --no-scan` (human-only push bypass). `--paranoid` adds entropy-based detection to sync; review and inspect use `--tier paranoid`.
@@ -658,7 +660,8 @@ Keep all defaults (capture and sync scan on), add repo-specific patterns in `.cl
 - **Don't print findings by default; print a pointer to them** *(shipped)* —
   the structural break in the self-referential loop above. `cledger scan`,
   `cledger sync`, and the pre-push gate now print only aggregate counts and
-  audience-specific guidance by default. A human in a plain terminal can opt
+  audience-specific guidance by default, pointing humans to `cledger review`
+  for interactive approval or redaction. A human in a plain terminal can opt
   into coordinate/fingerprint details with `--report`; an agent is explicitly
   told not to, because reading even a contentless credential-shaped report
   into its context can reproduce the finding. The exit status and blocking

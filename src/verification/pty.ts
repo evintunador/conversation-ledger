@@ -4,6 +4,8 @@ import { spawn } from "node:child_process";
 
 export interface PtyAction {
   waitFor: string;
+  /** Delay the action until an external hook has written this file. */
+  waitForPath?: string;
   send: string;
   delayMs?: number;
   paste?: boolean;
@@ -51,14 +53,16 @@ try:
      else: reply='\x1b]11;rgb:0000/0000/0000\x1b\\'
      os.write(fd,reply.encode()); consumed=match.end()
     queries=queries[consumed:][-64:]
-    plain=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]','',pending)
-    if index<len(config['actions']) and re.search(config['actions'][index]['waitFor'],plain):
-     time.sleep(min(max(config['actions'][index].get('delayMs',0),0),1000)/1000)
-     sent=config['actions'][index]['send']
+  plain=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]','',pending)
+  if index<len(config['actions']):
+   action=config['actions'][index]
+   if re.search(action['waitFor'],plain) and (not action.get('waitForPath') or os.path.isfile(action['waitForPath'])):
+     time.sleep(min(max(action.get('delayMs',0),0),1000)/1000)
+     sent=action['send']
      # Ink-based CLIs treat a text+Enter burst as paste, leaving it unsubmitted.
      if len(sent)>1 and sent.endswith('\r'):
       payload=sent[:-1]
-      if config['actions'][index].get('paste'): payload='\x1b[200~'+payload+'\x1b[201~'
+      if action.get('paste'): payload='\x1b[200~'+payload+'\x1b[201~'
       os.write(fd,payload.encode()); time.sleep(0.15); os.write(fd,b'\r')
      else: os.write(fd,sent.encode())
      index+=1; pending=''

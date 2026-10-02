@@ -1,6 +1,8 @@
-name: Native CLI verification
-# Review and manual runs until the maintainer enables hosted scheduling. Local campaigns use
-# the same runner and enforce fourteen elapsed days between scheduled attempts.
+name: Scripted native CLI smoke (free)
+# This installs real CLI binaries and drives real terminal interfaces, but the
+# model responses are scripted. Live-provider/TUI certification is a separate,
+# opt-in gate recorded in docs/LIVE_VERIFICATION.md. This workflow spends no
+# inference credits.
 on:
   workflow_call:
   workflow_dispatch:

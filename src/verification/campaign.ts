@@ -110,7 +110,10 @@ export async function runCampaign(upstream = false, runtimeDirectory?: string, s
     targets: TARGET_CLIS.map(cli => ({
       ...cli,
       captureImplemented: cli.id in INSTALLABLE_ADAPTERS,
-      ...(cli.id in INSTALLABLE_ADAPTERS ? { captureMode: ["aider", "continue", "crush"].includes(cli.id) ? "explicit-launch-wrapper" : "native-hook-or-plugin" } : {}),
+      ...(cli.id in INSTALLABLE_ADAPTERS ? { captureMode:
+        cli.id === "kiro" ? "native-v3-hooks; v2-launch-wrapper" :
+        cli.id === "cursor" ? "native-hooks; optional-headless-result-wrapper" :
+        ["aider", "continue", "crush"].includes(cli.id) ? "explicit-launch-wrapper" : "native-hook-or-plugin" } : {}),
       verification: nativeReports.find(report => report.cli === cli.id) ?? {
         status: "not-run", reason: selected && !selected.includes(cli.id) ? "Excluded by requested CLI selection" : mode === "interactive" ? DEFERRED_INTERACTIVE[cli.id] ?? "Interactive scenario driver not implemented" : "Native scenario driver not implemented", certification: "none",
       },

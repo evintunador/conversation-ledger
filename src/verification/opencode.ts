@@ -100,10 +100,35 @@ export async function verifyOpencode(options: Options): Promise<Report> {
       report.exclusions = report.exclusions.filter(x => x !== "interactive TUI");
       // OpenCode/OpenTUI stalls after this minimal terminal's capability replies.
       // Let its native bounded capability fallback choose the terminal features.
-      const terminal = await runPty("opencode", [], { cwd: repo, env, answerTerminalQueries: false, timeoutMs: options.timeoutMs ?? 120000, actions: [
-        { waitFor: "Ask anything|Ask a question|Build", send: `${prompt}\r` },
-        { waitFor: secret, send: "/exit\r" },
-      ] });
+      const complete = join(root, "native-answer-complete");
+      let stopObservation = false;
+      const observer = (async () => {
+        while (!stopObservation) {
+          const result = await run(process.execPath, [cli, "export", "--all"], 5_000);
+          if (result.code === 0 && !result.timedOut) {
+            try {
+              const events = result.stdout.split("\n").filter(Boolean).map(line => JSON.parse(line) as EvidenceEvent);
+              if (!hasUnrecognizedEvidence(events, "opencode") && Object.values(evidenceGates(events, marker, secret)).every(Boolean)) {
+                await writeFile(complete, "");
+                return;
+              }
+            } catch { /* The hook may still be writing; inspect its next snapshot. */ }
+          }
+          await new Promise(done => setTimeout(done, 250));
+        }
+      })();
+      let terminal;
+      try {
+        terminal = await runPty("opencode", [], { cwd: repo, env, answerTerminalQueries: false, timeoutMs: options.timeoutMs ?? 120000, actions: [
+          { waitFor: "Ask anything|Ask a question|Build", send: `${prompt}\r` },
+          // OpenTUI interleaves cursor redraws into displayed file contents.
+          // Exit only after the installed plugin captured the linked answer.
+          { waitFor: "^", waitForPath: complete, send: "/exit\r" },
+        ] });
+      } finally {
+        stopObservation = true;
+        await observer;
+      }
       report.gates.interactiveTerminal = terminal.actionsCompleted === 2 && !terminal.timedOut && terminal.code === 0;
       if (!report.gates.interactiveTerminal) throw new Error(`Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`);
     } else await checked("opencode", ["run", "--format", "json", "-m", `verification/${options.model}`, prompt], options.timeoutMs ?? 120_000);

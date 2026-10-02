@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { runPty } from "../verification/pty.js";
 
 test("PTY provides actual terminal stdin and ordered prompt response", async () => {
@@ -19,6 +22,28 @@ test("PTY provides actual terminal stdin and ordered prompt response", async () 
   assert.equal(result.code, 0);
   assert.equal(result.actionsCompleted, 1);
   assert.match(result.output, /GOT:TESTONLY-terminal-input/);
+});
+
+test("PTY waits for native hook evidence even after the terminal stops printing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cledger-pty-hook-"));
+  const evidence = join(root, "hook-complete");
+  try {
+    const resultPromise = runPty("python3", ["-c", "print('READY',flush=True); print('GOT:'+input(),flush=True)"], {
+      cwd: root, env: { PATH: process.env.PATH, TERM: "xterm" }, timeoutMs: 3000,
+      actions: [{ waitFor: "READY", waitForPath: evidence, send: "TESTONLY-after-hook\r" }],
+    });
+    let settled = false;
+    void resultPromise.then(() => { settled = true; }, () => { settled = true; });
+    await new Promise((done) => setTimeout(done, 300));
+    assert.equal(settled, false, "terminal input must remain pending until hook evidence appears");
+    await writeFile(evidence, "complete");
+    const result = await resultPromise;
+    assert.equal(result.code, 0, result.output);
+    assert.equal(result.actionsCompleted, 1);
+    assert.match(result.output, /GOT:TESTONLY-after-hook/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("PTY deadline stops blocked native process and does not pretend input occurred", async () => {

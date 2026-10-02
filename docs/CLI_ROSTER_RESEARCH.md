@@ -102,16 +102,21 @@ This research is a starting inventory. Each assigned agent must pin the native
 version, verify installation/authentication/protocol contracts and run the shared
 acceptance suite before support claims or spending estimates become commitments.
 
-## Current blockers (2026-09-29)
+## Authentication findings and later progress
 
-**Kiro CLI remains unsupported and is not counted as verified coverage.** Its
+The following was the 2026-09-29 authentication blocker. Kiro 2.27.0 was
+subsequently installed and exercised through a logged-in free-account TUI on
+macOS; its V2/V3 session adapters now capture that observed prompt, file read,
+result and answer. A subscription was not purchased. CI/headless account-key
+automation remains a separate unresolved cost gate.
+
+Kiro's
 [authentication documentation](https://kiro.dev/docs/getting-started/authentication/)
 requires a Pro, Pro+, Pro Max, or Power account to create a `KIRO_API_KEY`; API-key
 usage consumes subscription credits. The
 [headless guide](https://kiro.dev/docs/cli/headless/) requires that key for CI runs.
 No documented direct-provider or loopback endpoint was established, so this is
-not an API-direct, zero-cost native-test target yet. No account was created, no
-subscription was purchased, and no authenticated run was attempted.
+not an API-direct, zero-cost CI target yet.
 
 The [official release manifest](https://prod.download.cli.kiro.dev/stable/latest/manifest.json)
 reported binary version **2.25.0** on this date. The V3 terminology in current
@@ -120,5 +125,7 @@ docs names its selectable agent harness, not the published binary version.
 describes a local per-directory database and session JSON export, but does not
 supply a complete persisted-record schema. Hook payloads alone do not establish
 full conversation, attachment, reasoning, compaction, or child-session capture.
-Before claiming integration, validate an authorized native session/export and
-its schema, native hook timing, and a tractable recurring authentication budget.
+An authorized native V2 and V3 session/schema and V3 hook timing were later
+observed. A tractable recurring authenticated CI budget and full lifecycle
+inventory remain open. Cursor was also installed and tested live on macOS;
+its headless result bodies require an explicit stream-JSON wrapper.

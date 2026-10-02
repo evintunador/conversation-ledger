@@ -3,7 +3,10 @@
 The ordinary test suite exercises parsers, files and Git. These commands also
 launch real coding CLIs, install real capture hooks into temporary configuration
 directories, and verify the resulting ledger before attempting manual backfill.
-They do not use your normal sessions, configuration or credentials.
+They do not use your normal sessions, configuration or credentials. These are
+scripted-provider smoke checks, even when they drive a real interactive TUI.
+Real-provider evidence and its separate acceptance gate are tracked in
+`LIVE_VERIFICATION.md`.
 
 ## Zero-inference scenarios
 

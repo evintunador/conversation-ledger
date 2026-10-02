@@ -560,6 +560,57 @@ export async function installOpenHands(): Promise<string> {
   return installJsonHooks("openhands", join(homedir(), ".openhands", "hooks.json"), ["Stop", "SessionEnd"], { timeout: 120 });
 }
 
+/** Cursor uses its own hook schema (lowercase event names, direct command
+ * entries) and runs user hooks from ~/.cursor. Preserve unrelated settings. */
+export async function installCursor(): Promise<string> {
+  const path = join(process.env.CURSOR_CONFIG_DIR || join(homedir(), ".cursor"), "hooks.json");
+  const original = existsSync(path) ? await readFile(path, "utf8") : "";
+  const settings = original.trim() ? JSON.parse(original) as Record<string, unknown> : {};
+  if (settings.version !== undefined && settings.version !== 1) throw new Error(`cursor: unsupported hooks version (${path})`);
+  const hooks = settings.hooks && typeof settings.hooks === "object" && !Array.isArray(settings.hooks)
+    ? settings.hooks as Record<string, unknown> : {};
+  const command = await hookCommand("cursor");
+  let changed = settings.version !== 1;
+  for (const event of ["stop", "sessionEnd"]) {
+    const entries = Array.isArray(hooks[event]) ? hooks[event] as Record<string, unknown>[] : [];
+    if (!entries.some(entry => typeof entry.command === "string" && entry.command.includes("hook cursor"))) {
+      hooks[event] = [...entries, { command, timeout: 120 }];
+      changed = true;
+    }
+  }
+  if (!changed) return `cursor: already installed (${path})`;
+  settings.version = 1;
+  settings.hooks = hooks;
+  await backup(path);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, JSON.stringify(settings, null, 2) + "\n");
+  return `cursor: stop + sessionEnd capture hooks added to ${path}`;
+}
+
+/** Kiro V3 has standalone global/project hooks. The installed 2.x default
+ * harness still requires the explicit watched launcher (`cledger run kiro`). */
+export async function installKiro(): Promise<string> {
+  const home = process.env.KIRO_HOME || join(homedir(), ".kiro");
+  const path = join(home, "hooks", "cledger.json");
+  const command = await hookCommand("kiro");
+  const original = existsSync(path) ? await readFile(path, "utf8") : "";
+  const config = original.trim() ? JSON.parse(original) as Record<string, unknown> : { version: "v1", hooks: [] };
+  if (config.version !== "v1" || !Array.isArray(config.hooks)) throw new Error(`kiro: unsupported hook file (${path})`);
+  const hooks = config.hooks as Record<string, unknown>[];
+  let changed = false;
+  for (const trigger of ["Stop", "SessionEnd"]) {
+    const name = `cledger-${trigger.toLowerCase()}`;
+    const expected = { name, trigger, action: { type: "command", command }, timeout: 120 };
+    const index = hooks.findIndex(item => item.name === name);
+    if (index < 0) { hooks.push(expected); changed = true; }
+    else if (JSON.stringify(hooks[index]) !== JSON.stringify(expected)) { hooks[index] = expected; changed = true; }
+  }
+  if (!changed) return `kiro: already installed (${path}); use cledger run kiro -- <args> for the V2/default harness`;
+  await backup(path); await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, JSON.stringify({ ...config, hooks }, null, 2) + "\n");
+  return `kiro: V3 Stop + SessionEnd hooks added to ${path}; use cledger run kiro -- <args> for V2/default sessions`;
+}
+
 /** Every adapter `cledger install` knows how to wire up, in listing order. */
 export const INSTALLABLE_ADAPTERS: Record<string, () => Promise<string>> = {
   "claude-code": installClaudeCode,
@@ -570,6 +621,8 @@ export const INSTALLABLE_ADAPTERS: Record<string, () => Promise<string>> = {
   pi: installPi,
   "mistral-vibe": installMistralVibe,
   copilot: installCopilot,
+  cursor: installCursor,
+  kiro: installKiro,
   kimi: installKimi,
   goose: installGoose,
   droid: installDroid,

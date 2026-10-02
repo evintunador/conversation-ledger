@@ -126,7 +126,9 @@ export async function verifyScriptedMistralVibe(options: MistralVibeVerification
     if (options.interactive) {
       const terminal = await runPty(binary, ["--legacy-harness", "--trust", "--auto-approve", "--enabled-tools", "read_file", "--", prompt], {
         cwd: repo, env: { ...env, TERM: "xterm-256color" }, timeoutMs: options.timeoutMs ?? 60_000,
-        actions: [{ waitFor: secret, send: "/exit\r" }],
+        // The answer can stream before post_agent runs. Exit only after the
+        // installed hook has committed its first note in this fresh repo.
+        actions: [{ waitFor: secret, waitForPath: join(repo, ".git", "refs", "notes", "conversation-ledger"), send: "/exit\r" }],
       });
       report.gates.interactiveExit = !terminal.timedOut && terminal.code === 0 && terminal.actionsCompleted === 1;
       report.coverage = report.coverage.map(value => value === "legacy backend headless CLI" ? "legacy backend interactive PTY session and exit" : value);

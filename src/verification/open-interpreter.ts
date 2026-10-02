@@ -147,7 +147,9 @@ export async function verifyScriptedOpenInterpreter(options: OpenInterpreterVeri
     if (options.interactive) {
       const terminal = await runPty(binary, ["--dangerously-bypass-hook-trust", "--sandbox", "read-only", "--no-alt-screen", prompt], {
         cwd: repo, env: { ...env, TERM: "xterm-256color" }, timeoutMs: options.timeoutMs ?? 60_000,
-        actions: [{ waitFor: secret, send: "/exit\r" }],
+        // A streamed answer can precede Stop. Wait for its native hook to
+        // write a note before closing the TUI; final tail remains gated below.
+        actions: [{ waitFor: secret, waitForPath: join(repo, ".git", "refs", "notes", "conversation-ledger"), send: "/exit\r" }],
       });
       report.gates.interactiveExit = !terminal.timedOut && terminal.code === 0 && terminal.actionsCompleted === 1;
       report.coverage = report.coverage.map(value => value === "headless exec" ? "interactive PTY session and exit" : value);

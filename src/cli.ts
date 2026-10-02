@@ -46,7 +46,9 @@ import { runQwenHook, captureQwenAll, captureQwenTranscript } from "./adapters/q
 import { runPiHook, capturePiAll, capturePiTranscript } from "./adapters/pi.js";
 import { runMistralVibeHook, captureMistralVibeAll, captureMistralVibeTranscript } from "./adapters/mistral-vibe.js";
 import { runCopilotHook, captureCopilotAll, captureCopilotTranscript } from "./adapters/copilot.js";
+import { runCursorHook, captureCursorTranscript, runCursor } from "./adapters/cursor.js";
 import { runKimiHook, captureKimiAll, captureKimiTranscript } from "./adapters/kimi.js";
+import { runKiroHook, captureKiroAll, captureKiroTranscript, runKiro } from "./adapters/kiro.js";
 import { runGooseHook, captureGooseTranscript, captureGooseAll, captureGooseSession } from "./adapters/goose.js";
 import { runAider, captureAiderTranscript, captureAiderAll } from "./adapters/aider.js";
 import { runDroidHook, captureDroidTranscript, captureDroidAll } from "./adapters/droid.js";
@@ -125,14 +127,14 @@ Usage:
                                            (conversation_turn, session_state, activity, ...),
                                            superseding the raw-only placeholders (append-only, idempotent)
   cledger run aider [--python PATH] -- <aider arguments>
-  cledger run <continue|crush> [--binary PATH] -- <native arguments>
+  cledger run <continue|crush|cursor|kiro> [--binary PATH] -- <native arguments>
 
   cledger install <${Object.keys(INSTALLABLE_ADAPTERS).join("|")}|all>
                                            hook capture into coding CLIs (global)
   cledger hook SOURCE                internal native hook entrypoint
                                            capture entrypoint invoked by CLI hooks (stdin: hook payload)
   cledger capture codex --transcript PATH  manual/backfill ingestion
-  cledger capture <claude-code|gemini-cli|qwen-code|pi|copilot|kimi|droid|cline|continue|aider|openhands|open-interpreter> [--transcript PATH | --all]
+  cledger capture <claude-code|gemini-cli|qwen-code|pi|copilot|kimi|kiro|droid|cline|continue|aider|openhands|open-interpreter> [--transcript PATH | --all]
   cledger capture crush [--database PATH | --all]
   cledger capture mistral-vibe [--transcript PATH | --all [--session-root DIR]]
                                            adapters scope session discovery by project; --all backfills
@@ -962,12 +964,14 @@ async function main(): Promise<void> {
     const source = rest[0], separator = rest.indexOf("--");
     const options = rest.slice(1, separator < 0 ? undefined : separator);
     const option = source === "aider" ? "--python" : "--binary";
-    if (!["aider", "continue", "crush"].includes(source ?? "") || separator < 0 ||
+    if (!["aider", "continue", "crush", "cursor", "kiro"].includes(source ?? "") || separator < 0 ||
       !(options.length === 0 || (options.length === 2 && options[0] === option && options[1]))) {
-      throw new Error("Usage: cledger run aider [--python PATH] -- <args> | cledger run <continue|crush> [--binary PATH] -- <args>");
+      throw new Error("Usage: cledger run aider [--python PATH] -- <args> | cledger run <continue|crush|cursor|kiro> [--binary PATH] -- <args>");
     }
     process.exitCode = source === "aider" ? await runAider(rest.slice(separator + 1), options[1])
       : source === "crush" ? await runCrush(rest.slice(separator + 1), options[1])
+      : source === "cursor" ? await runCursor(rest.slice(separator + 1), options[1])
+      : source === "kiro" ? await runKiro(rest.slice(separator + 1), options[1])
       : await runContinue(rest.slice(separator + 1), options[1]);
     return;
   }
@@ -1005,7 +1009,7 @@ async function main(): Promise<void> {
       const hooks: Record<string, (input: string) => Promise<void>> = {
         "claude-code": runClaudeCodeHook, codex: runCodexHook, opencode: runOpencodeHook,
         "gemini-cli": runGeminiHook, "qwen-code": runQwenHook, pi: runPiHook,
-        "mistral-vibe": runMistralVibeHook, copilot: runCopilotHook, kimi: runKimiHook, goose: runGooseHook, droid: runDroidHook, cline: runClineHook, continue: runContinueHook, openhands: runOpenHandsHook, kilo: runKiloHook, crush: runCrushHook, "open-interpreter": runOpenInterpreterHook,
+        "mistral-vibe": runMistralVibeHook, copilot: runCopilotHook, cursor: runCursorHook, kimi: runKimiHook, kiro: runKiroHook, goose: runGooseHook, droid: runDroidHook, cline: runClineHook, continue: runContinueHook, openhands: runOpenHandsHook, kilo: runKiloHook, crush: runCrushHook, "open-interpreter": runOpenInterpreterHook,
       };
       const hook = hooks[positional[0] ?? ""];
       if (hook) return hook(await readStdin());
@@ -1038,7 +1042,9 @@ async function main(): Promise<void> {
         "open-interpreter": { one: captureOpenInterpreterTranscript, all: captureOpenInterpreterAll },
         openhands: { one: captureOpenHandsTranscript, all: captureOpenHandsAll },
         copilot: { one: captureCopilotTranscript, all: captureCopilotAll },
+        cursor: { one: captureCursorTranscript },
         kimi: { one: captureKimiTranscript, all: captureKimiAll },
+        kiro: { one: captureKiroTranscript, all: captureKiroAll },
         "mistral-vibe": {
           one: captureMistralVibeTranscript,
           all: cwd => captureMistralVibeAll(cwd, typeof flags["session-root"] === "string" ? flags["session-root"] : undefined),

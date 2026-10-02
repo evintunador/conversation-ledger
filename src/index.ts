@@ -39,7 +39,9 @@ export type { GitUserIdentity, RepoInfo } from "annals";
 export { captureClaudeTranscript, runClaudeCodeHook } from "./adapters/claude-code.js";
 export { capturePiTranscript, capturePiAll, runPiHook } from "./adapters/pi.js";
 export { captureCopilotTranscript, captureCopilotAll, runCopilotHook } from "./adapters/copilot.js";
+export { captureCursorTranscript, runCursorHook, runCursor } from "./adapters/cursor.js";
 export { captureKimiTranscript, captureKimiAll, runKimiHook } from "./adapters/kimi.js";
+export { captureKiroTranscript, captureKiroAll, captureKiroV3Transcript, captureKiroV3All, runKiroHook, runKiro } from "./adapters/kiro.js";
 export { captureMistralVibeTranscript, captureMistralVibeAll, runMistralVibeHook } from "./adapters/mistral-vibe.js";
 export { captureCodexTranscript, runCodexHook } from "./adapters/codex.js";
 export {

@@ -1,6 +1,7 @@
 # Record coverage and remaining proof
 
-This is an audit map, not a full-certification claim. Native read scenarios prove
+This is an audit map, not a full-certification claim. The live-provider gate is
+tracked separately in `LIVE_VERIFICATION.md`. Native read scenarios prove
 installation, real CLI execution, text/tool linkage, automatic capture and exact
 backfill idempotency. Fixture tests exercise additional data types; they do not
 prove that an upstream executable currently emits every fixture shape. Both
@@ -14,6 +15,27 @@ and hashing. External locators remain locators. Opaque provider reasoning is kep
 in separate reasoning records with a digest in normalized identity. A source's
 absence of timestamps, IDs, parent links or saved system instructions must not
 be filled with invented provenance.
+
+## Cursor CLI (installed 2026.10.01)
+
+Real logged-in macOS headless and interactive sessions showed human and agent
+text, native tool-use inputs and the answer to a file read. The native
+transcript does not contain the file-read result body; its postToolUse hook
+reports only result metadata. `cledger run cursor -- ...` captures full
+stream-JSON tool results in headless mode and links them to the transcript's
+tool-use IDs without replaying duplicate turns. Interactive result bodies
+remain unavailable, so the live TUI gate is partial. Linux, attachments,
+branching, subagents and full discriminant coverage remain unverified.
+
+## Kiro CLI (installed 2.27.0)
+
+Real logged-in macOS V2 headless and interactive runs captured prompt, file
+read/result and answer; a V3 session and its Stop/SessionEnd hooks were also
+observed. Default V2 does not invoke those V3 hooks and requires
+`cledger run kiro -- chat ...` for automatic capture. The adapter scopes
+sessions by recorded workspace, preserves observed text/tool/state records and
+omits opaque binary/signature bytes as references. Linux, account-key CI,
+attachments, branching, subagents and broader lifecycle variants remain open.
 
 ## Gemini CLI
 
@@ -60,8 +82,8 @@ pass; unwrapped invocation is not represented as automatic integration.
 
 ## Acceptance gaps
 
-Cursor and Kiro do not yet have implemented adapters or native proof. See
-`CLI_ROSTER_RESEARCH.md` for the current authentication findings. Eighteen of
+Cursor and Kiro now have adapters and macOS live CLI evidence; their full
+two-platform and record-type gates are still open. Eighteen of
 twenty headless smoke passes on both macOS and Linux cover 90% of this roster,
 not measured market share or full record certification. Sixteen non-deferred
 interactive scenarios pass on both systems. Resume/fork/compaction/cancellation
@@ -285,6 +307,15 @@ provider (two requests, no Factory account). This is consistent with Factory's
 published BYOK authentication fixes. See [airgap deployment](https://docs.factory.ai/enterprise/airgapped-deployment),
 [BYOK configuration](https://docs.factory.ai/model-independence/byok), and
 [release notes](https://docs.factory.ai/changelog/release-notes).
+
+On 2026-10-01, installed public Droid 0.232.0 also passed against the live
+local Ollama `ledger-test` model in an isolated repository and profile. The
+headless `droid exec` exited successfully and produced 13 native ledger events,
+including the human prompt, actual `Read` tool call and result, and assistant
+answer containing the synthetic file value. Its native usage event reported
+`factory_credits: 0`. This verifies real local-model behavior for headless mode;
+the separate scripted provider check also passed on 0.232.0. Neither result
+establishes interactive TUI behavior.
 
 Public interactive startup is blocked by a concrete login requirement. After
 removing both `CI` and `NO_COLOR` from the PTY environment and selecting the

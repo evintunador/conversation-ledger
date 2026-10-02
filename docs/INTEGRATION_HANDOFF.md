@@ -1,6 +1,6 @@
 # CLI integration checkpoint
 
-Updated 2026-09-29. Work is active at the user's explicit request. This file is a
+Updated 2026-10-01. Work is active at the user's explicit request. This file is a
 checkpoint, not a completion claim. Changes remain uncommitted in this checkout.
 
 ## Scope and constraints
@@ -23,10 +23,11 @@ run the actual CLI and real tool/hook paths without relying on model ability.
 
 ## Current implementation
 
-Eighteen adapters and native drivers are wired, including new Pi, Vibe legacy,
+Twenty adapters are wired, including new Pi, Vibe legacy,
 Copilot, Kimi, Goose, Droid, Aider, Continue, Kilo, Cline, OpenHands, Crush, and
-current Rust Open Interpreter. Cursor/Kiro remain unsupported; see roster
-research for authentication blockers. Vibe unified backend and historical
+current Rust Open Interpreter, Cursor and Kiro. The free scripted campaign still
+has eighteen drivers; Cursor/Kiro have separate real-provider macOS evidence in
+LIVE_VERIFICATION.md. Vibe unified backend and historical
 Python Open Interpreter are not covered by these adapters.
 
 Aider/Continue/Crush use explicit launch wrappers. Aider instruments structured
