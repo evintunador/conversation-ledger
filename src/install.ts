@@ -343,6 +343,9 @@ export const server = async ({ directory, worktree }) => {
         return;
       }
       child.on("error", () => {});
+      // The helper can exit before it reads the event. Node reports the
+      // resulting broken pipe asynchronously on stdin, outside the try/catch.
+      child.stdin.on("error", () => {});
       try {
         child.stdin.end(
           JSON.stringify({ session_id: sessionID, cwd, hook_event_name: "session.idle" }),
