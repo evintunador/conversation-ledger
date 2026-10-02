@@ -55,7 +55,8 @@ export async function verifyScriptedCrush(options: { binary?: string; timeoutMs?
     await writeFile(join(repo, "evidence.txt"), secret + "\n");
     await writeFile(join(repo, ".cledger.json"), JSON.stringify({ transport: { hook: false, fetchRefspec: false } }));
     await checked("git", ["add", "."]); await checked("git", ["commit", "--quiet", "-m", "isolated verification"]);
-    provider = await startScriptedProvider({ toolName: "view", toolArguments: { file_path: "evidence.txt" }, noToolsCompletionText: "Verification Session" });
+    provider = await startScriptedProvider({ toolName: "view", toolArguments: { file_path: "evidence.txt" }, noToolsCompletionText: "Verification Session",
+      ...(options.interactive ? { completionPrefix: "TESTONLY_OK " } : {}) });
     guard = await startGuard(provider.endpoint);
     const config = join(repo, "crush.json");
     await writeFile(config, JSON.stringify({
@@ -69,8 +70,12 @@ export async function verifyScriptedCrush(options: { binary?: string; timeoutMs?
     const wrapper = [cli,"run","crush","--binary",binary,"--","--data-dir",join(repo,".crush")];
     if (options.interactive) {
       const terminal = await runPty(process.execPath, wrapper, {cwd:repo,env:{...env,TERM:"xterm-256color"},timeoutMs:options.timeoutMs??45_000,
-        actions:[{waitFor:"Would you like to initialize",send:"n"},{waitFor:"Fixture|Ready[!.?]|Ready for instructions",send:prompt},{waitFor:"contents[.]",send:"\r",delayMs:1000},{waitFor:secret,send:"\x03"},{waitFor:"Are you sure you want to quit",send:"y"}]});
-      report.gates.interactiveExit=!terminal.timedOut&&terminal.code===0&&terminal.actionsCompleted===5;
+        // Crush repaints a typed prompt in fragments, including backspaces.
+        // Send Enter after the driver's separate text write instead of waiting
+        // for a contiguous echo. Only the assistant's distinct completion
+        // prefix triggers quit; linked exact-value evidence is checked below.
+        actions:[{waitFor:"Would you like to initialize",send:"n"},{waitFor:"Ready[!.?]|Ready for instructions",send:prompt+"\r",delayMs:1000},{waitFor:"TESTONLY_OK",send:"\x03",delayMs:1000},{waitFor:"Are you sure you want to quit",send:"y"}]});
+      report.gates.interactiveExit=!terminal.timedOut&&terminal.code===0&&terminal.actionsCompleted===4;
       report.coverage.push("interactive PTY keyboard prompt and exit");report.exclusions=report.exclusions.filter(value=>value!=="interactive TUI");
       if(!report.gates.interactiveExit)throw new Error(`Crush interactive terminal incomplete (${terminal.code}, actions=${terminal.actionsCompleted}, timeout=${terminal.timedOut}): ${terminal.output.slice(-2200)}`);
     } else await checked(process.execPath,[...wrapper,"run","--quiet",prompt],options.timeoutMs??90_000);
