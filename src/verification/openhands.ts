@@ -57,6 +57,15 @@ export function openhandsEvidenceGates(events: EvidenceEvent[], marker: string, 
   };
 }
 
+/** Read-only predicate for a bounded observer subprocess; never imports records. */
+export async function openhandsAutomaticEvidenceReady(repo: string, marker: string, secret: string): Promise<boolean> {
+  const ledger = await findRepo(repo);
+  if (!ledger) return false;
+  const events = await readEvents(ledger, { reachableFrom: null });
+  return !hasUnrecognizedEvidence(events, "openhands") &&
+    Object.values(openhandsEvidenceGates(events, marker, secret)).every(Boolean);
+}
+
 /** Observe installed background capture; never repair it by importing data. */
 async function awaitNativeTail(repo: string): Promise<boolean> {
   const directory = join(repo, ".git", "cledger-openhands-tail"), deadline = Date.now() + 12_000;
@@ -153,14 +162,39 @@ export async function verifyScriptedOpenHands(options: OpenHandsVerificationOpti
     const prompt = `${marker}. Read evidence.txt using file_editor view and reply with its exact contents.`;
     if (options.interactive) {
       delete runtimeEnv.CI; delete runtimeEnv.NO_COLOR; runtimeEnv.TERM = "xterm-256color";
-      const terminal = await runPty(binary, ["--always-approve", "--override-with-envs", "--exit-without-confirmation"], {
+      const ready = join(root, "automatic-evidence-ready");
+      let observing = true;
+      let observerFailure: unknown;
+      const observer = (async () => {
+        while (observing) {
+          // UI repaints can split the file value. Observe the actual automatic
+          // ledger instead, in a bounded child which emits only its predicate.
+          const observation = await runProcess(process.execPath, ["--input-type=module", "-e",
+            `import {openhandsAutomaticEvidenceReady} from ${JSON.stringify(import.meta.url)}; if(await openhandsAutomaticEvidenceReady(${JSON.stringify(repo)},${JSON.stringify(marker)},${JSON.stringify(secret)})) process.stdout.write("ready");`],
+            { cwd: repo, env, timeoutMs: 5000 });
+          if (observation.code === 0 && !observation.timedOut && observation.stdout === "ready") {
+            await writeFile(ready, "automatic native evidence complete", { mode: 0o600 });
+            return;
+          }
+          await new Promise(resolveWait => setTimeout(resolveWait, 250));
+        }
+      })().catch(error => { observerFailure = error; });
+      let terminal;
+      try {
+        terminal = await runPty(binary, ["--always-approve", "--override-with-envs", "--exit-without-confirmation"], {
         cwd: repo, env, timeoutMs: options.timeoutMs ?? 120000, actions: [
-          { waitFor: "Loaded:.*skills,.*hooks", send: prompt, delayMs: 250 },
-          { waitFor: "exact contents", send: "\r", delayMs: 250 },
-          { waitFor: secret, send: "\x11", delayMs: 750 },
+          // The driver separates text and Enter by 150ms. No contiguous
+          // terminal echo is required when the editor repaints the prompt.
+          { waitFor: "Loaded:.*skills,.*hooks", send: prompt + "\r", delayMs: 250 },
+          { waitFor: "", waitForPath: ready, send: "\x11", delayMs: 750 },
         ],
-      });
-      report.gates.interactiveTerminal = terminal.actionsCompleted === 3 && !terminal.timedOut && terminal.code === 0;
+        });
+      } finally {
+        observing = false;
+        await observer;
+      }
+      if (observerFailure) throw observerFailure;
+      report.gates.interactiveTerminal = terminal.actionsCompleted === 2 && !terminal.timedOut && terminal.code === 0;
       if (!report.gates.interactiveTerminal) throw Error(`Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`);
     } else await checked(binary, ["--headless", "--json", "--always-approve", "--override-with-envs", "--task", prompt], options.timeoutMs ?? 60_000);
     report.gates.tailWorkerCompleteAndExited = await awaitNativeTail(repo);

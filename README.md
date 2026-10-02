@@ -70,6 +70,9 @@ mean full market coverage: Linux, interactive use, lifecycle scenarios and each
 native data type have separate acceptance requirements. Agents can run actual
 CLIs against free scripted providers using the [native verification suite](docs/NATIVE_VERIFICATION.md).
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test levels,
+changes across CLIs, and adding a new integration.
+
 New captures retain known text attachment formats and replace embedded binary
 bodies with references containing available locators, hashes and sizes. This
 applies to normalized content and retained raw payloads; it does not purge older

@@ -21,8 +21,12 @@ It went offline during Copilot's first DeepSeek attempt, then returned at the
 user's request. Droid, OpenCode, Pi, Copilot, Qwen, Crush, OpenHands and Open
 Interpreter have passing real DeepSeek TUI evidence. Eighteen of the selected
 twenty CLIs have installed macOS live-model TUI canary passes. Cursor lacks native
-interactive tool-result bodies; Kimi folder-trust approval is pending following
-an automatic approval-review rejection. Neither gap counts as a pass.
+interactive tool-result bodies. Kimi folder trust was accepted through its real
+TUI after explicit user approval; automatic prompt, Read call/result and session
+state capture passed. The guard rejected a second request while the first stream
+remained active; that stream later timed out. Final-answer verification is a
+harness stream-sequencing gap, not proven provider failure. Neither gap counts
+as a pass; no retry was attempted.
 Ollama `ledger-test` (sub-1B Qwen) at http://127.0.0.1:11434 remains the earlier
 test route. Scripted-provider evidence and real-model evidence remain distinct.
 

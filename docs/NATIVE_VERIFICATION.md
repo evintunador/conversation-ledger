@@ -250,8 +250,11 @@ failures; both then passed and their pins advanced. Drift gates were retained.
 
 ## Interactive terminal scenarios
 
-Use `CLEDGER_VERIFY_INTERACTIVE=1` with an individual verifier, or
-`node dist/verification/campaign.js --mode interactive --only qwen-code,copilot,opencode,pi`.
+Use `node dist/verification/campaign.js --mode interactive --only qwen-code,copilot,opencode,pi`
+for a consistent interface. Individual verifiers that read the interactive
+environment flag also support, for example,
+`CLEDGER_VERIFY_INTERACTIVE=1 npm run verify:opencode`; some entrypoints do not
+read that flag, so use the campaign for those CLIs.
 The campaign reports an unavailable interactive driver as `not-run`, never as a
 headless substitute. Interactive scheduled attempts have separate cadence state
 from headless attempts. Candidate pin updates require both headless and

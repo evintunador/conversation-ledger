@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { openhandsEvidenceGates, verifyScriptedOpenHands } from "../verification/openhands.js";
-import { event } from "./helpers.js";
+import { openhandsAutomaticEvidenceReady, openhandsEvidenceGates, verifyScriptedOpenHands } from "../verification/openhands.js";
+import { event, makeTempRepo, makeCommit, cleanupRepo } from "./helpers.js";
+import { appendEvents } from "../store.js";
 import type { EvidenceEvent } from "../schema.js";
 import { createServer } from "node:http";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -49,6 +50,22 @@ test("OpenHands native certification rejects raw-only evidence, prompt echoes, a
   assert.equal(openhandsEvidenceGates(echo, "marker", "secret").hookAnswer, false);
   const wrongSource = evidence().map((item) => ({ ...item, producer: { ...item.producer, source: "other" } }));
   assert.ok(Object.values(openhandsEvidenceGates(wrongSource, "marker", "secret")).every((value) => !value));
+});
+
+test("OpenHands TUI exit readiness observes complete automatic ledger evidence and rejects drift", async () => {
+  const repo = await makeTempRepo();
+  try {
+    await makeCommit(repo);
+    const events = evidence();
+    await appendEvents(repo, events.slice(0, 3));
+    assert.equal(await openhandsAutomaticEvidenceReady(repo.root, "marker", "secret"), false);
+    await appendEvents(repo, events.slice(3));
+    assert.equal(await openhandsAutomaticEvidenceReady(repo.root, "marker", "secret"), true);
+    await appendEvents(repo, [event({ producer: events[0]!.producer, kind: "unrecognized", content: { unrecognized_type: "TESTONLY new native record" } })]);
+    assert.equal(await openhandsAutomaticEvidenceReady(repo.root, "marker", "secret"), false);
+  } finally {
+    await cleanupRepo(repo);
+  }
 });
 
 test("OpenHands verification reports unavailable executable as blocked without starting inference", async () => {
