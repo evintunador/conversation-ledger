@@ -578,7 +578,7 @@ export async function installCursor(): Promise<string> {
     ? settings.hooks as Record<string, unknown> : {};
   const command = await hookCommand("cursor");
   let changed = settings.version !== 1;
-  for (const event of ["stop", "sessionEnd"]) {
+  for (const event of ["preToolUse", "beforeReadFile", "postToolUse", "postToolUseFailure", "stop", "sessionEnd"]) {
     const entries = Array.isArray(hooks[event]) ? hooks[event] as Record<string, unknown>[] : [];
     if (!entries.some(entry => typeof entry.command === "string" && entry.command.includes("hook cursor"))) {
       hooks[event] = [...entries, { command, timeout: 120 }];
@@ -591,7 +591,7 @@ export async function installCursor(): Promise<string> {
   await backup(path);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(settings, null, 2) + "\n");
-  return `cursor: stop + sessionEnd capture hooks added to ${path}`;
+  return `cursor: native tool + stop + sessionEnd capture hooks added to ${path}`;
 }
 
 /** Kiro V3 has standalone global/project hooks. The installed 2.x default

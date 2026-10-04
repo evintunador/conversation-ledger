@@ -1,0 +1,19 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "kimi",
+  "date": "2026-10-03",
+  "mode": "installed-native-resume",
+  "inference": "none",
+  "attemptedRequests": 0,
+  "session": "session_0ee97a35-63b2-4ac2-9faf-a940d1f2c161",
+  "normalExit": true,
+  "actionsCompleted": 2,
+  "previousPromptRetained": true,
+  "resumedHistoryVisible": true,
+  "automaticLedgerEvents": 51,
+  "manualBackfillPerformed": false,
+  "status": "pass",
+  "limitations": [
+    "Native installed TUI resume and normal exit; no model continuation or live Linux verification"
+  ]
+}

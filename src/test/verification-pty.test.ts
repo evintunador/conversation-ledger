@@ -15,6 +15,22 @@ async function waitForTrace(path: string, pattern: RegExp): Promise<string> {
   assert.fail("Live terminal trace did not become available before the deadline");
 }
 
+test("PTY waits for the actual selected native row rather than filename echo", async () => {
+  const result = await runPty("python3", ["-c", String.raw`
+import sys,select
+print('\x1b[48;5;234mimage-TESTONLY.png\x1b[0m',flush=True)
+assert not select.select([sys.stdin],[],[],.2)[0], 'selected echoed editor text'
+print('\x1b[48;5;216mimage-TESTONLY.png\x1b[0m',flush=True)
+print('GOT:'+input(),flush=True)
+`], {
+    cwd: process.cwd(), env: { PATH: process.env.PATH }, timeoutMs: 3000,
+    actions: [{ waitFor: "image-TESTONLY\\.png", waitForRaw: "\\x1b\\[48;5;216mimage-TESTONLY\\.png", send: "TESTONLY-selected\r" }],
+  });
+  assert.equal(result.code, 0, result.output);
+  assert.equal(result.actionsCompleted, 1);
+  assert.match(result.output, /GOT:TESTONLY-selected/);
+});
+
 test("PTY forcibly stops an unresponsive helper and its owned terminal group", async () => {
   const root = await mkdtemp(join(tmpdir(), "cledger-pty-stuck-helper-"));
   const helper = join(root, "stuck-helper"), pids = join(root, "owned-pids");

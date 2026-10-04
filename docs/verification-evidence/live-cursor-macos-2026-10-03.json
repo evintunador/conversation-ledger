@@ -1,0 +1,39 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "cursor",
+  "version": "2026.10.01-e373342",
+  "platform": "darwin/arm64",
+  "date": "2026-10-03",
+  "status": "pass",
+  "provider": "Cursor existing logged-in product account",
+  "model": "Auto (native hooks label default)",
+  "execution": "installed interactive TUI through PTY",
+  "gates": {
+    "automaticPrompt": true,
+    "automaticNativeCalls": true,
+    "automaticLinkedReadBodies": true,
+    "automaticAnswer": true,
+    "noUnrecognizedRecords": true,
+    "normalExit": true,
+    "privateStagesRemoved": true,
+    "transcriptBackfillIdempotent": true,
+    "distinctNativeHookProvenance": true
+  },
+  "automaticLedgerEventsBeforeBackfill": 11,
+  "actualReadCalls": 2,
+  "normalExit": {
+    "code": 0,
+    "timedOut": false,
+    "actionsCompleted": 4
+  },
+  "submittedModelTurns": 1,
+  "precedingAuditModelTurns": 1,
+  "meteredUsage": "No charge amount exposed by TUI; no claim of free or $0 usage.",
+  "limitations": [
+    "macOS interactive canary only; no Linux live verification or full record-type certification.",
+    "Parallel same-file reads without a unique active call retain path/digest references.",
+    "Native hook calls are authoritative; transcript calls lacking native IDs retain a distinct deterministic fallback view.",
+    "Private candidates expire after 60 seconds while the bounded cleanup worker can run; after a hard reboot, the next hook removes stale files and expired candidates cannot be replayed."
+  ],
+  "validation_note": "The actual canary verified native hook body binding. Subsequent no-inference regressions verify deterministic transcript identities, permission/ambiguity handling, expiry, malformed provenance, and binary retention."
+}

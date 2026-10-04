@@ -247,7 +247,7 @@ do not imply verified IDE, desktop, cloud or Windows support.
 | Claude Code | Stop / SessionEnd hooks | JSONL turns, state, file history and subagent sessions |
 | Codex | Stop / SessionEnd hooks | Rollout JSONL, visible and sealed reasoning, linked child sessions |
 | Gemini CLI | AfterAgent / SessionEnd plus bounded tail | Conversation mutation log, rewinds, notices and sub-sessions |
-| Cursor CLI | Native stop/sessionEnd hooks; optional `cledger run cursor` for headless results | Native transcripts and stream-JSON tool results |
+| Cursor CLI | Native tool/read/lifecycle hooks; optional `cledger run cursor` headless wrapper | Native transcripts, confirmed text-read bodies and stream-JSON results; ambiguous reads remain references |
 | Kiro CLI | V3 hooks; `cledger run kiro` for default V2 | Native V2/V3 sessions, tool calls and results |
 | Qwen Code | Stop / SessionEnd hooks | JSONL messages and native system records |
 | OpenCode | session.idle plugin | Native JSON export, one record per part |

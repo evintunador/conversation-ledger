@@ -204,6 +204,11 @@ export async function verifyScriptedCopilot(
     ) as { hooks?: Record<string, unknown> };
     report.gates.installedHooks =
       !!settings.hooks?.agentStop && !!settings.hooks?.sessionEnd;
+    const read = async (): Promise<EvidenceEvent[]> =>
+      (await checked(process.execPath, [cli, "export", "--all"]))
+        .split("\n")
+        .filter(Boolean)
+        .map((s) => JSON.parse(s) as EvidenceEvent);
     if (options.interactive) {
       delete env.CI;
       delete env.NO_COLOR;
@@ -218,7 +223,19 @@ export async function verifyScriptedCopilot(
       report.exclusions = report.exclusions?.filter(
         (x) => x !== "interactive TUI",
       );
-      const terminal = await runPty(
+      const complete = join(root, "automatic-answer-ready");
+      let stopped = false;
+      const observer = (async () => {
+        while (!stopped) {
+          try {
+            const gates = copilotEvidenceGates(await read(), marker, secret);
+            if (Object.values(gates).every(Boolean)) { await writeFile(complete, ""); return; }
+          } catch { /* Native hooks may not have emitted their first record. */ }
+          await new Promise(done => setTimeout(done, 250));
+        }
+      })();
+      let terminal: Awaited<ReturnType<typeof runPty>>;
+      try { terminal = await runPty(
         binary,
         [
           "--allow-tool",
@@ -238,14 +255,13 @@ export async function verifyScriptedCopilot(
               waitFor: "Type|Ask|> |❯",
               send: `${marker}. Read evidence.txt using view and reply with its exact contents.\r`,
             },
-            // Ink can repaint the file value in several fragments. The fixture's
-            // answer prefix followed by the idle editor footer survives those
-            // repaints; the ledger gates still require the full exact value.
-            { waitFor: "TESTONLY_OK[\\s\\S]*open sidebar", send: "/quit", delayMs: 1000 },
+            // Ink can interrupt even the answer prefix with repaint fragments.
+            // Require exact native ledger evidence before exiting the TUI.
+            { waitFor: "^", waitForPath: complete, send: "/quit", delayMs: 1000 },
             { waitFor: "/quit", send: "\r", delayMs: 1000 },
           ],
         },
-      );
+      ); } finally { stopped = true; await observer; }
       report.gates.interactiveTerminal =
         terminal.actionsCompleted === 3 &&
         !terminal.timedOut &&
@@ -274,11 +290,6 @@ export async function verifyScriptedCopilot(
         ],
         options.timeoutMs ?? 60_000,
       );
-    const read = async (): Promise<EvidenceEvent[]> =>
-      (await checked(process.execPath, [cli, "export", "--all"]))
-        .split("\n")
-        .filter(Boolean)
-        .map((s) => JSON.parse(s) as EvidenceEvent);
     let events: EvidenceEvent[] = [];
     const deadline = Date.now() + (options.pollMs ?? 10_000);
     do {

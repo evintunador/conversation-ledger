@@ -16,16 +16,36 @@ in separate reasoning records with a digest in normalized identity. A source's
 absence of timestamps, IDs, parent links or saved system instructions must not
 be filled with invented provenance.
 
-## Cursor CLI (installed 2026.10.01)
+## Cursor CLI (installed 2026.10.01-e373342)
 
-Real logged-in macOS headless and interactive sessions showed human and agent
-text, native tool-use inputs and the answer to a file read. The native
-transcript does not contain the file-read result body; its postToolUse hook
-reports only result metadata. `cledger run cursor -- ...` captures full
-stream-JSON tool results in headless mode and links them to the transcript's
-tool-use IDs without replaying duplicate turns. Interactive result bodies
-remain unavailable, so the live TUI gate is partial. Linux, attachments,
-branching, subagents and full discriminant coverage remain unverified.
+A real logged-in macOS TUI read two synthetic text files sequentially. Six native
+hooks (`preToolUse`, `beforeReadFile`, `postToolUse`, `postToolUseFailure`, `stop`
+and `sessionEnd`) automatically captured the prompt, exact native call IDs,
+both linked successful read bodies and the answer before backfill, with zero
+unrecognized records and normal exit. See the [live evidence](verification-evidence/live-cursor-macos-2026-10-03.json).
+
+The installed `beforeReadFile` hook supplies content before permission approval,
+but no call ID; successful `postToolUse` supplies the ID and path/length metadata,
+but no body. A uniquely active same-session/generation/file read stages known
+text privately, then publishes it only after matching success. Denied, expired
+or ambiguous same-file reads keep references, never an invented body binding.
+Binary/unknown-format content remains a reference in normalized and raw records.
+A bounded detached worker expires private candidates after at most 60 seconds;
+a hard reboot can postpone physical cleanup until the next hook, which removes
+stale files and never replays expired bytes.
+
+Native hook records own authoritative IDs and distinct raw provenance. Transcript
+rows lacking native IDs preserve deterministic fallback tool-use identities with
+an explicit missing-ID marker; later hook arrivals or repeated reads do not change
+earlier transcript identities. These are separate protocol views, so canonical
+native call counts use hook provenance. The optional `cledger run cursor -- ...`
+headless stream wrapper retains its result capture and replay behavior.
+
+Focused no-inference tests cover denied/parallel reads, real expiry cleanup,
+malformed hook provenance, binary bodies in raw and normalized records, sequential
+same-path generations and exact repeat-capture idempotency. Linux live operation,
+attachments emitted by the native TUI, branching, subagents and full upstream
+discriminant coverage remain unverified.
 
 ## Kiro CLI (installed 2.27.0)
 
@@ -319,8 +339,8 @@ headless `droid exec` exited successfully and produced 13 native ledger events,
 including the human prompt, actual `Read` tool call and result, and assistant
 answer containing the synthetic file value. Its native usage event reported
 `factory_credits: 0`. This verifies real local-model behavior for headless mode;
-the separate scripted provider check also passed on 0.232.0. Neither result
-establishes interactive TUI behavior.
+the separate scripted provider check also passed on 0.232.0. Neither headless result establishes interactive TUI behavior; the later
+authenticated live TUI evidence is recorded below.
 
 Public interactive startup is blocked by a concrete login requirement. After
 removing both `CI` and `NO_COLOR` from the PTY environment and selecting the
@@ -336,9 +356,12 @@ Factory API-key settings; the verifier maps it to `FACTORY_API_KEY` only for the
 native Droid process. The programmatic option is `factoryApiKey`. This opt-in
 never borrows a normal `FACTORY_API_KEY`, keychain login or user-profile file.
 HOME/config and captured content remain synthetic, and inference remains pinned
-to the scripted local BYOK model. An authenticated interactive run has not yet
-been verified. No undocumented enterprise override is used, no login was
-attempted, and no credential should be pasted into chat.
+to the scripted local BYOK model. The isolated scripted CI profile remains login-blocked. A separate authorized
+macOS live TUI run using existing normal login and DeepSeek passed automatic
+prompt, linked Read/result and exact-answer capture before backfill, then exited
+normally; see [live evidence](verification-evidence/live-droid-macos-2026-10-02.json).
+That pass does not transfer authentication into CI. No undocumented enterprise
+override is used, and no credential should be pasted into chat.
 
 The updater-disable setting is documented in the [CLI reference](https://docs.factory.ai/droid-cli/cli-reference);
 keyring control is documented in release notes. The native HOME override is used
@@ -347,3 +370,5 @@ remain. Factory's [individual pricing](https://docs.factory.ai/pricing/individua
 lists paid plans with a BYOK allowance; it does not establish free account
 entitlement. This does not alter the observed unauthenticated local-BYOK headless
 result.
+
+Remaining per-CLI conformance gaps are tracked in [issue #27](https://github.com/evintunador/conversation-ledger/issues/27).

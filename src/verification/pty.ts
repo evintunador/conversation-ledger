@@ -4,6 +4,8 @@ import { spawn } from "node:child_process";
 
 export interface PtyAction {
   waitFor: string;
+  /** Optional native rendering proof; matched before terminal escapes are stripped. */
+  waitForRaw?: string;
   /** Delay the action until an external hook has written this file. */
   waitForPath?: string;
   send: string;
@@ -69,7 +71,7 @@ try:
   if config.get('stopWhen') and re.search(config['stopWhen'],plain): break
   if index<len(config['actions']):
    action=config['actions'][index]
-   if re.search(action['waitFor'],plain) and (not action.get('waitForPath') or os.path.isfile(action['waitForPath'])):
+   if re.search(action['waitFor'],plain) and (not action.get('waitForRaw') or re.search(action['waitForRaw'],pending)) and (not action.get('waitForPath') or os.path.isfile(action['waitForPath'])):
      time.sleep(min(max(action.get('delayMs',0),0),1000)/1000)
      sent=action['send']
      # Ink-based CLIs treat a text+Enter burst as paste, leaving it unsubmitted.

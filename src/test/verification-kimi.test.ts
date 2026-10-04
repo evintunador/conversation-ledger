@@ -3,6 +3,62 @@ import assert from "node:assert/strict";
 import { kimiEvidenceGates, verifyScriptedKimi } from "../verification/kimi.js";
 import { event } from "./helpers.js";
 import type { EvidenceEvent } from "../schema.js";
+import { createServer } from "node:http";
+import { writeFile } from "node:fs/promises";
+import { startScriptedProvider } from "../verification/scripted.js";
+
+test("Kimi configured provider rejects partial or non-loopback settings before execution", async () => {
+  for (const options of [
+    { apiKey: "TESTONLY-key" }, { endpoint: "http://127.0.0.1:1/v1" },
+    { endpoint: "http://127.0.0.1:1/v1", model: " " },
+    { endpoint: "https://example.com/v1", model: "TESTONLY-model" },
+    { endpoint: "http://127.0.0.1:1/v1", model: "TESTONLY-model", apiKey: "bad\nkey" },
+  ]) await assert.rejects(verifyScriptedKimi({ ...options, binary: "/does-not-exist" }));
+});
+
+test("installed Kimi TUI accepts an explicit endpoint with a distinct upstream model ID", {
+  skip: !process.env.CLEDGER_VERIFY_KIMI_CONFIGURED_BINARY,
+}, async () => {
+  const provider = await startScriptedProvider({ toolName: "Read", toolArguments: { path: "evidence.txt" } });
+  const observed: { model: unknown; authorization: string | undefined; maxTokens: unknown }[] = [];
+  const wrapper = createServer(async (req, res) => {
+    try {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = Buffer.concat(chunks);
+      const parsed = JSON.parse(body.toString()) as Record<string, unknown>;
+      observed.push({ model: parsed.model, authorization: req.headers.authorization, maxTokens: parsed.max_tokens ?? parsed.max_completion_tokens });
+      const response = await fetch(provider.endpoint + "/chat/completions", { method: "POST", body,
+        headers: { "content-type": "application/json", "x-cledger-verification": String(req.headers["x-cledger-verification"] ?? "") } });
+      res.writeHead(response.status, { "content-type": response.headers.get("content-type") ?? "application/json" });
+      if (response.body) for await (const chunk of response.body) res.write(chunk);
+      res.end();
+    } catch { res.writeHead(500); res.end(); }
+  });
+  try {
+    await new Promise<void>(resolve => wrapper.listen(0, "127.0.0.1", resolve));
+    const address = wrapper.address();
+    assert.ok(address && typeof address !== "string");
+    const report = await verifyScriptedKimi({ binary: process.env.CLEDGER_VERIFY_KIMI_CONFIGURED_BINARY!, interactive: true,
+      endpoint: `http://127.0.0.1:${address.port}/v1`, model: "TESTONLY-provider-model", apiKey: "TESTONLY-provider-key", timeoutMs: 60000 });
+    // This endpoint is a model substitute: never present it as real inference.
+    report.inference = "scripted";
+    report.exclusions.push("real provider/model behavior");
+    report.gates.configuredModelForwarded = observed.length >= 2 && observed.every(request => request.model === "TESTONLY-provider-model");
+    report.gates.configuredKeyForwarded = observed.length >= 2 && observed.every(request => request.authorization === "Bearer TESTONLY-provider-key");
+    report.gates.configuredOutputBounded = observed.length >= 2 && observed.every(request => typeof request.maxTokens === "number" && request.maxTokens <= 1024);
+    report.gates.scriptedProviderHeader = provider.state.headersValid;
+    if (!Object.values(report.gates).every(Boolean)) report.status = "fail";
+    if (process.env.CLEDGER_VERIFY_KIMI_CONFIGURED_REPORT) await writeFile(process.env.CLEDGER_VERIFY_KIMI_CONFIGURED_REPORT, JSON.stringify(report, null, 2) + "\n");
+    assert.equal(report.status, "pass", JSON.stringify(report, null, 2));
+    assert.equal(report.mode, "interactive");
+    assert.ok(Object.values(report.gates).every(Boolean));
+  } finally {
+    wrapper.closeAllConnections();
+    await new Promise<void>(resolve => wrapper.close(() => resolve()));
+    await provider.close();
+  }
+});
 
 function evidence(): EvidenceEvent[] {
   const producer = { tool: "cledger", source: "kimi", session_id: "fixture" };

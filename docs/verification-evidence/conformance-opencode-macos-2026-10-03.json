@@ -1,0 +1,61 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "observedOn": "2026-10-03",
+  "fullyCertified": false,
+  "scope": "Installed native TUI with local scripted provider; selected data-entry/lifecycle cases, not live-model or full certification",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "opencode",
+    "platform": "darwin/arm64",
+    "mode": "interactive",
+    "inference": "scripted",
+    "status": "pass",
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "Bracket-paste into actual native editor; compared normalized human text, not echoed terminal"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual file tool result retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+      },
+      "imageReference": {
+        "status": "pass",
+        "detail": "Actual native Read image output; user editor image-paste entry is a separate unverified case"
+      },
+      "userImageEntry": {
+        "status": "pass",
+        "detail": "Native editor @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "Unknown native records across initial and resumed turns stay explicit"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Exited and relaunched native continue/resume; new typed turn remains in original stream"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Both manual imports compared against automatic complete native ledger"
+      }
+    },
+    "requests": 6,
+    "events": 20,
+    "version": "1.18.10"
+  },
+  "exclusions": [
+    "headless mode",
+    "live provider/model behavior",
+    "clipboard/drag-and-drop image entry",
+    "text-file editor attachment (native UTF-8 tool read is covered)",
+    "PDF/archive/oversized or invalid text input",
+    "compaction/fork/subagent lifecycle",
+    "complete record-type coverage",
+    "other operating systems"
+  ]
+}

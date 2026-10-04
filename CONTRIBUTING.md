@@ -38,7 +38,8 @@ npm run build
 Node 20+ runs cledger. Use Node **22.19+** for the full native campaign because
 some tested CLIs require it. macOS and Linux are the current target platforms.
 Native tests need Git, Python 3 for the PTY driver, process execution and loopback
-sockets; SQLite-backed integrations also need `sqlite3`. Full provisioning needs
+sockets; SQLite-backed integrations also need `sqlite3`. The optional OpenCode
+native ripgrep conformance backend additionally needs `rg`. Full provisioning needs
 network access and `uv` for the pinned Python environments. See the
 [hosted workflow](.github/workflows/native-verification.yml) for the exact setup
 and Annals revision used by CI.
@@ -61,6 +62,13 @@ levels actually run and their exclusions in your PR.
 | 3. Installed interactive smoke | Real TUI startup, typed input, approvals, terminal behavior and automatic capture | None with scripted provider |
 | 4. Live provider verification | Installed CLI using an actual model/account, in separately recorded headless and TUI modes | Local inference or explicitly approved usage |
 | 5. Record and lifecycle verification | Broader supported input/output types, resume/forks, failures and platform-specific behavior | Depends on scenario |
+
+The [installed core conformance guide](docs/CORE_CONFORMANCE.md) gives executable
+level-5 commands for Claude Code, Codex and OpenCode, including actual image
+entry and resume. The [budgeted live guide](docs/BUDGETED_LIVE_VERIFICATION.md)
+explains the disabled-by-default paid tier, exact approvals and durable budgets.
+Its first automated consumer is OpenCode; unsupported consumers must remain
+explicit gaps.
 
 ### 1. Fixture and repository tests
 
@@ -319,3 +327,28 @@ tell the human; do not read it into an agent conversation. This repository can
 capture its own development conversations, so never use its private ledger as
 a test fixture. Prefer disposable repos and keep generated runtimes, homes and
 raw traces out of commits.
+
+### Repeat Kimi against an explicitly selected local model
+
+The individual runner supports the same actual native TUI, isolated configuration,
+automatic evidence gates and two backfills with a real loopback model:
+
+```sh
+CLEDGER_VERIFY_BINARY=/absolute/path/to/kimi \
+CLEDGER_VERIFY_INTERACTIVE=1 \
+CLEDGER_VERIFY_ENDPOINT=http://127.0.0.1:11434/v1 \
+CLEDGER_VERIFY_MODEL=ledger-test \
+CLEDGER_VERIFY_API_KEY=ollama \
+node dist/verification/kimi.js
+```
+
+Specify both endpoint and model; the runner has no inferred provider or paid
+fallback. Forwarding is limited to four requests, 1024 output tokens per request,
+180 seconds per request and 360 seconds per interactive session. It stops after
+an upstream failure and reports a blocker; successful real-model evidence is
+labeled `configured-loopback`, separately from the scripted campaign. A tiny
+model may fail tool selection; that is a failed live check, not parser proof.
+Omit endpoint/model for the existing zero-inference scripted verifier. The free
+campaign always calls that scripted mode. Folder trust applies only to its
+disposable synthetic repository. Use a local service you know is unmetered; paid
+verification requires the separately approved budget tier.

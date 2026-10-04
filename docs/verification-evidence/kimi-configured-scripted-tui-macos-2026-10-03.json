@@ -1,0 +1,55 @@
+{
+  "schema": "cledger-native-evidence/1",
+  "observedOn": "2026-10-03",
+  "scope": "Installed Kimi TUI with explicit synthetic loopback endpoint and distinct upstream model ID; no real inference or credentials",
+  "provider": "Test-owned scripted Chat Completions endpoint; configured-loopback runner report relabeled scripted to preserve actual proof",
+  "observedHeader": "Kimi2.1.1 displays upstream TESTONLY-provider-model rather than selected fixture config alias",
+  "report": {
+    "schema": "cledger-verification/1",
+    "cli": "kimi",
+    "status": "pass",
+    "certification": "native-smoke",
+    "mode": "interactive",
+    "inference": "scripted",
+    "platform": "darwin/arm64",
+    "gates": {
+      "installedHook": true,
+      "interactiveExit": true,
+      "tailWorkerCompleteAndExited": true,
+      "noUnrecognizedRecords": true,
+      "hookPrompt": true,
+      "hookToolUse": true,
+      "hookToolResult": true,
+      "hookAnswer": true,
+      "nativeSessionState": true,
+      "requestBudget": true,
+      "backfillIdempotent": true,
+      "configuredModelForwarded": true,
+      "configuredKeyForwarded": true,
+      "configuredOutputBounded": true,
+      "scriptedProviderHeader": true
+    },
+    "coverage": [
+      "installed native hooks",
+      "interactive PTY keyboard prompt and exit",
+      "human prompt",
+      "tool call/result linkage",
+      "assistant answer",
+      "wire metadata",
+      "backfill idempotency",
+      "bounded tail worker exit"
+    ],
+    "exclusions": [
+      "attachments",
+      "branching/forks",
+      "compaction",
+      "full record coverage",
+      "ephemeral sessions",
+      "real provider/model behavior"
+    ],
+    "durationMs": 6560,
+    "model": "TESTONLY-provider-model",
+    "version": "2.1.1",
+    "requests": 2
+  }
+}

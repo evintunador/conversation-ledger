@@ -189,7 +189,7 @@ export async function verifyScriptedCodex(options: CodexVerificationOptions = {}
     provider = await startScriptedResponsesProvider(options.interactive ? { completionPrefix: "TESTONLY_OK " } : {});
     // Official custom Responses provider, confined to the loopback fixture.
     await writeFile(join(agentDir, "config.toml"), [
-      'model = "gpt-5.4"', 'model_provider = "verification"', 'approval_policy = "never"',
+      'model = "gpt-5.4"', 'model_provider = "verification"', 'approval_policy = "never"', 'check_for_update_on_startup = false',
       '[model_providers.verification]', 'name = "Scripted verification"',
       `base_url = ${JSON.stringify(provider.endpoint)}`, 'wire_api = "responses"',
       'requires_openai_auth = false', 'request_max_retries = 0', 'stream_max_retries = 0',

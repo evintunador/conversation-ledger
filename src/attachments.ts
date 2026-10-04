@@ -105,7 +105,12 @@ function walk(value: unknown, path: string, inheritedMime?: string, encodedCarri
   }
   const out: Record<string, unknown> = {};
   let changed = false;
-  const mime = [value.media_type, value.mediaType, value.mimeType, value.mime_type, value.mime, inheritedMime]
+  // Observed Claude Code TUI @file attachment carrier: content.file has
+  // MIME in type, explicit base64 bytes and native originalSize/dimensions.
+  // A generic tool object's unrelated base64 prose is not this carrier.
+  const nativeFile = typeof value.base64 === "string" && (typeof value.originalSize === "number" || path.endsWith("/file")) &&
+    typeof value.type === "string" && /^[a-z][a-z0-9.+-]*\/[a-z0-9.+-]+(?:;.*)?$/i.test(value.type);
+  const mime = [value.media_type, value.mediaType, value.mimeType, value.mime_type, value.mime, nativeFile ? value.type : undefined, inheritedMime]
     .find((v): v is string => typeof v === "string");
   const binaryData = value.type !== "text" && typeof value.data === "string" &&
     (encodedCarrier || value.type === "base64" || value.type === "image" || value.type === "audio" || value.type === "input_audio" ||
@@ -125,6 +130,9 @@ function walk(value: unknown, path: string, inheritedMime?: string, encodedCarri
     if (typeof child === "string" &&
       ["url", "uri", "image_url", "audio_url", "file_data", "image", "data"].includes(key)) {
       replacement = dataUri(child, field);
+    }
+    if (replacement === undefined && key === "base64" && nativeFile) {
+      replacement = embedded(child as string, mime!, "base64", field);
     }
     if (replacement === undefined && key === "result" && value.type === "image_generation_call" && typeof child === "string") {
       // Responses image-generation output is base64 even when no MIME is supplied.

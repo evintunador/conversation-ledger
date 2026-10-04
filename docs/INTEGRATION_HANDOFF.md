@@ -1,6 +1,6 @@
 # CLI integration checkpoint
 
-Updated 2026-10-02. Work is active at the user's explicit request. This file is a
+Updated 2026-10-03. Work is active at the user's explicit request. This file is a
 checkpoint, not a completion claim. Changes remain uncommitted in this checkout.
 
 ## Scope and constraints
@@ -19,14 +19,17 @@ advertises `deepseek-v4-flash`; use bounded local guards, serial inference, and
 stop on capacity refusal or an unavailable gateway without bypassing its backend.
 It went offline during Copilot's first DeepSeek attempt, then returned at the
 user's request. Droid, OpenCode, Pi, Copilot, Qwen, Crush, OpenHands and Open
-Interpreter have passing real DeepSeek TUI evidence. Eighteen of the selected
-twenty CLIs have installed macOS live-model TUI canary passes. Cursor lacks native
-interactive tool-result bodies. Kimi folder trust was accepted through its real
-TUI after explicit user approval; automatic prompt, Read call/result and session
-state capture passed. The guard rejected a second request while the first stream
-remained active; that stream later timed out. Final-answer verification is a
-harness stream-sequencing gap, not proven provider failure. Neither gap counts
-as a pass; no retry was attempted.
+Interpreter have passing real DeepSeek TUI evidence. Nineteen of the selected
+twenty CLIs now have installed macOS live-model TUI canary passes. Cursor's
+native tool hooks capture confirmed known-text Read bodies; ambiguous matches
+remain references. Its real two-read TUI proof and stable-backfill regressions
+are recorded separately. Kimi folder trust was accepted through the real TUI;
+its repaired-guard attempt stopped on upstream HTTP 503 after one request.
+Independent installed Kimi input and resume tests pass. A separate Linux actual
+TUI using free local Qwen3:8b now passes prompt, linked Read/result, answer and
+normal exit in two requests (36 automatic events). Thus all twenty selected
+products have a live TUI canary on at least one OS; full certification remains
+unclaimed. No retry followed the macOS refusal.
 Ollama `ledger-test` (sub-1B Qwen) at http://127.0.0.1:11434 remains the earlier
 test route. Scripted-provider evidence and real-model evidence remain distinct.
 
@@ -76,9 +79,11 @@ scripted-provider passes; blocked evidence never counts as coverage or qualifies
 a candidate update. Dedicated CI test auth remains opt-in via
 CLEDGER_VERIFY_DROID_FACTORY_API_KEY. Never ask for keys in chat.
 
-Latest hosted regression suite: 343 total, 330 pass, 13 explicit opt-in skips,
-zero failures on each OS in run 37057118602. Native checks ran separately, including the installed stalled-prompt regression
-(one pass, zero skips) on both systems.
+Hosted baseline run 37066682656 passed on macOS and Linux at commit
+3a76137. The expanded input/lifecycle checks added here require a new hosted
+run; local consolidated regression testing passed 353 tests with 16 explicit
+opt-in skips. Native checks run separately, including the installed stalled-prompt
+regression on both systems.
 Review fixes added heartbeat lock recovery for Continue (proper-lockfile),
 Gemini malformed-container preservation and bounded post-hook tail capture,
 scoped TOML feature configuration, orphan-process cleanup, verification signal
@@ -95,7 +100,7 @@ The user chose GitHub Actions if free, otherwise a local Linux VM. This reposito
 is public, so standard hosted runners are eligible for free compute. Draft PR
 https://github.com/evintunador/conversation-ledger/pull/26 is open from an isolated
 code-only checkout at /private/tmp/cledger-ci-review. Hosted run
-37057118602 passed on both macOS and Linux at commit 9842af0. The latest
+37066682656 passed on both macOS and Linux at commit 3a76137. The latest
 reports are its GitHub Actions artifacts; older saved reports remain in
 docs/verification-evidence/hosted-*.json. These are
 native CLI smoke passes, not complete proof of every record type or lifecycle.
@@ -134,8 +139,10 @@ and a credential-isolated runner. Machine-specific files are in scheduler-review
 Local scheduler deployment remains disabled. The hosted maintenance workflow is
 prepared in draft PR #26 and becomes operational after merge; its repository
 PR-creation setting is enabled. Paid inference and auto-merge remain disabled.
-A budgeted paid-provider tier is documented but not implemented; it requires
-explicit approval and durable cost enforcement before activation.
+A manual budgeted workflow, persistent authority and first OpenCode consumer are
+implemented but disabled. Other consumer/protocol coverage remains pending;
+activation requires reviewed pricing bounds, durable HTTPS hosting and protected
+environment approval. No paid requests have been made.
 
 ## Guardrails
 
@@ -146,3 +153,12 @@ account authentication without reading or exporting credentials. Read
 CLAUDE.md: secret-shaped fixture values need uppercase TESTONLY/FAKE/etc.
 Do not inspect a push scan finding; stop and tell the human. User CLI configs
 and accounts have not been changed. Preserve all existing uncommitted work.
+
+## Broader installed TUI conformance
+
+Claude Code, Codex and OpenCode passed the eight selected macOS cases: multiline
+Unicode, actual read error, UTF-8 read, image references, native image entry,
+resume, unknown-record detection and two idempotent backfills. Actual Claude
+editor attachment entry exposed and repaired a shared binary-retention gap.
+See CORE_CONFORMANCE.md for commands, evidence and the remaining cases; this
+is subset verification, not full certification.

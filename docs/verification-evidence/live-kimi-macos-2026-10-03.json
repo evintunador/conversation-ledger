@@ -1,0 +1,41 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "kimi",
+  "version": "2.1.1",
+  "platform": "darwin/arm64",
+  "date": "2026-10-03",
+  "provider": "local DeepSeek gateway via OpenAI-compatible API",
+  "model": "deepseek-v4-flash",
+  "status": "blocked",
+  "reason": "Upstream HTTP 503; forwarding stopped (no retry)",
+  "requestCount": 1,
+  "requestLimits": {
+    "requests": 4,
+    "maxOutputTokens": 2048,
+    "requestTimeoutMs": 180000,
+    "sessionTimeoutMs": 360000
+  },
+  "interactive": {
+    "execution": "real installed TUI through PTY; native trust previously authorized for this disposable test repository",
+    "prompt": "TESTONLY Kimi corrected-stream 07c49b00-14e7-4ccd-89a3-124dbb513c7b. Read evidence.txt using Read and reply with its exact contents. Do not use any other tools.",
+    "exitCode": 0,
+    "timedOut": false,
+    "actionsCompleted": 4
+  },
+  "gates": {
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": false,
+    "hookToolResult": false,
+    "hookAnswer": false,
+    "nativeSessionState": true,
+    "normalExit": true
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 51,
+  "currentStreamEvents": 20,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "macOS interactive test only; no live Linux or full record-type certification"
+  ]
+}

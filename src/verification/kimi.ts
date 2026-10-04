@@ -11,13 +11,14 @@ import { startGuard } from "./guard.js";
 import { isolatedEnvironment, runProcess } from "./process.js";
 import { startScriptedProvider } from "./scripted.js";
 
-export interface KimiVerificationOptions { binary?: string; timeoutMs?: number; interactive?: boolean }
+export interface KimiVerificationOptions { binary?: string; timeoutMs?: number; interactive?: boolean; endpoint?: string; model?: string; apiKey?: string }
 export interface KimiVerificationReport {
   schema: "cledger-verification/1";
   cli: "kimi";
   status: "pass" | "fail" | "blocked" | "not-run";
   certification: "native-smoke";
-  inference: "scripted";
+  inference: "scripted" | "configured-loopback";
+  model?: string;
   platform: string;
   mode?: "interactive" | "headless";
   version?: string;
@@ -79,7 +80,8 @@ async function awaitNativeTail(repo: string): Promise<boolean> {
 
 /**
  * Real Kimi executable, real installed hooks, real git ledger, synthetic
- * loopback inference only. No authentication/subscription or gateway needed.
+ * loopback provider only. Defaults to a scripted provider; an explicitly
+ * configured endpoint can run a local model without a subscription.
  * No manual import can repair the hook before the evidence gates pass.
  */
 export async function verifyScriptedKimi(options: KimiVerificationOptions = {}): Promise<KimiVerificationReport> {
@@ -90,6 +92,16 @@ export async function verifyScriptedKimi(options: KimiVerificationOptions = {}):
     coverage: ["installed native hooks", "headless CLI", "human prompt", "tool call/result linkage", "assistant answer", "wire metadata", "backfill idempotency", "bounded tail worker exit"],
     exclusions: ["real provider/model behavior", "interactive TUI", "attachments", "branching/forks", "compaction", "full record coverage", "ephemeral sessions"], durationMs: 0,
   };
+  const live = options.endpoint !== undefined || options.model !== undefined || options.apiKey !== undefined;
+  if (live) {
+    if (!options.endpoint || !options.model?.trim() || /[\r\n]/.test(options.model)) throw new Error("An explicit loopback endpoint and model are both required");
+    const target = new URL(options.endpoint);
+    if (target.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(target.hostname) || target.username || target.password || target.search || target.hash)
+      throw new Error("Configured provider must be an HTTP loopback endpoint");
+    if (options.apiKey !== undefined && (!options.apiKey || /[\r\n]/.test(options.apiKey))) throw new Error("Configured API key must be nonempty and contain no newlines");
+    report.inference = "configured-loopback"; report.model = options.model;
+    report.exclusions = report.exclusions.filter(value => value !== "real provider/model behavior");
+  }
   if (!["darwin", "linux"].includes(process.platform)) {
     report.status = "blocked"; report.reason = "Native Kimi verification currently supports macOS and Linux";
     return report;
@@ -136,8 +148,9 @@ export async function verifyScriptedKimi(options: KimiVerificationOptions = {}):
     await writeFile(join(repo, "evidence.txt"), secret + "\n");
     await checked("git", ["add", "."]);
     await checked("git", ["commit", "--quiet", "-m", "isolated Kimi verification"]);
-    provider = await startScriptedProvider({ toolName: "Read", toolArguments: { path: "evidence.txt" } });
-    guard = await startGuard(provider.endpoint, 4, Math.min(options.timeoutMs ?? 30_000, 30_000));
+    if (!live) provider = await startScriptedProvider({ toolName: "Read", toolArguments: { path: "evidence.txt" } });
+    const model = live ? options.model! : "fixture";
+    guard = await startGuard(live ? options.endpoint! : provider!.endpoint, 4, live ? 180_000 : Math.min(options.timeoutMs ?? 30_000, 30_000), options.apiKey ?? "TESTONLY-local-verification", { maxOutputTokens: 1024 });
     await writeFile(join(agentDir, "config.toml"), `default_model = "fixture"
 telemetry = false
 [providers.verification]
@@ -146,7 +159,7 @@ base_url = ${JSON.stringify(guard.endpoint)}
 api_key = "local-verification"
 [models.fixture]
 provider = "verification"
-model = "fixture"
+model = ${JSON.stringify(model)}
 max_context_size = 32768
 capabilities = ["tool_use"]
 [loop_control]
@@ -157,21 +170,37 @@ max_attempts_per_step = 1
     const config = await readFile(join(agentDir, "config.toml"), "utf8");
     report.gates.installedHook = config.includes('event = "SessionEnd"') && config.includes('event = "Stop"');
     const prompt = `${marker}. Read evidence.txt using the Read tool and reply with its exact contents. Do not use any other tools.`;
+    const read = async (): Promise<EvidenceEvent[]> => (await checked(process.execPath, [cli, "export", "--all"]))
+      .split("\n").filter(Boolean).map((line) => JSON.parse(line) as EvidenceEvent);
     if (options.interactive) {
-      const terminal = await runPty(binary, ["--model", "fixture", "--auto"], { cwd: repo, env: { ...env, TERM: "xterm-256color" }, timeoutMs: options.timeoutMs ?? 45_000,
-        actions: [{waitFor:"Trust this folder",send:"\r"},{waitFor:"fixture",send:prompt},{waitFor:"tools[.]",send:"\r",delayMs:250},{waitFor:secret,send:"/exit",delayMs:1000},{waitFor:"/exit",send:"\r",delayMs:250}] });
+      const ready = join(root, "automatic-answer-ready");
+      let stopped = false;
+      const observer = (async () => {
+        while (!stopped) {
+          try {
+            if (guard!.state.blocked || Object.values(kimiEvidenceGates(await read(), marker, secret)).every(Boolean)) { await writeFile(ready, "ready"); return; }
+          } catch { /* Initial export can precede the first native hook. */ }
+          await new Promise(done => setTimeout(done, 250));
+        }
+      })();
+      let terminal: Awaited<ReturnType<typeof runPty>>;
+      try {
+        terminal = await runPty(binary, ["--model", "fixture", "--auto"], { cwd: repo, env: { ...env, TERM: "xterm-256color" }, timeoutMs: options.timeoutMs ?? (live ? 360_000 : 45_000),
+          // Native versions display either the selected alias or upstream ID.
+          // Both routes select our isolated fixture alias; escape the ID before
+          // using it as a terminal predicate.
+          actions: [{waitFor:"Trust this folder",send:"\r"},{waitFor:"fixture|" + model.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),send:prompt},{waitFor:"tools[.]",send:"\r",delayMs:250},{waitFor:"^",waitForPath:ready,send:"/exit",delayMs:1000},{waitFor:"/exit",send:"\r",delayMs:250}] });
+      } finally { stopped = true; await observer; }
       report.gates.interactiveExit = !terminal.timedOut && terminal.code === 0 && terminal.actionsCompleted === 5;
       report.coverage=report.coverage.map(value=>value==="headless CLI"?"interactive PTY keyboard prompt and exit":value);
       report.exclusions=report.exclusions.filter(value=>value!=="interactive TUI");
       if (!report.gates.interactiveExit) throw new Error(`Kimi interactive terminal incomplete (${terminal.code}, actions=${terminal.actionsCompleted}, timeout=${terminal.timedOut}): ${terminal.output.slice(-2200)}`);
-    } else await checked(binary, ["--model", "fixture", "--output-format", "stream-json", "--prompt", prompt], options.timeoutMs ?? 60_000);
-    const read = async (): Promise<EvidenceEvent[]> => (await checked(process.execPath, [cli, "export", "--all"]))
-      .split("\n").filter(Boolean).map((line) => JSON.parse(line) as EvidenceEvent);
+    } else await checked(binary, ["--model", "fixture", "--output-format", "stream-json", "--prompt", prompt], options.timeoutMs ?? (live ? 360_000 : 60_000));
     report.gates.tailWorkerCompleteAndExited = await awaitNativeTail(repo);
     const nativeEvents = await read();
     Object.assign(report.gates, kimiEvidenceGates(nativeEvents, marker, secret));
-    report.gates.scriptedRequests = provider.state.requests > 0 && provider.state.requests <= 4;
-    report.gates.agentHeader = provider.state.headersValid;
+    report.gates.requestBudget = guard.state.forwarded > 0 && guard.state.forwarded <= 4;
+    if (provider) report.gates.agentHeader = provider.state.headersValid;
     if (!Object.values(report.gates).every(Boolean)) {
       throw new Error("Kimi native hook evidence incomplete; manual backfill was not attempted");
     }
@@ -199,7 +228,11 @@ max_attempts_per_step = 1
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const report = await verifyScriptedKimi(process.env.CLEDGER_VERIFY_BINARY ? { binary: process.env.CLEDGER_VERIFY_BINARY } : {});
+  const report = await verifyScriptedKimi({ ...(process.env.CLEDGER_VERIFY_BINARY ? { binary: process.env.CLEDGER_VERIFY_BINARY } : {}),
+    interactive: process.env.CLEDGER_VERIFY_INTERACTIVE === "1",
+    ...(process.env.CLEDGER_VERIFY_ENDPOINT ? { endpoint: process.env.CLEDGER_VERIFY_ENDPOINT, timeoutMs: 360_000 } : {}),
+    ...(process.env.CLEDGER_VERIFY_MODEL ? { model: process.env.CLEDGER_VERIFY_MODEL, timeoutMs: 360_000 } : {}),
+    ...(process.env.CLEDGER_VERIFY_API_KEY ? { apiKey: process.env.CLEDGER_VERIFY_API_KEY } : {}) });
   process.stdout.write(JSON.stringify(report, null, 2) + "\n");
   process.exitCode = report.status === "fail" ? 1 : report.status === "blocked" ? 2 : 0;
 }

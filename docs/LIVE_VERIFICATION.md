@@ -27,23 +27,17 @@ $5/month ceiling, request/output/timeout limits, and a recorded approval for
 that run. No scheduled workflow may silently use paid secrets, and a local
 estimate is not a provider-side hard spending cap. Keep review before merge.
 
-The opt-in paid GitHub workflow and per-provider budget enforcement are not yet
-implemented. Until they are, live checks run manually on disposable machines
-and their evidence is reviewed before promotion. Do not relabel the scripted
-campaign as the paid/live tier.
+The manual [budgeted live workflow](BUDGETED_LIVE_VERIFICATION.md) now has a
+first installed OpenCode TUI consumer and a durable authority implementation.
+No authority, protected environment, provider route or paid run is activated.
+Other CLI consumers and protocols remain unsupported by this automation.
+A per-run limit alone cannot enforce the monthly ceiling: the authority reserves
+reviewed worst-case charges in persistent atomic state before forwarding.
+Unknown prices, input/output bounds or billable features fail closed. Account
+credit and subscription sessions remain individually reviewed manual checks.
+The free scheduled workflow never receives paid inference credentials.
 
-The paid tier should be a separate manual-dispatch workflow, with a protected
-GitHub environment approval for the exact CLI, model and run. Its runner should
-give the CLI only a localhost proxy URL; the proxy holds the provider key and
-reserves the maximum possible cost before each request, with request, token and
-wall-clock limits. A per-run limit alone cannot enforce the $5 monthly
-per-CLI ceiling: that needs provider-side hard budgets or a durable, atomic
-spend ledger shared across runs. If price or usage accounting is unknown, the
-gateway must fail closed. Account-credit and subscription sessions bypass that
-proxy and remain individually reviewed manual checks. The free scheduled
-workflow never receives paid credentials.
-
-## Current observed live evidence (2026-10-02)
+## Current observed live evidence (2026-10-03)
 
 | CLI | Live headless | Live interactive TUI | Evidence / gap |
 | --- | --- | --- | --- |
@@ -51,9 +45,9 @@ workflow never receives paid credentials.
 | Codex | Provider reachable on macOS; capture pending | Pass on macOS | Installed 0.160.0 with logged-in GPT-6.1-Sol in a real PTY: typed prompt, `exec` file-read call, linked result containing the exact synthetic file content, and exact assistant answer were captured automatically by generated project hooks before backfill (20 events, no unrecognized records). `/exit` ended normally. The PTY driver needed a separate Enter after displaying typed text; earlier stalled attempts had sent no model requests. [Synthetic evidence](verification-evidence/live-codex-macos-2026-10-01.json). |
 | Gemini CLI | Pending | Pass on macOS | Installed 0.61.0 with logged-in provider: human prompt, `read_file` call/result and exact file answer appeared in disposable ledger. |
 | GitHub Copilot CLI | Partial on macOS | Pass on macOS | Installed 1.0.89 with local DeepSeek `deepseek-v4-flash` in a fresh disposable real TUI session: typed human prompt, linked `view` call/successful result and answer containing the exact synthetic file text were captured automatically before backfill (17 events, no unrecognized records); normal `/quit` exit. Two guarded local requests, no premium requests. The first DeepSeek attempt was blocked when the gateway went offline; the user restored it before this fresh rerun. Earlier tiny-Ollama headless testing had invalid tool arguments and remains partial. [Synthetic evidence](verification-evidence/live-copilot-macos-2026-10-02.json). |
-| Cursor CLI | Pass on macOS | Partial on macOS | Installed 2026.10.01 logged-in CLI read a synthetic file in both modes. The optional headless stream-JSON wrapper captures full results; the interactive native transcript lacks tool-result bodies. |
+| Cursor CLI | Pass on macOS | Pass on macOS | Installed 2026.10.01-e373342 with an existing logged-in account in a real TUI: native hooks automatically captured the typed prompt, two sequential `Read` calls with exact native IDs, both linked synthetic text bodies and the answer before backfill (11 events, zero unrecognized); normal exit. Bodies are staged privately until a uniquely matched successful post hook confirms them. Ambiguous same-file reads retain references. No metered charge amount was exposed; this is not a claim of free usage. [Synthetic evidence](verification-evidence/live-cursor-macos-2026-10-03.json). |
 | Qwen Code | Pending | Pass on macOS | Installed 0.21.5 in a real TUI with local DeepSeek `deepseek-v4-flash`: native hooks automatically captured the typed prompt, linked `read_file` call/successful result and exact synthetic file answer before backfill (9 events, no unrecognized records); normal `/exit`. Three guarded local requests. This replaces the earlier tiny-Ollama partial result and records the current binary’s observed version. [Synthetic evidence](verification-evidence/live-qwen-code-macos-2026-10-02.json). |
-| Kimi Code | Partial on macOS | Partial on macOS | Installed 2.1.1 reached Ollama in headless mode but the tiny model chose the wrong tool. The explicitly authorized interactive folder-trust prompt was accepted through the real TUI. Guarded DeepSeek captured the submitted prompt, linked Read call/result and native session state automatically (30 events, no unrecognized records); the verification guard rejected the next request while the first stream remained active (native 429), and that stream later reached its 180-second deadline. Final-answer verification is blocked by stream sequencing in the harness, not established provider failure. Normal exit, zero paid usage, no retry or manual backfill. [Synthetic evidence](verification-evidence/live-kimi-macos-2026-10-02.json). |
+| Kimi Code | Partial on macOS | Pass on Linux; partial on macOS | Installed 2.1.1 actual Linux TUI with local Ollama Qwen3:8b: typed prompt, linked Read call/result, exact-file answer and native session state appeared automatically before backfill (36 events, no unknown records), followed by normal exit. Two bounded local requests. Native folder trust was accepted under the user's prior authorization. The repaired-guard macOS DeepSeek attempt separately stopped on HTTP 503 without retry. Native macOS Unicode/image-reference/resume/error proofs remain distinct from a final-answer pass. [Linux live evidence](verification-evidence/live-kimi-linux-2026-10-03.json), [macOS live attempt](verification-evidence/live-kimi-macos-2026-10-03.json), [native input](verification-evidence/native-kimi-input-macos-2026-10-03.json), [resume](verification-evidence/native-kimi-resume-macos-2026-10-03.json). |
 | Mistral Vibe | Pending | Pass on macOS | Installed 2.25.8 legacy TUI with local Ollama `ledger-test` and typed prompts: native `post_agent` hook captured two human turns, linked `read_file` calls/results, exact synthetic file answer, and session state before backfill. The tiny model invented a missing path first; a second prompt supplied the absolute path and succeeded. [Synthetic evidence](verification-evidence/live-mistral-vibe-macos-2026-10-01.json). |
 | Factory Droid | Pass on macOS | Pass on macOS | Installed 0.232.0 with existing login and local DeepSeek `deepseek-v4-flash` through ds4-gateway: project native Stop hook automatically captured the typed prompt, linked `Read(evidence.txt)` call/result and exact file answer before backfill (14 events); `/quit` exited normally. BYOK runtime settings disabled cloud sync. An empty isolated profile requires login; the existing normal login works. The top-level TUI treated unsupported `--model` arguments as an extra initial prompt, which was cancelled; runtime `settings.model` selects the model correctly. Prior local Ollama headless run passed and reported zero Factory credits. [Synthetic evidence](verification-evidence/live-droid-macos-2026-10-02.json). |
 | Kiro CLI | Pass on macOS | Pass on macOS | Installed 2.27.0 with logged-in free account captured synthetic prompt, file read/result and answer; roughly 0.05 credits for interactive turn. Default V2 uses a watched launcher, V3 uses native hooks. |
@@ -72,3 +66,10 @@ Cursor and Kiro adapters were built against these observed sessions; their
 macOS runs are not a claim of completed automatic capture on both operating
 systems. Live model results on macOS do not establish Linux
 behavior. This table records only observed cases, not market coverage.
+
+All twenty selected products now have a real-model TUI canary pass on at least
+one target OS. Nineteen were observed on macOS; Kimi's passing live check was on
+Linux. This does not certify all record types, both modes/OSes or market share.
+The separate [fresh installed Linux campaign](verification-evidence/native-installed-linux-2026-10-03.json)
+records seventeen scripted-provider TUI passes, one explicit Droid authentication
+blocker and two account-only products outside that free campaign.

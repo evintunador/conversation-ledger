@@ -129,3 +129,28 @@ test("generated image results retain digest evidence without guessing MIME or de
   const ordinary = draft({ producer: { tool: "cledger", source: "codex" }, content: { type: "tool_result", result: imageBytes } });
   assert.deepEqual(applyAttachmentPolicy(ordinary), ordinary);
 });
+
+test("installed Claude TUI @image file carrier removes bytes and preserves native locators/geometry in content and raw", () => {
+  const payload = { type: "attachment", attachment: { type: "file", filename: "/TESTONLY/repo/image-TESTONLY.png", displayPath: "image-TESTONLY.png",
+    content: { type: "image", file: { base64: imageBytes, type: "image/png", originalSize: 8,
+      dimensions: { originalWidth: 32, originalHeight: 32, displayWidth: 32, displayHeight: 32 } } } } };
+  const original = draft({ producer: { tool: "cledger", source: "claude-code" }, content: payload, raw: { format: "claude-code/1", data: payload } });
+  const result = applyAttachmentPolicy(original);
+  assert.ok(!JSON.stringify(result).includes(imageBytes));
+  const content = result.content as typeof payload;
+  assert.equal(content.attachment.filename, payload.attachment.filename);
+  assert.deepEqual(content.attachment.content.file.dimensions, payload.attachment.content.file.dimensions);
+  assert.match(JSON.stringify(result.content), /attachment_reference/);
+  assert.match(JSON.stringify(result.raw?.data), /attachment_reference/);
+  assert.deepEqual(applyAttachmentPolicy(result), result);
+  // Size/geometry metadata must not be required to exclude bytes in an
+  // explicitly MIME-typed file carrier.
+  const noSize = JSON.parse(JSON.stringify(payload));
+  delete noSize.attachment.content.file.originalSize;
+  delete noSize.attachment.content.file.dimensions;
+  const minimal = applyAttachmentPolicy(draft({ producer: { tool: "cledger", source: "claude-code" }, content: noSize, raw: { format: "claude-code/1", data: noSize } }));
+  assert.ok(!JSON.stringify(minimal).includes(imageBytes));
+  assert.match(JSON.stringify(minimal.raw?.data), /attachment_reference/);
+  const ordinary = draft({ producer: { tool: "cledger", source: "claude-code" }, content: { type: "tool_result", content: { base64: "TESTONLY literal prose", type: "image/png" } } });
+  assert.deepEqual(applyAttachmentPolicy(ordinary), ordinary, "MIME alone does not turn arbitrary tool JSON into native encoded file carrier");
+});
