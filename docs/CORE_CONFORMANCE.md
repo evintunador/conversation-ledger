@@ -124,3 +124,19 @@ the default backend. A separate [native ripgrep backend pass](verification-evide
 is recorded as an alternative and explicitly excludes default-backend proof.
 These results contain no runner access settings, machine identities or private
 operational configuration.
+
+## Follow-up gate review
+
+The final assertions require complete multiline Unicode on the resumed turn,
+not only its marker, and a binary reference inside the result linked to the
+actual image read. An unrelated attachment cannot satisfy the image-result gate.
+The stricter installed macOS rerun passed all eight cases without skips:
+
+| CLI | Installed version | Events | Requests | Evidence |
+| --- | --- | --- | --- | --- |
+| Claude Code | 2.1.280 | 45 | 6 | [Report](verification-evidence/conformance-claude-code-strict-macos-2026-10-04.json) |
+| Codex | 0.160.0 | 47 | 7 | [Report](verification-evidence/conformance-codex-strict-macos-2026-10-04.json) |
+| OpenCode | 1.18.33 | 20 | 6 | [Report](verification-evidence/conformance-opencode-strict-macos-2026-10-04.json) |
+
+These locally installed versions do not change the separate CI pins. The hosted
+macOS/Linux rerun exercises the stricter assertions against those pins.

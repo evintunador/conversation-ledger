@@ -1,0 +1,57 @@
+{
+  "schema": "cledger-conformance/1",
+  "cli": "opencode",
+  "platform": "darwin/arm64",
+  "mode": "interactive",
+  "inference": "scripted",
+  "status": "pass",
+  "cases": {
+    "multilineUnicode": {
+      "status": "pass",
+      "detail": "Bracket-paste into actual native editor; compared normalized human text, not echoed terminal"
+    },
+    "textRead": {
+      "status": "pass",
+      "detail": "Actual file tool result retains known UTF-8 text"
+    },
+    "toolError": {
+      "status": "pass",
+      "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+    },
+    "imageReference": {
+      "status": "pass",
+      "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case"
+    },
+    "userImageEntry": {
+      "status": "pass",
+      "detail": "Native editor @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+    },
+    "noUnrecognized": {
+      "status": "pass",
+      "detail": "Unknown native records across initial and resumed turns stay explicit"
+    },
+    "resume": {
+      "status": "pass",
+      "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+    },
+    "backfill": {
+      "status": "pass",
+      "detail": "Both manual imports compared against automatic complete native ledger"
+    }
+  },
+  "requests": 6,
+  "events": 20,
+  "fullyCertified": false,
+  "exclusions": [
+    "live provider/model behavior",
+    "headless mode",
+    "clipboard/drag-and-drop image entry",
+    "text-file editor attachment (native UTF-8 tool read is covered)",
+    "PDF/archive/oversized or invalid text input",
+    "compaction/fork/subagent lifecycle",
+    "complete record-type coverage",
+    "other operating systems"
+  ],
+  "fileSearchBackend": "native-default",
+  "version": "1.18.33"
+}
