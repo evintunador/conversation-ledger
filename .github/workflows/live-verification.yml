@@ -1,0 +1,90 @@
+name: Approved live CLI verification (budgeted)
+# Manual only. No inference runs until a reviewer approves the protected
+# live-verification environment AND an external durable authority grants a run.
+on:
+  workflow_dispatch:
+    inputs:
+      cli:
+        description: Registered live consumer
+        type: choice
+        options: [opencode]
+        required: true
+      provider:
+        description: Exact reviewed authority provider ID
+        required: true
+        type: string
+      model:
+        description: Exact reviewed model ID
+        required: true
+        type: string
+      phase:
+        description: Initial lifetime allocation or monthly maintenance
+        type: choice
+        options: [initial, maintenance]
+        required: true
+      max_micro_usd:
+        description: Maximum run reservation in micro-USD (1000000 = $1; ceiling 5000000)
+        required: true
+        default: '1000000'
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: approved-live-${{ inputs.cli }}
+  cancel-in-progress: false
+jobs:
+  live:
+    # Approval must cover the visible dispatch inputs. Configure this environment
+    # with required reviewers and prevent self-review before any activation.
+    environment: live-verification
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: conversation-ledger
+      - uses: actions/checkout@v4
+        with:
+          repository: evintunador/annals
+          ref: dcd06c0f724cf3509b2d61dce7d0b537d4d86340
+          path: annals
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Build trusted default-branch consumer
+        run: |
+          npm ci --prefix annals
+          npm ci --prefix conversation-ledger
+      - name: Obtain exact scoped authorization before installing the CLI
+        working-directory: conversation-ledger
+        env:
+          CLEDGER_BUDGET_AUTHORITY: ${{ vars.CLEDGER_BUDGET_AUTHORITY }}
+          CLEDGER_BUDGET_ADMIN_TOKEN: ${{ secrets.CLEDGER_BUDGET_ADMIN_TOKEN }}
+          CLEDGER_LIVE_CLI: ${{ inputs.cli }}
+          CLEDGER_LIVE_PROVIDER: ${{ inputs.provider }}
+          CLEDGER_LIVE_MODEL: ${{ inputs.model }}
+          CLEDGER_LIVE_PHASE: ${{ inputs.phase }}
+          CLEDGER_LIVE_MAX_MICRO_USD: ${{ inputs.max_micro_usd }}
+          CLEDGER_LIVE_SESSION: ${{ runner.temp }}/cledger-live-session.json
+        run: node dist/verification/budget-client.js authorize
+      - name: Provision exact pinned CLI without authority administration credentials
+        working-directory: conversation-ledger
+        run: node dist/verification/runtimes.js "$RUNNER_TEMP/cledger-live-runtimes" opencode
+      - name: Run installed interactive consumer through scoped loopback relay
+        working-directory: conversation-ledger
+        run: |
+          node dist/verification/budget-client.js run \
+            "$RUNNER_TEMP/cledger-live-session.json" \
+            "$RUNNER_TEMP/cledger-live-report.json" \
+            "$RUNNER_TEMP/cledger-live-runtimes/opencode/node_modules/.bin/opencode"
+      - name: Delete scoped authorization
+        if: always()
+        run: rm -f "$RUNNER_TEMP/cledger-live-session.json"
+      - name: Retain sanitized live evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: budgeted-live-evidence
+          retention-days: 7
+          path: ${{ runner.temp }}/cledger-live-report.json
