@@ -28,7 +28,7 @@ export interface GenAiPart {
   /** Opaque provider token authenticating a `thought` part; not content. */
   thoughtSignature?: string;
   functionCall?: { id?: string; name?: string; args?: unknown };
-  functionResponse?: { id?: string; name?: string; response?: unknown };
+  functionResponse?: { id?: string; name?: string; response?: unknown; [key: string]: unknown };
   [key: string]: unknown;
 }
 
@@ -119,7 +119,11 @@ export function convertPart(part: GenAiPart): unknown {
   }
   if (part.functionResponse) {
     const response = part.functionResponse;
-    const block: Record<string, unknown> = { type: "tool_result" };
+    // Qwen 0.24.6 persists image output in functionResponse.parts alongside
+    // response.output. Retain these native siblings so a linked result keeps
+    // its media references after the shared binary retention policy runs.
+    const { id: _id, name: _name, response: _response, ...siblings } = response;
+    const block: Record<string, unknown> = { ...siblings, type: "tool_result" };
     if (typeof response.id === "string") block["tool_use_id"] = response.id;
     if (typeof response.name === "string") block["name"] = response.name;
     if (response.response !== undefined) block["content"] = response.response;

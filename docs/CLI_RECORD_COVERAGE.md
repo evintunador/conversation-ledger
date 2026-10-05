@@ -1,5 +1,8 @@
 # Record coverage and remaining proof
 
+The [installed support matrix](SUPPORT_MATRIX.md) records the latest issue #27
+proof for all 20 CLIs, both modes and both operating systems.
+
 This is an audit map, not a full-certification claim. The live-provider gate is
 tracked separately in `LIVE_VERIFICATION.md`. Native read scenarios prove
 installation, real CLI execution, text/tool linkage, automatic capture and exact

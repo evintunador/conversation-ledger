@@ -1,0 +1,60 @@
+{
+  "schema": "cledger-conformance/1",
+  "cli": "cline",
+  "platform": "darwin/arm64",
+  "mode": "interactive",
+  "inference": "scripted",
+  "status": "fail",
+  "cases": {
+    "multilineUnicode": {
+      "status": "not-run",
+      "detail": "Installed scenario has not reached this gate"
+    },
+    "textRead": {
+      "status": "not-run",
+      "detail": "Installed scenario has not reached this gate"
+    },
+    "toolError": {
+      "status": "not-run",
+      "detail": "Installed scenario has not reached this gate"
+    },
+    "imageReference": {
+      "status": "not-run",
+      "detail": "Installed scenario has not reached this gate"
+    },
+    "userImageEntry": {
+      "status": "not-run",
+      "detail": "Installed scenario has not reached this gate"
+    },
+    "noUnrecognized": {
+      "status": "not-run",
+      "detail": "Installed scenario has not reached this gate"
+    },
+    "resume": {
+      "status": "not-run",
+      "detail": "Installed scenario has not reached this gate"
+    },
+    "backfill": {
+      "status": "not-run",
+      "detail": "Installed scenario has not reached this gate"
+    }
+  },
+  "requests": 0,
+  "events": 0,
+  "fullyCertified": false,
+  "started": "2026-10-05T21:37:11.033Z",
+  "inputMethod": "native editor bracketed paste",
+  "exclusions": [
+    "live provider/model behavior",
+    "headless mode",
+    "clipboard/drag-and-drop image entry",
+    "text-file editor attachment (native UTF-8 tool read is covered)",
+    "PDF/archive/oversized or invalid text input",
+    "compaction/fork/subagent lifecycle",
+    "complete record-type coverage",
+    "other operating systems"
+  ],
+  "version": "3.0.65",
+  "reason": "Observed initial TUI incomplete:                                                                                                                                                                     ────────────────────────────────────────────────────────────────────                                                                                            ❯ What can I do for you?                                                                                                                                        ────────────────────────────────────────────────────────────────────                                                                                                                                                                                                                                                             fixture (0) $0.00                               ○ Plan ● Act (Tab)                                                                                              repo (master)                                                                                                                                                   ⏵⏵ Auto-approve all enabled (Shift+Tab)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           q",
+  "completed": "2026-10-05T21:37:58.330Z"
+}

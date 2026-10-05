@@ -1,31 +1,41 @@
-# Installed core TUI conformance
+# Installed CLI and TUI conformance
 
-`src/verification/conformance.ts` drives installed Claude Code, Codex and OpenCode
-in disposable native homes/configs and synthetic Git repositories. A bounded
-loopback model substitute requests real native tools; it does not write native
-transcript fixtures or make real model requests. This supplements the ordinary
-read smoke scenario with actual editor input and lifecycle/data cases. It is
-explicitly an interactive scenario; no headless result qualifies as a TUI pass.
-No user transcript, normal configuration or account credential is inspected.
+The [support matrix](SUPPORT_MATRIX.md) tracks all 20 supported CLIs, both
+headless and interactive modes, on macOS and Linux, at pinned versions. It is
+the closure ledger for [issue #27](https://github.com/evintunador/conversation-ledger/issues/27).
+A native smoke pass or fixture regression cannot close an installed input or
+lifecycle case. Historical evidence at other versions remains visible.
 
-After building, select installed binaries and run:
+`src/verification/conformance.ts` launches real installed binaries in disposable
+native homes/configs and synthetic Git repositories. A bounded loopback provider
+requests real native tools; it never writes native transcript fixtures or makes
+real model requests. Interactive scenarios drive the actual terminal editor;
+headless scenarios use the documented native prompt interface. Reports record
+the input method and compare actual persisted automatic ledger events before
+any manual repair. No user transcript or account credential is inspected.
 
 ```sh
-CLEDGER_CONFORMANCE_CLAUDE_CODE_BINARY=/absolute/path/to/claude \
-CLEDGER_CONFORMANCE_CODEX_BINARY=/absolute/path/to/codex \
-CLEDGER_CONFORMANCE_OPENCODE_BINARY=/absolute/path/to/opencode \
-CLEDGER_CONFORMANCE_REPORT_DIRECTORY=/tmp/cledger-core-conformance-reports \
-node --test dist/test/verification-conformance.test.js
+npm run verify:conformance -- --runtime-dir /tmp/cledger-runtimes \
+  --output-dir /tmp/cledger-conformance \
+  --only claude-code,codex,opencode,gemini-cli,qwen-code,pi,kilo,copilot,kimi
+# Add --mode headless or --mode interactive to select one interface.
 ```
 
-Unset binary variables explicitly skip that installed test. The attachment-proof
-checker still runs as an ordinary regression. A sandbox must permit native
-processes and loopback sockets. Select a single TUI directly with
-`CLEDGER_VERIFY_BINARY=/absolute/path/to/codex node dist/verification/conformance.js codex`;
-CLI IDs are `claude-code`, `codex`, and `opencode`. The runner rejects unsupported
-arguments, including a headless mode. `--retain` keeps its synthetic diagnostic
-home/terminal traces for debugging; ordinary runs clean them up. Do not commit
-raw traces or native fixture homes.
+Provision npm runtimes with `node dist/verification/runtimes.js /tmp/cledger-runtimes`.
+For other runtimes, select an absolute path with
+`CLEDGER_CONFORMANCE_<CLI_ID_IN_UPPERCASE_WITH_UNDERSCORES>_BINARY`.
+The opt-in `dist/test/verification-conformance.test.js` runs both modes for each
+selected binary. Unset variables skip installed tests explicitly; this is not a
+support claim. The campaign lists absent drivers as `not-run` and exits nonzero
+for unresolved cases. Missing runtimes never become silent passes.
+
+A sandbox must permit native processes and loopback sockets. For one installed
+scenario, use `CLEDGER_VERIFY_BINARY=/absolute/path/to/gemini node
+dist/verification/conformance.js gemini-cli --mode interactive --retain`.
+`--retain` keeps only the synthetic diagnostic home, ledger and terminal traces
+for local debugging; normal runs remove them. Do not commit raw terminal traces
+or native configuration homes. Commit summarized conformance reports and retain
+reproducible CI artifacts instead.
 
 Each implemented scenario:
 
@@ -65,7 +75,7 @@ actual installed TUI is rerun after the fix. Existing captured data is not purge
 by this forward policy.
 
 A passing report covers these observed cases only. It does not certify every
-record type, live-provider behavior, headless behavior, clipboard/drop entry,
+record type, live-provider behavior, untested headless behavior, clipboard/drop entry,
 text-file editor attachment, arbitrary document/oversized/invalid input,
 compaction/forks/subagents, or an untested operating system. Each report marks
 `fullyCertified: false` and lists these gaps. Extend this registry only after an
@@ -140,3 +150,43 @@ The stricter installed macOS rerun passed all eight cases without skips:
 
 These locally installed versions do not change the separate CI pins. The hosted
 macOS/Linux rerun exercises the stricter assertions against those pins.
+
+## Issue #27 expansion (2026-10-05)
+
+The installed macOS campaign now includes Gemini, Qwen, Pi, Kilo, Copilot and
+Kimi in both modes, plus additional drivers under investigation. See the matrix
+for the latest per-case result; partial runs do not certify a CLI.
+
+Qwen 0.24.6 persists image tool responses in `functionResponse.parts`, alongside
+`response`. The shared Google-parts conversion previously discarded that native
+field from normalized tool results. It now retains the sibling fields and the
+linked image reference. A regression and both installed interfaces pass after
+the repair. Raw and normalized evidence retain references rather than bytes.
+
+Kimi 2.1.1 headless `--prompt` leaves `@image` literal and exposes no attachment
+flag. This observed limitation is recorded separately from the successful TUI
+Ctrl-V path. The TUI uses an isolated OS file-clipboard lookup fixture pointing
+at our synthetic PNG; it does not access the user's clipboard. The native
+`kimi-file://f_…` locator has no digest/size in this persisted API and remains an
+opaque locator. Real OS clipboard/drop integration is tracked in #29.
+
+Local DeepSeek and usual-provider checks use a smaller canary: a random value
+absent from the prompt must come from a linked real read/result and appear in
+the final answer, with normal exit/resume, automatic capture before repair, no
+unrecognized records, and two idempotent backfills. A `cledger-canary/1` report
+must explicitly prove all eight gates. Older live reports are retained as
+historical evidence rather than being promoted to this new contract.
+
+Local inference waits for the user's machine to be plugged in with cooling
+ready. Paid checks share a $20 total API budget, prefer API-key routes and the
+cheapest suitable models, and do not purchase subscriptions. Subscription-only
+usual-provider checks may remain blocked with a recorded contributor-account
+prerequisite; other missing evidence keeps the issue open.
+
+Follow-up issues cover [text-file attachment entry (#28)](https://github.com/evintunador/conversation-ledger/issues/28),
+[clipboard/drop (#29)](https://github.com/evintunador/conversation-ledger/issues/29),
+[documents/archives (#30)](https://github.com/evintunador/conversation-ledger/issues/30),
+[oversized/invalid text (#31)](https://github.com/evintunador/conversation-ledger/issues/31),
+[fork/branch (#32)](https://github.com/evintunador/conversation-ledger/issues/32),
+[compaction/rewind (#33)](https://github.com/evintunador/conversation-ledger/issues/33),
+and [subagents (#34)](https://github.com/evintunador/conversation-ledger/issues/34).

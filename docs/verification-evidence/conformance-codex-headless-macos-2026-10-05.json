@@ -1,0 +1,60 @@
+{
+  "schema": "cledger-conformance/1",
+  "cli": "codex",
+  "platform": "darwin/arm64",
+  "mode": "headless",
+  "inference": "scripted",
+  "status": "pass",
+  "cases": {
+    "multilineUnicode": {
+      "status": "pass",
+      "detail": "native prompt argument; compared normalized human text, not echoed terminal"
+    },
+    "textRead": {
+      "status": "pass",
+      "detail": "Actual file tool result retains known UTF-8 text"
+    },
+    "toolError": {
+      "status": "pass",
+      "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+    },
+    "imageReference": {
+      "status": "pass",
+      "detail": "Installed --image input attached to initial real TUI; binary retained as reference, not base64 bytes"
+    },
+    "userImageEntry": {
+      "status": "pass",
+      "detail": "Documented native --image initial attachment in TUI"
+    },
+    "noUnrecognized": {
+      "status": "pass",
+      "detail": "Unknown native records across initial and resumed turns stay explicit"
+    },
+    "resume": {
+      "status": "pass",
+      "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+    },
+    "backfill": {
+      "status": "pass",
+      "detail": "Both manual imports compared against automatic complete native ledger"
+    }
+  },
+  "requests": 4,
+  "events": 37,
+  "fullyCertified": false,
+  "started": "2026-10-05T21:13:11.175Z",
+  "inputMethod": "native prompt argument",
+  "exclusions": [
+    "live provider/model behavior",
+    "interactive mode",
+    "clipboard/drag-and-drop image entry",
+    "text-file editor attachment (native UTF-8 tool read is covered)",
+    "PDF/archive/oversized or invalid text input",
+    "compaction/fork/subagent lifecycle",
+    "complete record-type coverage",
+    "other operating systems"
+  ],
+  "version": "codex-cli 0.159.0",
+  "automaticEventsBeforeBackfill": 37,
+  "completed": "2026-10-05T21:13:19.783Z"
+}

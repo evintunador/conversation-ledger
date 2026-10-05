@@ -103,25 +103,39 @@ jobs:
             }
           }
           JS
-      - name: Verify installed core TUI input and lifecycle cases
+      - name: Select pinned installed conformance runtimes
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' }}
+        working-directory: conversation-ledger
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          import { PINNED_NPM_RUNTIMES, runtimeBinary } from './dist/verification/runtimes.js';
+          const required = ['claude-code', 'codex', 'opencode', 'gemini-cli', 'qwen-code', 'pi', 'kilo', 'copilot', 'kimi'];
+          for (const cli of required) {
+            const recipe = PINNED_NPM_RUNTIMES.find(r => r.cli === cli);
+            const variable = 'CLEDGER_CONFORMANCE_' + cli.replaceAll('-', '_').toUpperCase() + '_BINARY';
+            appendFileSync(process.env.GITHUB_ENV, `${variable}=${runtimeBinary(`${process.env.RUNNER_TEMP}/cledger-runtimes`, cli, recipe.binary)}\n`);
+          }
+          JS
+      - name: Verify installed CLI and TUI input and lifecycle cases
         if: ${{ !cancelled() && steps.provision.outcome == 'success' }}
         working-directory: conversation-ledger
         env:
           CLEDGER_CONFORMANCE_CLAUDE_CODE_BINARY: ${{ runner.temp }}/cledger-runtimes/claude-code/node_modules/.bin/claude
           CLEDGER_CONFORMANCE_CODEX_BINARY: ${{ runner.temp }}/cledger-runtimes/codex/node_modules/.bin/codex
           CLEDGER_CONFORMANCE_OPENCODE_BINARY: ${{ runner.temp }}/cledger-runtimes/opencode/node_modules/.bin/opencode
-          CLEDGER_CONFORMANCE_REPORT_DIRECTORY: ${{ runner.temp }}/cledger-core-conformance
+          CLEDGER_CONFORMANCE_REPORT_DIRECTORY: ${{ runner.temp }}/cledger-conformance
         run: node --test dist/test/verification-conformance.test.js
       - name: Retain compatibility evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: native-evidence-${{ matrix.os }}
-          retention-days: 1
+          retention-days: 7
           path: |
             ${{ runner.temp }}/cledger-campaign.json
             ${{ runner.temp }}/cledger-interactive-campaign.json
-            ${{ runner.temp }}/cledger-core-conformance/*.json
+            ${{ runner.temp }}/cledger-conformance/*.json
             ${{ runner.temp }}/cledger-runtimes/runtimes.json
             ${{ runner.temp }}/cledger-runtimes/*/package-lock.json
             ${{ runner.temp }}/cledger-native-runtimes/native-runtimes.json
