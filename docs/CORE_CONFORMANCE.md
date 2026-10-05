@@ -236,10 +236,13 @@ call IDs during result matching, automatic capture contained 21 records; two
 explicit transcript backfills each retained exactly those 21 records. The
 initial run exercised a real missing-file error, UTF-8 Read, and PNG Read; the
 resumed run read a fresh value. Binary bytes became attachment references in
-normalized and raw evidence. This temporary
-protocol probe is not a reproducible
-conformance driver and does not close Cursor cases or any TUI item. Cursor
-conformance remains pending.
+normalized and raw evidence. The reproducible `conformance-cursor` headless driver now checks these native
+records and all eight finite gates. Its macOS run passes seven cases and records
+headless `@image` text-only entry as a limitation. Cursor TUI startup still
+stalls against the scripted protocol fixture; no headless evidence closes that
+item. Linux headless proof is pending its CI run. The official Cursor archive
+is pinned and hash-checked for macOS arm64 and Linux x64; other architectures
+have no new provisioning claim.
 
 ### CI reproduction and native boundaries
 

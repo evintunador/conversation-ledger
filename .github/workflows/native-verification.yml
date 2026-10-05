@@ -120,7 +120,7 @@ jobs:
           node --input-type=module <<'JS'
           import { appendFileSync } from 'node:fs';
           import { PINNED_NPM_RUNTIMES, runtimeBinary } from './dist/verification/runtimes.js';
-          const all = ['claude-code', 'codex', 'opencode', 'gemini-cli', 'qwen-code', 'pi', 'kilo', 'copilot', 'kimi', 'continue', 'cline', 'goose', 'open-interpreter', 'openhands', 'crush', 'aider', 'mistral-vibe'];
+          const all = ['claude-code', 'codex', 'opencode', 'gemini-cli', 'qwen-code', 'pi', 'kilo', 'copilot', 'kimi', 'continue', 'cline', 'goose', 'open-interpreter', 'openhands', 'crush', 'aider', 'mistral-vibe', 'cursor'];
           const selected = process.env.CLEDGER_CONFORMANCE_FOCUS ? process.env.CLEDGER_CONFORMANCE_FOCUS.split(',') : all;
           if (selected.some(id => !all.includes(id))) throw new Error('Unknown conformance focus');
           for (const cli of selected.filter(id => PINNED_NPM_RUNTIMES.some(r => r.cli === id))) {
@@ -128,7 +128,7 @@ jobs:
             const variable = 'CLEDGER_CONFORMANCE_' + cli.replaceAll('-', '_').toUpperCase() + '_BINARY';
             appendFileSync(process.env.GITHUB_ENV, `${variable}=${runtimeBinary(`${process.env.RUNNER_TEMP}/cledger-runtimes`, cli, recipe.binary)}\n`);
           }
-          for (const cli of selected.filter(id => ['goose', 'open-interpreter', 'openhands', 'crush', 'aider'].includes(id))) {
+          for (const cli of selected.filter(id => ['goose', 'open-interpreter', 'openhands', 'crush', 'aider', 'cursor'].includes(id))) {
             const binary = process.env['CLEDGER_VERIFY_' + cli.replaceAll('-', '_').toUpperCase() + '_BINARY'];
             if (!binary) throw new Error('Missing provisioned runtime: ' + cli);
             appendFileSync(process.env.GITHUB_ENV, `CLEDGER_CONFORMANCE_${cli.replaceAll('-', '_').toUpperCase()}_BINARY=${binary}\n`);

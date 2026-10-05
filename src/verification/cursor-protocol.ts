@@ -73,6 +73,10 @@ export async function startCursorProtocolFixture(repo: string): Promise<{
   const api = createServer(async (req, res) => {
     let size = 0;
     for await (const chunk of req) { size += chunk.length; if (size > MAX_MESSAGE) { res.writeHead(413); res.end(); return; } }
+    if (req.url === "/TESTONLY/update") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ version: "2026.10.01-e373342", url: "http://127.0.0.1/TESTONLY/no-update" })); return;
+    }
     if (req.url === "/auth/exchange_user_api_key") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ accessToken: "TESTONLY." + Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600, sub: "TESTONLY" })).toString("base64url") + ".TESTONLY", refreshToken: "TESTONLY" })); return;

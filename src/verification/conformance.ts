@@ -1,5 +1,6 @@
 /** Installed core TUI data-entry/lifecycle scenarios. No model inference. */
 import { verifyAiderConformance } from "./conformance-aider.js";
+import { verifyCursorConformance } from "./conformance-cursor.js";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, realpath, mkdir, writeFile, readFile, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,7 +15,7 @@ import { runPty, terminalTail, type PtyAction } from "./pty.js";
 import { startConformanceProvider, type ConformanceCli } from "./conformance-provider.js";
 import { ADDITIONAL_CONFORMANCE_DRIVERS, WRAPPED_CONFORMANCE_DRIVERS, prepareAdditionalNative, additionalNativeArgs } from "./conformance-native.js";
 export const CONFORMANCE_CASES = ["multilineUnicode", "textRead", "toolError", "imageReference", "userImageEntry", "noUnrecognized", "resume", "backfill"] as const;
-export const CONFORMANCE_DRIVERS: readonly ConformanceCli[] = ["claude-code", "codex", "opencode", "gemini-cli", "qwen-code", "pi", "kilo", "copilot", "kimi", "open-interpreter", ...ADDITIONAL_CONFORMANCE_DRIVERS, "aider"];
+export const CONFORMANCE_DRIVERS: readonly (ConformanceCli | "cursor")[] = ["claude-code", "codex", "opencode", "gemini-cli", "qwen-code", "pi", "kilo", "copilot", "kimi", "open-interpreter", ...ADDITIONAL_CONFORMANCE_DRIVERS, "aider", "cursor"];
 // Synthetic valid 32x32 RGB PNG, generated from PNG chunks with CRCs (no user image).
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGP4EFBBU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULAF2O4Fut+99pAAAAAElFTkSuQmCC";
 const textOf = (e: EvidenceEvent) => JSON.stringify(e.content);
@@ -62,7 +63,7 @@ export function attachmentEvidence(value: unknown): { references: number; embedd
   walk(value); return { references, embeddedBinary };
 }
 export interface ConformanceReport {
-  schema: "cledger-conformance/1"; cli: ConformanceCli; version?: string; platform: string;
+  schema: "cledger-conformance/1"; cli: ConformanceCli | "cursor"; version?: string; platform: string;
   inference: "scripted"; mode: "interactive" | "headless"; status: "pass" | "partial" | "fail" | "blocked";
   cases: Record<string, { status: "pass" | "fail" | "not-run" | "limitation"; detail: string }>;
   requests: number; events: number; fullyCertified: false; exclusions: string[]; reason?: string; fileSearchBackend?: string;
@@ -71,10 +72,11 @@ export interface ConformanceReport {
   inputObservation?: { providerImage: boolean; references: number; embeddedBinary: boolean; humanEntries?: unknown[] };
   backfillObservation?: { automatic: number; first: number; second: number; firstAdded: unknown[]; secondAdded: unknown[] };
 }
-export async function verifyCoreConformance(cli: ConformanceCli, options: { binary?: string; retain?: boolean; timeoutMs?: number; fileSearchBackend?: "ripgrep"; mode?: "headless" | "interactive" } = {}): Promise<ConformanceReport> {
+export async function verifyCoreConformance(cli: ConformanceCli | "cursor", options: { binary?: string; retain?: boolean; timeoutMs?: number; fileSearchBackend?: "ripgrep"; mode?: "headless" | "interactive" } = {}): Promise<ConformanceReport> {
   if (!CONFORMANCE_DRIVERS.includes(cli)) throw Error(`No installed conformance driver for ${cli}`);
   const mode = options.mode ?? "interactive";
   if (cli === "aider") return verifyAiderConformance({ ...options, mode });
+  if (cli === "cursor") return verifyCursorConformance({ ...options, mode });
   const report: ConformanceReport = { schema: "cledger-conformance/1", cli, platform: process.platform + "/" + process.arch,
     mode, inference: "scripted", status: "blocked", cases: Object.fromEntries(CONFORMANCE_CASES.map(name => [name, { status: "not-run" as const, detail: "Installed scenario has not reached this gate" }])), requests: 0, events: 0, fullyCertified: false,
     started: new Date().toISOString(), inputMethod: mode === "interactive" ? "native editor bracketed paste" : "native prompt argument",
