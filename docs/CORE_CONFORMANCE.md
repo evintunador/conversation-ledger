@@ -225,16 +225,21 @@ OSes. This prerequisite record does not assert an installed Linux run. Browser
 sign-in/free-account TUI verification is a separate pending path.
 
 Cursor 2026.10.01-e373342's installed help exposes `--endpoint`; a synthetic
-loopback probe reached native authentication exchange, protobuf model discovery
-and prompt persistence. Its agent uses a distinct bidirectional RPC protocol;
-an OpenAI-compatible model endpoint is insufficient. The probe did not complete
-a read/answer or lifecycle gate, so Cursor conformance remains pending.
+loopback probe reached native authentication exchange, protobuf model discovery,
+prompt persistence and the native HTTP/2 `AgentService/Run` stream. Its agent uses a distinct bidirectional RPC protocol;
+an OpenAI-compatible model endpoint is insufficient. A subsequent headless exploratory probe completed an actual native Read,
+linked automatic tool evidence, native checkpoint persistence of the submitted
+prompt and scripted answer, normal exit, and `--resume` of the saved session.
+The resumed run received the two saved native prompt-message pointers and read
+a fresh file value. This temporary protocol probe is not a reproducible
+conformance driver and does not close Cursor cases or any TUI item. Cursor
+conformance remains pending.
 
 ### CI reproduction and native boundaries
 
 The expanded sixteen-CLI CI run recorded 29/32 Linux scenario passes and
 29/32 macOS passes. Failures remain in the matrix until newer installed evidence
-supersedes them. Kilo's isolated profile now uses its
+supersedes them. The [focused six-CLI rerun](https://github.com/evintunador/conversation-ledger/actions/runs/37384076086) passed all 12 scenarios on each OS, including Aider and all previously failing cases. A full seventeen-CLI gate remains required. Kilo's isolated profile now uses its
 [documented `snapshot: false` setting](https://kilo.ai/docs/code-with-ai/features/checkpoints)
 because native snapshot initialization stalled on resume; snapshot/rewind proof
 is excluded. Cline's native single-file path paste creates an image attachment;

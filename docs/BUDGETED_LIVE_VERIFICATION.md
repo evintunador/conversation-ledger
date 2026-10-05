@@ -185,3 +185,25 @@ the native synthetic CLI profile.
 No funded route, paid call or new protected CI environment has been activated.
 Real provider pricing/account prerequisites remain pending. The free CI tests
 use scripted substitutes and cannot satisfy real-model matrix cells.
+
+### Candidate low-cost routes (checked 2026-10-05)
+
+These are candidates for account setup, not activated authority routes or
+proof that a pinned CLI accepts the model. Check account access and native
+compatibility before registering a reviewed pricing revision. Rates below are
+standard text input/output USD per million tokens; do not enable provider-side
+search, hosted tools or other separately billed features for the file canary.
+
+| Provider | Candidate | Input / output | Evidence and qualification |
+| --- | --- | --- | --- |
+| Google | `gemini-2.5-flash-lite` | $0.10 / $0.40 | [Official pricing](https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-lite); native Gemini CLI compatibility still needs an installed canary. |
+| OpenAI | `gpt-5-nano` | $0.05 / $0.40 | [Official model page](https://developers.openai.com/api/docs/models/gpt-5-nano); function calling supported, but the model is marked deprecated. Verify availability before selecting it. |
+| OpenAI | `gpt-4.1-nano` | $0.10 / $0.40 | [Official model page](https://developers.openai.com/api/docs/models/gpt-4.1-nano); function calling supported, native CLI compatibility pending. |
+| OpenAI | `gpt-5.4-nano` | $0.20 / $1.25 | [Official model page](https://developers.openai.com/api/docs/models/gpt-5.4-nano); a candidate if a pinned coding CLI rejects older nano models. |
+| Anthropic | `claude-haiku-4-5` | $1.00 / $5.00 | [Official Haiku page](https://www.anthropic.com/claude/haiku); explicitly available in Claude Code. This is a supported candidate, not a claim that it is the cheapest currently available Anthropic model. |
+
+A model's advertised function-calling support does not establish a native
+CLI/tool dialect pass. Choose the cheapest available compatible model per CLI
+and record the actual selected model in its canary evidence. Shared $20
+reservations remain mandatory even for these low-cost routes. No model or
+account call was made to prepare this shortlist.
