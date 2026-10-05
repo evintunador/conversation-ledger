@@ -110,12 +110,18 @@ jobs:
           node --input-type=module <<'JS'
           import { appendFileSync } from 'node:fs';
           import { PINNED_NPM_RUNTIMES, runtimeBinary } from './dist/verification/runtimes.js';
-          const required = ['claude-code', 'codex', 'opencode', 'gemini-cli', 'qwen-code', 'pi', 'kilo', 'copilot', 'kimi'];
+          const required = ['claude-code', 'codex', 'opencode', 'gemini-cli', 'qwen-code', 'pi', 'kilo', 'copilot', 'kimi', 'continue', 'cline'];
           for (const cli of required) {
             const recipe = PINNED_NPM_RUNTIMES.find(r => r.cli === cli);
             const variable = 'CLEDGER_CONFORMANCE_' + cli.replaceAll('-', '_').toUpperCase() + '_BINARY';
             appendFileSync(process.env.GITHUB_ENV, `${variable}=${runtimeBinary(`${process.env.RUNNER_TEMP}/cledger-runtimes`, cli, recipe.binary)}\n`);
           }
+          for (const cli of ['goose', 'open-interpreter', 'openhands', 'crush']) {
+            const binary = process.env['CLEDGER_VERIFY_' + cli.replaceAll('-', '_').toUpperCase() + '_BINARY'];
+            if (!binary) throw new Error('Missing provisioned runtime: ' + cli);
+            appendFileSync(process.env.GITHUB_ENV, `CLEDGER_CONFORMANCE_${cli.replaceAll('-', '_').toUpperCase()}_BINARY=${binary}\n`);
+          }
+          appendFileSync(process.env.GITHUB_ENV, `CLEDGER_CONFORMANCE_MISTRAL_VIBE_BINARY=${process.env.RUNNER_TEMP}/cledger-vibe/bin/vibe\n`);
           JS
       - name: Verify installed CLI and TUI input and lifecycle cases
         if: ${{ !cancelled() && steps.provision.outcome == 'success' }}

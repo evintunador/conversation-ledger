@@ -4,7 +4,7 @@
   "platform": "darwin/arm64",
   "mode": "headless",
   "inference": "scripted",
-  "status": "fail",
+  "status": "pass",
   "cases": {
     "multilineUnicode": {
       "status": "pass",
@@ -23,30 +23,26 @@
       "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
-      "status": "not-run",
-      "detail": "Native @image reference attempted on resumed turn; tool-returned image alone is not proof"
+      "status": "limitation",
+      "detail": "Cline 3.0.65 headless --json accepts a text prompt and exposes no image attachment flag. Native @image remained literal in the persisted human prompt and provider input; a tool-returned image does not prove user attachment entry."
     },
     "noUnrecognized": {
       "status": "pass",
-      "detail": "Unknown native record evidence stays explicit"
+      "detail": "Unknown native records across initial and resumed turns stay explicit"
     },
     "resume": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "limitation",
+      "detail": "Cline 3.0.65 --id forces interactive mode and clears the supplied prompt before JSON-mode validation. The installed --id/--json invocation rejects continuation; piped input also rejects it. TUI resume is a separate gate. No resumed record was fabricated."
     },
     "backfill": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
-    },
-    "scenarioCompletion": {
-      "status": "fail",
-      "detail": "The installed interface issued native model requests but did not complete automatic capture/lifecycle gates; this is not a login skip"
+      "status": "pass",
+      "detail": "Both manual imports compared against automatic complete native ledger"
     }
   },
   "requests": 4,
-  "events": 12,
+  "events": 13,
   "fullyCertified": false,
-  "started": "2026-10-05T21:37:05.349Z",
+  "started": "2026-10-05T21:48:51.649Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -59,6 +55,33 @@
     "other operating systems"
   ],
   "version": "3.0.65",
-  "reason": "Observed resume headless invocation incomplete (1, timeout=false): {\"ts\":\"2026-10-05T21:37:10.732Z\",\"type\":\"error\",\"message\":\"JSON output mode requires a prompt argument or piped stdin (interactive mode is unsupported)\"}",
-  "completed": "2026-10-05T21:37:11.031Z"
+  "automaticEventsBeforeBackfill": 13,
+  "completed": "2026-10-05T21:48:56.868Z",
+  "nativeTools": [
+    "read_files",
+    "search_codebase",
+    "run_commands",
+    "fetch_web_content",
+    "editor",
+    "ask_question",
+    "spawn_agent",
+    "team_spawn_teammate",
+    "team_shutdown_teammate",
+    "team_status",
+    "team_task",
+    "team_run_task",
+    "team_cancel_run",
+    "team_list_runs",
+    "team_await_runs",
+    "team_send_message",
+    "team_broadcast",
+    "team_read_mailbox",
+    "team_mission_log",
+    "team_cleanup",
+    "team_create_outcome",
+    "team_attach_outcome_fragment",
+    "team_review_outcome_fragment",
+    "team_finalize_outcome",
+    "team_list_outcomes"
+  ]
 }

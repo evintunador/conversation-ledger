@@ -42,7 +42,7 @@
   "requests": 5,
   "events": 66,
   "fullyCertified": false,
-  "started": "2026-10-05T21:30:29.996Z",
+  "started": "2026-10-05T21:45:19.787Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,33 @@
   ],
   "version": "2.1.1",
   "automaticEventsBeforeBackfill": 66,
-  "completed": "2026-10-05T21:30:38.616Z"
+  "completed": "2026-10-05T21:45:25.684Z",
+  "nativeTools": [
+    "Agent",
+    "AgentSwarm",
+    "AskUserQuestion",
+    "Bash",
+    "CreateGoal",
+    "CronCreate",
+    "CronDelete",
+    "CronList",
+    "Edit",
+    "EnterPlanMode",
+    "ExitPlanMode",
+    "FetchURL",
+    "GetGoal",
+    "Glob",
+    "Grep",
+    "Read",
+    "ReadMediaFile",
+    "SetGoalBudget",
+    "Skill",
+    "TaskList",
+    "TaskOutput",
+    "TaskStop",
+    "TodoList",
+    "UpdateGoal",
+    "WaitFor",
+    "Write"
+  ]
 }

@@ -1,14 +1,14 @@
 {
   "schema": "cledger-conformance/1",
-  "cli": "opencode",
+  "cli": "crush",
   "platform": "darwin/arm64",
-  "mode": "headless",
+  "mode": "interactive",
   "inference": "scripted",
   "status": "pass",
   "cases": {
     "multilineUnicode": {
       "status": "pass",
-      "detail": "native prompt argument; compared normalized human text, not echoed terminal"
+      "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal"
     },
     "textRead": {
       "status": "pass",
@@ -24,11 +24,11 @@
     },
     "userImageEntry": {
       "status": "pass",
-      "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+      "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes"
     },
     "noUnrecognized": {
       "status": "pass",
-      "detail": "Unknown native records across initial and resumed turns stay explicit"
+      "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
     },
     "resume": {
       "status": "pass",
@@ -40,13 +40,13 @@
     }
   },
   "requests": 6,
-  "events": 23,
+  "events": 24,
   "fullyCertified": false,
-  "started": "2026-10-05T21:42:22.505Z",
-  "inputMethod": "native prompt argument",
+  "started": "2026-10-05T22:01:55.719Z",
+  "inputMethod": "native editor bracketed paste",
   "exclusions": [
     "live provider/model behavior",
-    "interactive mode",
+    "headless mode",
     "clipboard/drag-and-drop image entry",
     "text-file editor attachment (native UTF-8 tool read is covered)",
     "PDF/archive/oversized or invalid text input",
@@ -54,11 +54,36 @@
     "complete record-type coverage",
     "other operating systems"
   ],
-  "fileSearchBackend": "native-default",
-  "version": "1.18.33",
-  "automaticEventsBeforeBackfill": 23,
-  "completed": "2026-10-05T21:42:35.966Z",
+  "version": "crush version v0.97.1",
+  "automaticEventsBeforeBackfill": 24,
+  "completed": "2026-10-05T22:02:04.165Z",
   "nativeTools": [
-    "read"
+    "agent",
+    "agentic_fetch",
+    "bash",
+    "crush_info",
+    "crush_logs",
+    "download",
+    "edit",
+    "fetch",
+    "glob",
+    "grep",
+    "job_kill",
+    "job_output",
+    "ls",
+    "lsp_call_hierarchy",
+    "lsp_definition",
+    "lsp_diagnostics",
+    "lsp_references",
+    "lsp_rename",
+    "lsp_replace_symbol",
+    "lsp_restart",
+    "lsp_symbols",
+    "multiedit",
+    "question",
+    "sourcegraph",
+    "todos",
+    "view",
+    "write"
   ]
 }

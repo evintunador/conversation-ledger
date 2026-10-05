@@ -4,7 +4,7 @@
   "platform": "darwin/arm64",
   "mode": "headless",
   "inference": "scripted",
-  "status": "partial",
+  "status": "pass",
   "cases": {
     "multilineUnicode": {
       "status": "pass",
@@ -19,12 +19,12 @@
       "detail": "Actual failed native read and linked result; scripted provider observed native error response"
     },
     "imageReference": {
-      "status": "fail",
-      "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case"
+      "status": "limitation",
+      "detail": "Continue 1.5.47 Read returns fs.readFileSync(path, 'utf-8') text even for this PNG; its actual linked result exposes no image carrier or original byte body. The lossy upstream text is preserved without inventing binary evidence. Native TUI user image retention is proved separately."
     },
     "userImageEntry": {
-      "status": "fail",
-      "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+      "status": "limitation",
+      "detail": "Continue 1.5.47 --print accepts text and exposes no attachment flag. Native @image remained literal in the resumed human prompt and provider request. Its TUI Ctrl-V media path is a separate verified interface."
     },
     "noUnrecognized": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 5,
   "events": 22,
   "fullyCertified": false,
-  "started": "2026-10-05T21:27:09.200Z",
+  "started": "2026-10-05T21:52:43.194Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,17 @@
   ],
   "version": "1.5.47",
   "automaticEventsBeforeBackfill": 22,
-  "completed": "2026-10-05T21:27:14.743Z"
+  "completed": "2026-10-05T21:52:46.623Z",
+  "nativeTools": [
+    "Read",
+    "List",
+    "Bash",
+    "Fetch",
+    "Checklist",
+    "CheckBackgroundJob",
+    "AskQuestion",
+    "Search",
+    "Exit",
+    "Skills"
+  ]
 }

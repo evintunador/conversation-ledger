@@ -76,8 +76,8 @@ export function buildSupportMatrix(documents: EvidenceDocument[]): { schema: "cl
         const result = object(data.cases?.[name]);
         if (!result || !validStatus(result.status) || typeof result.detail !== "string") continue;
         // A failed/incomplete native run cannot certify its case assertions.
-        const status = result.status === "pass" && !["pass", "partial"].includes(data.status) ? "fail" : result.status;
-        cell.cases[name] = { status, detail: result.detail, evidence: document.path, version: data.version };
+        const status = result.status === "pass" && data.status === "blocked" ? "blocked" : result.status === "pass" && !["pass", "partial"].includes(data.status) ? "fail" : result.status;
+        cell.cases[name] = { status, detail: status === "blocked" ? `Initial observation exists, but the installed scenario is incomplete: ${data.reason}` : result.detail, evidence: document.path, version: data.version };
       }
     } else if (data.schema === "cledger-canary/1" && ["local", "usual-provider"].includes(data.inference) && validStatus(data.status)) {
       const verified = CANARY_GATES.every(g => data.gates?.[g] === true);

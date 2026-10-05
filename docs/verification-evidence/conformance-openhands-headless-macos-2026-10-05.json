@@ -4,7 +4,7 @@
   "platform": "darwin/arm64",
   "mode": "headless",
   "inference": "scripted",
-  "status": "partial",
+  "status": "pass",
   "cases": {
     "multilineUnicode": {
       "status": "pass",
@@ -23,12 +23,12 @@
       "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
-      "status": "fail",
-      "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+      "status": "limitation",
+      "detail": "OpenHands CLI 1.16.0 headless --task and native TUI conversation_runner submit TextContent(text=user_input). Installed @image remained text in both the native human record and provider request. ACP supports ImageContent through another interface; ACP evidence cannot certify native CLI/TUI image entry."
     },
     "noUnrecognized": {
       "status": "pass",
-      "detail": "Unknown native records across initial and resumed turns stay explicit"
+      "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
     },
     "resume": {
       "status": "pass",
@@ -40,9 +40,9 @@
     }
   },
   "requests": 5,
-  "events": 30,
+  "events": 29,
   "fullyCertified": false,
-  "started": "2026-10-05T21:31:21.956Z",
+  "started": "2026-10-05T22:01:22.706Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -55,6 +55,15 @@
     "other operating systems"
   ],
   "version": "OpenHands CLI 1.16.0",
-  "automaticEventsBeforeBackfill": 30,
-  "completed": "2026-10-05T21:31:47.322Z"
+  "automaticEventsBeforeBackfill": 29,
+  "completed": "2026-10-05T22:01:41.087Z",
+  "nativeTools": [
+    "terminal",
+    "file_editor",
+    "task_tracker",
+    "task",
+    "finish",
+    "think",
+    "invoke_skill"
+  ]
 }

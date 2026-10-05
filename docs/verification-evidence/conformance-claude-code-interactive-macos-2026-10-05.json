@@ -20,7 +20,7 @@
     },
     "imageReference": {
       "status": "pass",
-      "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case"
+      "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 6,
   "events": 46,
   "fullyCertified": false,
-  "started": "2026-10-05T21:20:54.578Z",
+  "started": "2026-10-05T21:41:46.776Z",
   "inputMethod": "native editor bracketed paste",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,8 @@
   ],
   "version": "2.1.284 (Claude Code)",
   "automaticEventsBeforeBackfill": 46,
-  "completed": "2026-10-05T21:21:04.206Z"
+  "completed": "2026-10-05T21:42:08.911Z",
+  "nativeTools": [
+    "Read"
+  ]
 }

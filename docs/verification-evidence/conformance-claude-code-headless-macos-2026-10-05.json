@@ -20,11 +20,11 @@
     },
     "imageReference": {
       "status": "pass",
-      "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case"
+      "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
       "status": "pass",
-      "detail": "Native editor @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+      "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes"
     },
     "noUnrecognized": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 5,
   "events": 38,
   "fullyCertified": false,
-  "started": "2026-10-05T21:13:04.774Z",
+  "started": "2026-10-05T21:41:30.036Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,8 @@
   ],
   "version": "2.1.284 (Claude Code)",
   "automaticEventsBeforeBackfill": 38,
-  "completed": "2026-10-05T21:13:11.175Z"
+  "completed": "2026-10-05T21:41:46.771Z",
+  "nativeTools": [
+    "Read"
+  ]
 }

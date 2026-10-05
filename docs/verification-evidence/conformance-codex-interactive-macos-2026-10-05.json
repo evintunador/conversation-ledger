@@ -20,7 +20,7 @@
     },
     "imageReference": {
       "status": "pass",
-      "detail": "Installed --image input attached to initial real TUI; binary retained as reference, not base64 bytes"
+      "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes"
     },
     "userImageEntry": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 7,
   "events": 47,
   "fullyCertified": false,
-  "started": "2026-10-05T21:21:04.207Z",
+  "started": "2026-10-05T21:46:57.730Z",
   "inputMethod": "native editor bracketed paste",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,19 @@
   ],
   "version": "codex-cli 0.159.0",
   "automaticEventsBeforeBackfill": 47,
-  "completed": "2026-10-05T21:21:13.169Z"
+  "completed": "2026-10-05T21:47:05.323Z",
+  "nativeTools": [
+    "exec_command",
+    "write_stdin",
+    "request_user_input",
+    "view_image",
+    "close_agent",
+    "resume_agent",
+    "send_input",
+    "spawn_agent",
+    "wait_agent",
+    "get_goal",
+    "create_goal",
+    "update_goal"
+  ]
 }

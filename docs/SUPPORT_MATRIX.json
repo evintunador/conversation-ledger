@@ -36,13 +36,13 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-claude-code-headless-macos-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "userImageEntry": {
               "status": "pass",
-              "detail": "Native editor @image entry and provider input observed; human/context attachment retains a reference, not bytes",
+              "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes",
               "evidence": "verification-evidence/conformance-claude-code-headless-macos-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
@@ -108,7 +108,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-claude-code-interactive-macos-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
@@ -161,101 +161,51 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            }
-          },
-          "local": {
-            "status": "not-run",
-            "detail": "Local DeepSeek canary pending"
-          },
-          "usualProvider": {
-            "status": "not-run",
-            "detail": "Usual-provider canary pending; API route or contributor account required"
-          }
-        },
-        "linux/interactive": {
-          "smoke": {
-            "status": "pass",
-            "detail": "Installed scripted smoke; does not prove the eight conformance cases",
-            "evidence": "verification-evidence/hosted-linux-interactive-2026-10-02.json",
-            "version": "2.1.284 (Claude Code)"
-          },
-          "cases": {
-            "multilineUnicode": {
               "status": "pass",
-              "detail": "Bracket-paste into actual native editor; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-claude-code-linux-2026-10-03.json",
+              "detail": "native prompt argument; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-claude-code-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-claude-code-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output; user editor image-paste entry is a separate unverified case",
-              "evidence": "verification-evidence/conformance-claude-code-linux-2026-10-03.json",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "userImageEntry": {
               "status": "pass",
-              "detail": "Native editor @image entry and provider input observed; human/context attachment retains a reference, not bytes",
-              "evidence": "verification-evidence/conformance-claude-code-linux-2026-10-03.json",
+              "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit",
-              "evidence": "verification-evidence/conformance-claude-code-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "resume": {
               "status": "pass",
-              "detail": "Exited and relaunched native continue/resume; new typed turn remains in original stream",
-              "evidence": "verification-evidence/conformance-claude-code-linux-2026-10-03.json",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-claude-code-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             }
           },
@@ -270,7 +220,79 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-claude-code-linux-2026-10-03.json",
+            "evidence": "verification-evidence/conformance-claude-code-headless-linux-2026-10-05.json",
+            "version": "2.1.284 (Claude Code)"
+          }
+        },
+        "linux/interactive": {
+          "smoke": {
+            "status": "pass",
+            "detail": "Installed scripted smoke; does not prove the eight conformance cases",
+            "evidence": "verification-evidence/hosted-linux-interactive-2026-10-02.json",
+            "version": "2.1.284 (Claude Code)"
+          },
+          "cases": {
+            "multilineUnicode": {
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-2026-10-05.json",
+              "version": "2.1.284 (Claude Code)"
+            },
+            "textRead": {
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-2026-10-05.json",
+              "version": "2.1.284 (Claude Code)"
+            },
+            "toolError": {
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-2026-10-05.json",
+              "version": "2.1.284 (Claude Code)"
+            },
+            "imageReference": {
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-2026-10-05.json",
+              "version": "2.1.284 (Claude Code)"
+            },
+            "userImageEntry": {
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-2026-10-05.json",
+              "version": "2.1.284 (Claude Code)"
+            },
+            "noUnrecognized": {
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-2026-10-05.json",
+              "version": "2.1.284 (Claude Code)"
+            },
+            "resume": {
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-2026-10-05.json",
+              "version": "2.1.284 (Claude Code)"
+            },
+            "backfill": {
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-2026-10-05.json",
+              "version": "2.1.284 (Claude Code)"
+            }
+          },
+          "local": {
+            "status": "not-run",
+            "detail": "Local DeepSeek canary pending"
+          },
+          "usualProvider": {
+            "status": "not-run",
+            "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-claude-code-interactive-linux-2026-10-05.json",
             "version": "2.1.284 (Claude Code)"
           }
         }
@@ -309,13 +331,13 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Installed --image input attached to initial real TUI; binary retained as reference, not base64 bytes",
+              "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes",
               "evidence": "verification-evidence/conformance-codex-headless-macos-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "userImageEntry": {
               "status": "pass",
-              "detail": "Documented native --image initial attachment in TUI",
+              "detail": "Documented native --image initial attachment",
               "evidence": "verification-evidence/conformance-codex-headless-macos-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
@@ -381,7 +403,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Installed --image input attached to initial real TUI; binary retained as reference, not base64 bytes",
+              "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes",
               "evidence": "verification-evidence/conformance-codex-interactive-macos-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
@@ -434,101 +456,51 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            }
-          },
-          "local": {
-            "status": "not-run",
-            "detail": "Local DeepSeek canary pending"
-          },
-          "usualProvider": {
-            "status": "not-run",
-            "detail": "Usual-provider canary pending; API route or contributor account required"
-          }
-        },
-        "linux/interactive": {
-          "smoke": {
-            "status": "pass",
-            "detail": "Installed scripted smoke; does not prove the eight conformance cases",
-            "evidence": "verification-evidence/hosted-linux-interactive-2026-10-02.json",
-            "version": "codex-cli 0.159.0"
-          },
-          "cases": {
-            "multilineUnicode": {
               "status": "pass",
-              "detail": "Bracket-paste into actual native editor; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-codex-linux-2026-10-03.json",
+              "detail": "native prompt argument; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-codex-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-codex-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Installed --image input attached to initial real TUI; binary retained as reference, not base64 bytes",
-              "evidence": "verification-evidence/conformance-codex-linux-2026-10-03.json",
+              "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "userImageEntry": {
               "status": "pass",
-              "detail": "Documented native --image initial attachment in TUI",
-              "evidence": "verification-evidence/conformance-codex-linux-2026-10-03.json",
+              "detail": "Documented native --image initial attachment",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit",
-              "evidence": "verification-evidence/conformance-codex-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "resume": {
               "status": "pass",
-              "detail": "Exited and relaunched native continue/resume; new typed turn remains in original stream",
-              "evidence": "verification-evidence/conformance-codex-linux-2026-10-03.json",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-codex-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             }
           },
@@ -543,7 +515,79 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-codex-linux-2026-10-03.json",
+            "evidence": "verification-evidence/conformance-codex-headless-linux-2026-10-05.json",
+            "version": "codex-cli 0.159.0"
+          }
+        },
+        "linux/interactive": {
+          "smoke": {
+            "status": "pass",
+            "detail": "Installed scripted smoke; does not prove the eight conformance cases",
+            "evidence": "verification-evidence/hosted-linux-interactive-2026-10-02.json",
+            "version": "codex-cli 0.159.0"
+          },
+          "cases": {
+            "multilineUnicode": {
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-2026-10-05.json",
+              "version": "codex-cli 0.159.0"
+            },
+            "textRead": {
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-2026-10-05.json",
+              "version": "codex-cli 0.159.0"
+            },
+            "toolError": {
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-2026-10-05.json",
+              "version": "codex-cli 0.159.0"
+            },
+            "imageReference": {
+              "status": "pass",
+              "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-2026-10-05.json",
+              "version": "codex-cli 0.159.0"
+            },
+            "userImageEntry": {
+              "status": "pass",
+              "detail": "Documented native --image initial attachment",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-2026-10-05.json",
+              "version": "codex-cli 0.159.0"
+            },
+            "noUnrecognized": {
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-2026-10-05.json",
+              "version": "codex-cli 0.159.0"
+            },
+            "resume": {
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-2026-10-05.json",
+              "version": "codex-cli 0.159.0"
+            },
+            "backfill": {
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-2026-10-05.json",
+              "version": "codex-cli 0.159.0"
+            }
+          },
+          "local": {
+            "status": "not-run",
+            "detail": "Local DeepSeek canary pending"
+          },
+          "usualProvider": {
+            "status": "not-run",
+            "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-codex-interactive-linux-2026-10-05.json",
             "version": "codex-cli 0.159.0"
           }
         }
@@ -582,13 +626,13 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-gemini-cli-headless-macos-2026-10-05.json",
               "version": "0.61.0"
             },
             "userImageEntry": {
               "status": "pass",
-              "detail": "Native editor @image entry and provider input observed; human/context attachment retains a reference, not bytes",
+              "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes",
               "evidence": "verification-evidence/conformance-gemini-cli-headless-macos-2026-10-05.json",
               "version": "0.61.0"
             },
@@ -654,7 +698,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-gemini-cli-interactive-macos-2026-10-05.json",
               "version": "0.61.0"
             },
@@ -707,36 +751,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native prompt argument; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-2026-10-05.json",
+              "version": "0.61.0"
             }
           },
           "local": {
@@ -746,6 +806,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-2026-10-05.json",
+            "version": "0.61.0"
           }
         },
         "linux/interactive": {
@@ -757,36 +823,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-2026-10-05.json",
+              "version": "0.61.0"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "fail",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-2026-10-05.json",
+              "version": "0.61.0"
             }
           },
           "local": {
@@ -796,6 +878,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "fail",
+            "detail": "Installed scenario: partial",
+            "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-2026-10-05.json",
+            "version": "0.61.0"
           }
         }
       }
@@ -833,7 +921,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-copilot-headless-macos-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
@@ -905,7 +993,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-copilot-interactive-macos-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
@@ -958,36 +1046,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native prompt argument; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             }
           },
           "local": {
@@ -997,6 +1101,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-copilot-headless-linux-2026-10-05.json",
+            "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
           }
         },
         "linux/interactive": {
@@ -1008,36 +1118,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-2026-10-05.json",
+              "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             }
           },
           "local": {
@@ -1047,6 +1173,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-copilot-interactive-linux-2026-10-05.json",
+            "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
           }
         }
       }
@@ -1283,13 +1415,13 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-qwen-code-headless-macos-2026-10-05.json",
               "version": "0.24.6"
             },
             "userImageEntry": {
               "status": "pass",
-              "detail": "Native editor @image entry and provider input observed; human/context attachment retains a reference, not bytes",
+              "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes",
               "evidence": "verification-evidence/conformance-qwen-code-headless-macos-2026-10-05.json",
               "version": "0.24.6"
             },
@@ -1355,7 +1487,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-qwen-code-interactive-macos-2026-10-05.json",
               "version": "0.24.6"
             },
@@ -1408,36 +1540,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native prompt argument; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-2026-10-05.json",
+              "version": "0.24.6"
             }
           },
           "local": {
@@ -1447,6 +1595,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-qwen-code-headless-linux-2026-10-05.json",
+            "version": "0.24.6"
           }
         },
         "linux/interactive": {
@@ -1458,36 +1612,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-2026-10-05.json",
+              "version": "0.24.6"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-2026-10-05.json",
+              "version": "0.24.6"
             }
           },
           "local": {
@@ -1497,6 +1667,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-2026-10-05.json",
+            "version": "0.24.6"
           }
         }
       }
@@ -1659,36 +1835,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native prompt argument; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "limitation",
+              "detail": "Kimi 2.1.1 --prompt accepts text only: its installed help exposes no attachment flag, and @image remained literal in the native human record/provider request. TUI clipboard media and ACP media are separate interfaces, not headless prompt evidence. Native ReadMediaFile is checked separately.",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-2026-10-05.json",
+              "version": "2.1.1"
             }
           },
           "local": {
@@ -1698,6 +1890,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-kimi-headless-linux-2026-10-05.json",
+            "version": "2.1.1"
           }
         },
         "linux/interactive": {
@@ -1709,36 +1907,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native editor bracketed paste; resumed Ctrl-V with isolated OS file-clipboard lookup fixture; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; resumed Ctrl-V with isolated OS file-clipboard lookup fixture; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-2026-10-05.json",
+              "version": "2.1.1"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-2026-10-05.json",
+              "version": "2.1.1"
             }
           },
           "local": {
@@ -1748,6 +1962,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-kimi-interactive-linux-2026-10-05.json",
+            "version": "2.1.1"
           }
         }
       }
@@ -1784,14 +2004,14 @@
               "version": "vibe 2.25.8"
             },
             "imageReference": {
-              "status": "fail",
-              "detail": "Actual native image tool result retains a reference in its linked result",
+              "status": "limitation",
+              "detail": "Vibe 2.25.8 legacy read_file decodes this PNG into numbered text via read_lines_safe_async, with replacement characters. The linked native result omits the original binary carrier; its lossy text is preserved without inventing original bytes, size or digest. User image entry is checked separately.",
               "evidence": "verification-evidence/conformance-mistral-vibe-headless-macos-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "userImageEntry": {
-              "status": "fail",
-              "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes",
+              "status": "limitation",
+              "detail": "Vibe 2.25.8 legacy programmatic --prompt submits a string without the TUI's image-token expansion. Installed @image remained literal in the human prompt/provider request despite supports_images=true. TUI @image entry retains its native copied-file locator and is checked separately.",
               "evidence": "verification-evidence/conformance-mistral-vibe-headless-macos-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
@@ -1823,8 +2043,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Installed scenario: partial",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-mistral-vibe-headless-macos-2026-10-05.json",
             "version": "vibe 2.25.8"
           }
@@ -1838,50 +2058,50 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "fail",
+              "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
               "evidence": "verification-evidence/conformance-mistral-vibe-interactive-macos-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "textRead": {
-              "status": "fail",
+              "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
               "evidence": "verification-evidence/conformance-mistral-vibe-interactive-macos-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "toolError": {
-              "status": "fail",
+              "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
               "evidence": "verification-evidence/conformance-mistral-vibe-interactive-macos-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "imageReference": {
-              "status": "fail",
-              "detail": "Actual native image tool result retains a reference in its linked result",
+              "status": "limitation",
+              "detail": "Vibe 2.25.8 legacy read_file decodes this PNG into numbered text via read_lines_safe_async, with replacement characters. The linked native result omits the original binary carrier; its lossy text is preserved without inventing original bytes, size or digest. User image entry is checked separately.",
               "evidence": "verification-evidence/conformance-mistral-vibe-interactive-macos-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Native @image reference attempted on resumed turn; tool-returned image alone is not proof",
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
               "evidence": "verification-evidence/conformance-mistral-vibe-interactive-macos-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "noUnrecognized": {
-              "status": "fail",
-              "detail": "Unknown native record evidence stays explicit",
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
               "evidence": "verification-evidence/conformance-mistral-vibe-interactive-macos-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed scenario has not reached this gate",
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
               "evidence": "verification-evidence/conformance-mistral-vibe-interactive-macos-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed scenario has not reached this gate",
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
               "evidence": "verification-evidence/conformance-mistral-vibe-interactive-macos-2026-10-05.json",
               "version": "vibe 2.25.8"
             }
@@ -1895,8 +2115,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Observed resume TUI incomplete:                             Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                   ⡠⣒⠄  ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡠⣀⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                   ⡠⣒⠄  ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡢⣂⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆   ⡠⣒⠄  ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡢⣂⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡢⣂⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆ ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠈⡀⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇ ⢔⡢⡀    ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇ ⢔⡢⡀    ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡢⣂⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-mistral-vibe-interactive-macos-2026-10-05.json",
             "version": "vibe 2.25.8"
           }
@@ -2017,26 +2237,26 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "fail",
-              "detail": "native prompt argument; compared normalized human text, not echoed terminal",
+              "status": "blocked",
+              "detail": "Initial observation exists, but the installed scenario is incomplete: LOGIN_REQUIRED: Droid 0.229.0 exec --session-id fetches the session through Factory's authenticated API even with cloudSessionSync=false and a local BYOK session. Isolated Factory authentication is required; no user credential was borrowed.",
               "evidence": "verification-evidence/conformance-droid-headless-macos-2026-10-05.json",
               "version": "0.229.0"
             },
             "textRead": {
-              "status": "fail",
-              "detail": "Actual file tool result retains known UTF-8 text",
+              "status": "blocked",
+              "detail": "Initial observation exists, but the installed scenario is incomplete: LOGIN_REQUIRED: Droid 0.229.0 exec --session-id fetches the session through Factory's authenticated API even with cloudSessionSync=false and a local BYOK session. Isolated Factory authentication is required; no user credential was borrowed.",
               "evidence": "verification-evidence/conformance-droid-headless-macos-2026-10-05.json",
               "version": "0.229.0"
             },
             "toolError": {
-              "status": "fail",
-              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "status": "blocked",
+              "detail": "Initial observation exists, but the installed scenario is incomplete: LOGIN_REQUIRED: Droid 0.229.0 exec --session-id fetches the session through Factory's authenticated API even with cloudSessionSync=false and a local BYOK session. Isolated Factory authentication is required; no user credential was borrowed.",
               "evidence": "verification-evidence/conformance-droid-headless-macos-2026-10-05.json",
               "version": "0.229.0"
             },
             "imageReference": {
-              "status": "fail",
-              "detail": "Actual native image tool result retains a reference in its linked result",
+              "status": "blocked",
+              "detail": "Initial observation exists, but the installed scenario is incomplete: LOGIN_REQUIRED: Droid 0.229.0 exec --session-id fetches the session through Factory's authenticated API even with cloudSessionSync=false and a local BYOK session. Isolated Factory authentication is required; no user credential was borrowed.",
               "evidence": "verification-evidence/conformance-droid-headless-macos-2026-10-05.json",
               "version": "0.229.0"
             },
@@ -2047,8 +2267,8 @@
               "version": "0.229.0"
             },
             "noUnrecognized": {
-              "status": "fail",
-              "detail": "Unknown native record evidence stays explicit",
+              "status": "blocked",
+              "detail": "Initial observation exists, but the installed scenario is incomplete: LOGIN_REQUIRED: Droid 0.229.0 exec --session-id fetches the session through Factory's authenticated API even with cloudSessionSync=false and a local BYOK session. Isolated Factory authentication is required; no user credential was borrowed.",
               "evidence": "verification-evidence/conformance-droid-headless-macos-2026-10-05.json",
               "version": "0.229.0"
             },
@@ -2074,8 +2294,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Observed resume headless invocation incomplete (1, timeout=false): ",
+            "status": "blocked",
+            "detail": "LOGIN_REQUIRED: Droid 0.229.0 exec --session-id fetches the session through Factory's authenticated API even with cloudSessionSync=false and a local BYOK session. Isolated Factory authentication is required; no user credential was borrowed.",
             "evidence": "verification-evidence/conformance-droid-headless-macos-2026-10-05.json",
             "version": "0.229.0"
           }
@@ -2464,7 +2684,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-opencode-headless-macos-2026-10-05.json",
               "version": "1.18.33"
             },
@@ -2536,7 +2756,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-opencode-interactive-macos-2026-10-05.json",
               "version": "1.18.33"
             },
@@ -2589,101 +2809,51 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            },
-            "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
-            }
-          },
-          "local": {
-            "status": "not-run",
-            "detail": "Local DeepSeek canary pending"
-          },
-          "usualProvider": {
-            "status": "not-run",
-            "detail": "Usual-provider canary pending; API route or contributor account required"
-          }
-        },
-        "linux/interactive": {
-          "smoke": {
-            "status": "pass",
-            "detail": "Installed scripted smoke; does not prove the eight conformance cases",
-            "evidence": "verification-evidence/hosted-linux-interactive-2026-10-02.json",
-            "version": "1.18.33"
-          },
-          "cases": {
-            "multilineUnicode": {
               "status": "pass",
-              "detail": "Bracket-paste into actual native editor; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-opencode-ripgrep-linux-2026-10-03.json",
+              "detail": "native prompt argument; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-2026-10-05.json",
               "version": "1.18.33"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-opencode-ripgrep-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-2026-10-05.json",
               "version": "1.18.33"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-opencode-ripgrep-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-2026-10-05.json",
               "version": "1.18.33"
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output; user editor image-paste entry is a separate unverified case",
-              "evidence": "verification-evidence/conformance-opencode-ripgrep-linux-2026-10-03.json",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-2026-10-05.json",
               "version": "1.18.33"
             },
             "userImageEntry": {
               "status": "pass",
-              "detail": "Native editor @image entry and provider input observed; human/context attachment retains a reference, not bytes",
-              "evidence": "verification-evidence/conformance-opencode-ripgrep-linux-2026-10-03.json",
+              "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-2026-10-05.json",
               "version": "1.18.33"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit",
-              "evidence": "verification-evidence/conformance-opencode-ripgrep-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-2026-10-05.json",
               "version": "1.18.33"
             },
             "resume": {
               "status": "pass",
-              "detail": "Exited and relaunched native continue/resume; new typed turn remains in original stream",
-              "evidence": "verification-evidence/conformance-opencode-ripgrep-linux-2026-10-03.json",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-2026-10-05.json",
               "version": "1.18.33"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-opencode-ripgrep-linux-2026-10-03.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-2026-10-05.json",
               "version": "1.18.33"
             }
           },
@@ -2698,7 +2868,79 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-opencode-ripgrep-linux-2026-10-03.json",
+            "evidence": "verification-evidence/conformance-opencode-headless-linux-2026-10-05.json",
+            "version": "1.18.33"
+          }
+        },
+        "linux/interactive": {
+          "smoke": {
+            "status": "pass",
+            "detail": "Installed scripted smoke; does not prove the eight conformance cases",
+            "evidence": "verification-evidence/hosted-linux-interactive-2026-10-02.json",
+            "version": "1.18.33"
+          },
+          "cases": {
+            "multilineUnicode": {
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-2026-10-05.json",
+              "version": "1.18.33"
+            },
+            "textRead": {
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-2026-10-05.json",
+              "version": "1.18.33"
+            },
+            "toolError": {
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-2026-10-05.json",
+              "version": "1.18.33"
+            },
+            "imageReference": {
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-2026-10-05.json",
+              "version": "1.18.33"
+            },
+            "userImageEntry": {
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-2026-10-05.json",
+              "version": "1.18.33"
+            },
+            "noUnrecognized": {
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-2026-10-05.json",
+              "version": "1.18.33"
+            },
+            "resume": {
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-2026-10-05.json",
+              "version": "1.18.33"
+            },
+            "backfill": {
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-2026-10-05.json",
+              "version": "1.18.33"
+            }
+          },
+          "local": {
+            "status": "not-run",
+            "detail": "Local DeepSeek canary pending"
+          },
+          "usualProvider": {
+            "status": "not-run",
+            "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-opencode-interactive-linux-2026-10-05.json",
             "version": "1.18.33"
           }
         }
@@ -2737,13 +2979,13 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-pi-headless-macos-2026-10-05.json",
               "version": "0.87.1"
             },
             "userImageEntry": {
               "status": "pass",
-              "detail": "Native editor @image reference attempted on resumed turn; tool-returned image alone is not proof",
+              "detail": "Documented native @image initial argument; provider image input and retained reference checked",
               "evidence": "verification-evidence/conformance-pi-headless-macos-2026-10-05.json",
               "version": "0.87.1"
             },
@@ -2809,7 +3051,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-pi-interactive-macos-2026-10-05.json",
               "version": "0.87.1"
             },
@@ -2862,36 +3104,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native prompt argument; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Documented native @image initial argument; provider image input and retained reference checked",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-2026-10-05.json",
+              "version": "0.87.1"
             }
           },
           "local": {
@@ -2901,6 +3159,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-pi-headless-linux-2026-10-05.json",
+            "version": "0.87.1"
           }
         },
         "linux/interactive": {
@@ -2912,36 +3176,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Documented native @image initial argument; provider image input and retained reference checked",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-2026-10-05.json",
+              "version": "0.87.1"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-2026-10-05.json",
+              "version": "0.87.1"
             }
           },
           "local": {
@@ -2951,6 +3231,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-pi-interactive-linux-2026-10-05.json",
+            "version": "0.87.1"
           }
         }
       }
@@ -2993,14 +3279,14 @@
               "version": "OpenHands CLI 1.16.0"
             },
             "userImageEntry": {
-              "status": "fail",
-              "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes",
+              "status": "limitation",
+              "detail": "OpenHands CLI 1.16.0 headless --task and native TUI conversation_runner submit TextContent(text=user_input). Installed @image remained text in both the native human record and provider request. ACP supports ImageContent through another interface; ACP evidence cannot certify native CLI/TUI image entry.",
               "evidence": "verification-evidence/conformance-openhands-headless-macos-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "noUnrecognized": {
               "status": "pass",
-              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
               "evidence": "verification-evidence/conformance-openhands-headless-macos-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
@@ -3026,8 +3312,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Installed scenario: partial",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-openhands-headless-macos-2026-10-05.json",
             "version": "OpenHands CLI 1.16.0"
           }
@@ -3041,36 +3327,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-openhands-interactive-macos-2026-10-05.json",
+              "version": "OpenHands CLI 1.16.0"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-openhands-interactive-macos-2026-10-05.json",
+              "version": "OpenHands CLI 1.16.0"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-openhands-interactive-macos-2026-10-05.json",
+              "version": "OpenHands CLI 1.16.0"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-openhands-interactive-macos-2026-10-05.json",
+              "version": "OpenHands CLI 1.16.0"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "limitation",
+              "detail": "OpenHands CLI 1.16.0 headless --task and native TUI conversation_runner submit TextContent(text=user_input). Installed @image remained text in both the native human record and provider request. ACP supports ImageContent through another interface; ACP evidence cannot certify native CLI/TUI image entry.",
+              "evidence": "verification-evidence/conformance-openhands-interactive-macos-2026-10-05.json",
+              "version": "OpenHands CLI 1.16.0"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
+              "evidence": "verification-evidence/conformance-openhands-interactive-macos-2026-10-05.json",
+              "version": "OpenHands CLI 1.16.0"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-openhands-interactive-macos-2026-10-05.json",
+              "version": "OpenHands CLI 1.16.0"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-openhands-interactive-macos-2026-10-05.json",
+              "version": "OpenHands CLI 1.16.0"
             }
           },
           "local": {
@@ -3082,8 +3384,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Observed initial TUI incomplete:                                    │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-openhands-interactive-macos-2026-10-05.json",
             "version": "OpenHands CLI 1.16.0"
           }
@@ -3204,50 +3506,50 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "fail",
+              "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
               "evidence": "verification-evidence/conformance-cline-headless-macos-2026-10-05.json",
               "version": "3.0.65"
             },
             "textRead": {
-              "status": "fail",
+              "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
               "evidence": "verification-evidence/conformance-cline-headless-macos-2026-10-05.json",
               "version": "3.0.65"
             },
             "toolError": {
-              "status": "fail",
+              "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
               "evidence": "verification-evidence/conformance-cline-headless-macos-2026-10-05.json",
               "version": "3.0.65"
             },
             "imageReference": {
-              "status": "fail",
+              "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-cline-headless-macos-2026-10-05.json",
               "version": "3.0.65"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Native @image reference attempted on resumed turn; tool-returned image alone is not proof",
+              "status": "limitation",
+              "detail": "Cline 3.0.65 headless --json accepts a text prompt and exposes no image attachment flag. Native @image remained literal in the persisted human prompt and provider input; a tool-returned image does not prove user attachment entry.",
               "evidence": "verification-evidence/conformance-cline-headless-macos-2026-10-05.json",
               "version": "3.0.65"
             },
             "noUnrecognized": {
-              "status": "fail",
-              "detail": "Unknown native record evidence stays explicit",
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
               "evidence": "verification-evidence/conformance-cline-headless-macos-2026-10-05.json",
               "version": "3.0.65"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed scenario has not reached this gate",
+              "status": "limitation",
+              "detail": "Cline 3.0.65 --id forces interactive mode and clears the supplied prompt before JSON-mode validation. The installed --id/--json invocation rejects continuation; piped input also rejects it. TUI resume is a separate gate. No resumed record was fabricated.",
               "evidence": "verification-evidence/conformance-cline-headless-macos-2026-10-05.json",
               "version": "3.0.65"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed scenario has not reached this gate",
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
               "evidence": "verification-evidence/conformance-cline-headless-macos-2026-10-05.json",
               "version": "3.0.65"
             }
@@ -3261,8 +3563,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Observed resume headless invocation incomplete (1, timeout=false): {\"ts\":\"2026-10-05T21:37:10.732Z\",\"type\":\"error\",\"message\":\"JSON output mode requires a prompt argument or piped stdin (interactive mode is unsupported)\"}",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-cline-headless-macos-2026-10-05.json",
             "version": "3.0.65"
           }
@@ -3276,36 +3578,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-cline-interactive-macos-2026-10-05.json",
+              "version": "3.0.65"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-cline-interactive-macos-2026-10-05.json",
+              "version": "3.0.65"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-cline-interactive-macos-2026-10-05.json",
+              "version": "3.0.65"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-cline-interactive-macos-2026-10-05.json",
+              "version": "3.0.65"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-cline-interactive-macos-2026-10-05.json",
+              "version": "3.0.65"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-cline-interactive-macos-2026-10-05.json",
+              "version": "3.0.65"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-cline-interactive-macos-2026-10-05.json",
+              "version": "3.0.65"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-cline-interactive-macos-2026-10-05.json",
+              "version": "3.0.65"
             }
           },
           "local": {
@@ -3317,8 +3635,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Observed initial TUI incomplete:                                                                                                                                                                     ────────────────────────────────────────────────────────────────────                                                                                            ❯ What can I do for you?                                                                                                                                        ────────────────────────────────────────────────────────────────────                                                                                                                                                                                                                                                             fixture (0) $0.00                               ○ Plan ● Act (Tab)                                                                                              repo (master)                                                                                                                                                   ⏵⏵ Auto-approve all enabled (Shift+Tab)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           q",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-cline-interactive-macos-2026-10-05.json",
             "version": "3.0.65"
           }
@@ -3511,36 +3829,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native TUI initial prompt/--image arguments; resumed editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-macos-2026-10-05.json",
+              "version": "interpreter 0.0.45"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-macos-2026-10-05.json",
+              "version": "interpreter 0.0.45"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-macos-2026-10-05.json",
+              "version": "interpreter 0.0.45"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-macos-2026-10-05.json",
+              "version": "interpreter 0.0.45"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Documented native --image initial attachment",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-macos-2026-10-05.json",
+              "version": "interpreter 0.0.45"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-macos-2026-10-05.json",
+              "version": "interpreter 0.0.45"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-macos-2026-10-05.json",
+              "version": "interpreter 0.0.45"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-macos-2026-10-05.json",
+              "version": "interpreter 0.0.45"
             }
           },
           "local": {
@@ -3552,8 +3886,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Observed initial TUI incomplete: : Press Tab to queue a message when a task is running; otherwise it sends immediately (except !).\n⚠ 1 startup issue · ctrl + t for details  › Ask Codex to do anything   ledger-test default · ~/repo q\n╭────────────────────────────────────────────────────────╮\n│ >_ Open Interpreter (v0.0.45)                          │\n│                                                        │\n│ model:     verification ledger-test   /model to change │\n│ directory: ~/repo                                      │\n╰────────────────────────────────────────────────────────╯\nTip: Press Tab to queue a message when a task is running; otherwise it sends immediately (except !).\n⚠ 1 startup issue · ctrl + t for details\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n⚠ Under-development features enabled: default_mode_request_user_input. Under-development features are incomplete and may behave unpredictably. To suppress this\nwarning, set `suppress_unstable_features_warning = true` in /private/tmp/cledger-conformance-open-interpreter-7MJYlY/.openinterpreter/config.toml.  › TESTONLY_CONFORMANCE  Unicode café 日本語 🦉  Reference evidence.txt; check missing-TESTONLY.txt, then read evidence.txt and image-TESTONLY.png.   ledger-test default · ~/repo q\n⚠ Model metadata for `ledger-test` not found. Defaulting to fallback metadata; this can degrade performance and cause issues. q ;⠋ repo\u0007 • Working (0s • esc to interrupt)  › TESTONLY_CONFORMANCE  Unicode café 日本語 🦉  Reference evidence.txt; check missing-TESTONLY.txt, then read evidence.txt and image-TESTONLY.png.   tab to queue message                                                                                                                       100% context left q  q  q ;⠙ repo\u0007\n• Ran /bin/cat /private/tmp/cledger-conformance-open-interpreter-7MJYlY/repo/missing-TESTONLY.txt\n└ cat: /private/tmp/cledger-conformance-open-interpreter-7MJYlY/repo/missing-TESTONLY.txt: No such file or directory q  q  · 1 background terminal running · /ps to view · /stop to close q\n• Ran /bin/cat /private/tmp/cledger-conformance-open-interpreter-7MJYlY/repo/evidence.txt\n└ TESTONLY_CANARY_5070eccf-4c92-4ebc-9ead-0dc08e1d0a60\nKnown UTF-8: café 日本語 🦉\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n• TESTONLY_CONFORMANCE_DONE TESTONLY_CANARY_5070eccf-4c92-4ebc-9ead-0dc08e1d0a60  › TESTONLY_CONFORMANCE  Unicode café 日本語 🦉  Reference evidence.txt; check missing-TESTONLY.txt, then read evidence.txt and image-TESTONLY.png.   tab to queue message                                                                                                                       100% context left q ;⠹ repo\u0007;⠸ repo\u0007;⠼ repo\u0007 q\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────ledger-test default · ~/repo q",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-open-interpreter-interactive-macos-2026-10-05.json",
             "version": "interpreter 0.0.45"
           }
@@ -3692,14 +4026,14 @@
               "version": "1.52.0"
             },
             "imageReference": {
-              "status": "fail",
+              "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-goose-headless-macos-2026-10-05.json",
               "version": "1.52.0"
             },
             "userImageEntry": {
-              "status": "fail",
-              "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes",
+              "status": "limitation",
+              "detail": "Goose 1.52.0 CLI run --text and session InputResult::Message accept strings, with no native image attachment input. The installed @image remained literal in the human record and provider request. Its real developer read_image tool result retains image references separately; a tool image is not user entry.",
               "evidence": "verification-evidence/conformance-goose-headless-macos-2026-10-05.json",
               "version": "1.52.0"
             },
@@ -3731,8 +4065,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Installed scenario: partial",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-goose-headless-macos-2026-10-05.json",
             "version": "1.52.0"
           }
@@ -3764,14 +4098,14 @@
               "version": "1.52.0"
             },
             "imageReference": {
-              "status": "fail",
+              "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-goose-interactive-macos-2026-10-05.json",
               "version": "1.52.0"
             },
             "userImageEntry": {
-              "status": "fail",
-              "detail": "Native editor @image entry and provider input observed; human/context attachment retains a reference, not bytes",
+              "status": "limitation",
+              "detail": "Goose 1.52.0 CLI run --text and session InputResult::Message accept strings, with no native image attachment input. The installed @image remained literal in the human record and provider request. Its real developer read_image tool result retains image references separately; a tool image is not user entry.",
               "evidence": "verification-evidence/conformance-goose-interactive-macos-2026-10-05.json",
               "version": "1.52.0"
             },
@@ -3803,8 +4137,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Installed scenario: partial",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-goose-interactive-macos-2026-10-05.json",
             "version": "1.52.0"
           }
@@ -4150,14 +4484,14 @@
               "version": "1.5.47"
             },
             "imageReference": {
-              "status": "fail",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "status": "limitation",
+              "detail": "Continue 1.5.47 Read returns fs.readFileSync(path, 'utf-8') text even for this PNG; its actual linked result exposes no image carrier or original byte body. The lossy upstream text is preserved without inventing binary evidence. Native TUI user image retention is proved separately.",
               "evidence": "verification-evidence/conformance-continue-headless-macos-2026-10-05.json",
               "version": "1.5.47"
             },
             "userImageEntry": {
-              "status": "fail",
-              "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes",
+              "status": "limitation",
+              "detail": "Continue 1.5.47 --print accepts text and exposes no attachment flag. Native @image remained literal in the resumed human prompt and provider request. Its TUI Ctrl-V media path is a separate verified interface.",
               "evidence": "verification-evidence/conformance-continue-headless-macos-2026-10-05.json",
               "version": "1.5.47"
             },
@@ -4189,8 +4523,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Installed scenario: partial",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-continue-headless-macos-2026-10-05.json",
             "version": "1.5.47"
           }
@@ -4204,36 +4538,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-continue-interactive-macos-2026-10-05.json",
+              "version": "1.5.47"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-continue-interactive-macos-2026-10-05.json",
+              "version": "1.5.47"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-continue-interactive-macos-2026-10-05.json",
+              "version": "1.5.47"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "limitation",
+              "detail": "Continue 1.5.47 Read returns fs.readFileSync(path, 'utf-8') text even for this PNG; its actual linked result exposes no image carrier or original byte body. The lossy upstream text is preserved without inventing binary evidence. Native TUI user image retention is proved separately.",
+              "evidence": "verification-evidence/conformance-continue-interactive-macos-2026-10-05.json",
+              "version": "1.5.47"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-continue-interactive-macos-2026-10-05.json",
+              "version": "1.5.47"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-continue-interactive-macos-2026-10-05.json",
+              "version": "1.5.47"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-continue-interactive-macos-2026-10-05.json",
+              "version": "1.5.47"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-continue-interactive-macos-2026-10-05.json",
+              "version": "1.5.47"
             }
           },
           "local": {
@@ -4245,8 +4595,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Observed initial TUI incomplete: /private/tmp/cledger-conformance-continue-mt2xim/repo ⊦master                                                                         ◉ Checking for updates\n██████╗ ██████╗ ███╗   ██╗████████╗██╗███╗   ██╗██╗   ██╗███████╗\n██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝██║████╗  ██║██║   ██║██╔════╝\n██║     ██║   ██║██╔██╗ ██║   ██║   ██║██╔██╗ ██║██║   ██║█████╗\n██║     ██║   ██║██║╚██╗██║   ██║   ██║██║╚██╗██║██║   ██║██╔══╝\n╚██████╗╚██████╔╝██║ ╚████║   ██║   ██║██║ ╚████║╚██████╔╝███████╗\n╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝\nv1.5.47\nConfig: Verification\nModel: fixture\n/private/tmp/cledger-conformance-continue-mt2xim/repo ⊦master                                                                         ◉ Checking for updates\n╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\n│ ● ▋Ask anything, @ for context, / for slash commands, ! for shell mode                                                                                       │\n╰───────────────────────────────────────────────────────────────────────────────────────────────���──────────────────────────────────────────────────────────────╯\n/private/tmp/cledger-conformance-continue-mt2xim/repo ⊦master                                                                                 ◉ Continue CLI\n^[[200~TESTONLY_CONFORMANCE\nUnicode café 日本語 🦉\nReference evidence.txt; check missing-TESTONLY.txt, then read evidence.txt and image-TESTONLY.png.^[[201~\n╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\n│ ● [200~TESTONLY_CONFORMANCE                                                                                                                                  │\n│   Unicode café 日本語 🦉                                                                                                                                     │\n│   Reference evidence.txt; check missing-TESTONLY.txt, then read evidence.txt and image-TESTONLY.png.                                                         │\n│                                                                                                                                                              │\n╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\n/private/tmp/cledger-conformance-continue-mt2xim/repo ⊦master                                                                                 ◉ Continue CLI",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-continue-interactive-macos-2026-10-05.json",
             "version": "1.5.47"
           }
@@ -4391,8 +4741,8 @@
               "version": "crush version v0.97.1"
             },
             "userImageEntry": {
-              "status": "fail",
-              "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes",
+              "status": "limitation",
+              "detail": "Crush 0.97.1 run accepts prompt text and has no image attachment flag. Installed @image remained literal in the native human prompt/provider input. Its TUI parses a separately pasted file path as an attachment; that interface is checked separately.",
               "evidence": "verification-evidence/conformance-crush-headless-macos-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
@@ -4424,8 +4774,8 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Installed scenario: partial",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
             "evidence": "verification-evidence/conformance-crush-headless-macos-2026-10-05.json",
             "version": "crush version v0.97.1"
           }
@@ -4439,36 +4789,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-crush-interactive-macos-2026-10-05.json",
+              "version": "crush version v0.97.1"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-crush-interactive-macos-2026-10-05.json",
+              "version": "crush version v0.97.1"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-crush-interactive-macos-2026-10-05.json",
+              "version": "crush version v0.97.1"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-crush-interactive-macos-2026-10-05.json",
+              "version": "crush version v0.97.1"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-crush-interactive-macos-2026-10-05.json",
+              "version": "crush version v0.97.1"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
+              "evidence": "verification-evidence/conformance-crush-interactive-macos-2026-10-05.json",
+              "version": "crush version v0.97.1"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-crush-interactive-macos-2026-10-05.json",
+              "version": "crush version v0.97.1"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-crush-interactive-macos-2026-10-05.json",
+              "version": "crush version v0.97.1"
             }
           },
           "local": {
@@ -4478,6 +4844,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-crush-interactive-macos-2026-10-05.json",
+            "version": "crush version v0.97.1"
           }
         },
         "linux/headless": {
@@ -4615,7 +4987,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-kilo-headless-macos-2026-10-05.json",
               "version": "7.8.1"
             },
@@ -4687,7 +5059,7 @@
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case",
+              "detail": "Actual native image tool result retains a reference in its linked result",
               "evidence": "verification-evidence/conformance-kilo-interactive-macos-2026-10-05.json",
               "version": "7.8.1"
             },
@@ -4740,36 +5112,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native prompt argument; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-2026-10-05.json",
+              "version": "7.8.1"
             }
           },
           "local": {
@@ -4779,6 +5167,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-kilo-headless-linux-2026-10-05.json",
+            "version": "7.8.1"
           }
         },
         "linux/interactive": {
@@ -4790,36 +5184,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual file tool result retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual failed native read and linked result; scripted provider observed native error response",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native image tool result retains a reference in its linked result",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-2026-10-05.json",
+              "version": "7.8.1"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-2026-10-05.json",
+              "version": "7.8.1"
             }
           },
           "local": {
@@ -4829,6 +5239,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-kilo-interactive-linux-2026-10-05.json",
+            "version": "7.8.1"
           }
         }
       }

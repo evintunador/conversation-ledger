@@ -153,8 +153,12 @@ macOS/Linux rerun exercises the stricter assertions against those pins.
 
 ## Issue #27 expansion (2026-10-05)
 
-The installed macOS campaign now includes Gemini, Qwen, Pi, Kilo, Copilot and
-Kimi in both modes, plus additional drivers under investigation. See the matrix
+The installed macOS campaign resolves the eight cases (passes or observed upstream
+limitations) in both modes for sixteen CLIs: Claude, Codex, OpenCode, Gemini,
+Qwen, Pi, Kilo, Copilot, Kimi, Continue, Cline, Goose, Open Interpreter,
+OpenHands, Crush and Mistral Vibe. Droid is blocked on isolated resume authentication;
+Aider, Cursor and Kiro still need conformance proof. The initial nine-CLI CI run
+passed all macOS scenarios; Linux Gemini TUI backfill remains a recorded failure. See the matrix
 for the latest per-case result; partial runs do not certify a CLI.
 
 Qwen 0.24.6 persists image tool responses in `functionResponse.parts`, alongside

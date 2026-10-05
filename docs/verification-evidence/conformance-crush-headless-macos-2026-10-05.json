@@ -4,7 +4,7 @@
   "platform": "darwin/arm64",
   "mode": "headless",
   "inference": "scripted",
-  "status": "partial",
+  "status": "pass",
   "cases": {
     "multilineUnicode": {
       "status": "pass",
@@ -23,8 +23,8 @@
       "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
-      "status": "fail",
-      "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+      "status": "limitation",
+      "detail": "Crush 0.97.1 run accepts prompt text and has no image attachment flag. Installed @image remained literal in the native human prompt/provider input. Its TUI parses a separately pasted file path as an attachment; that interface is checked separately."
     },
     "noUnrecognized": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 6,
   "events": 23,
   "fullyCertified": false,
-  "started": "2026-10-05T21:34:21.632Z",
+  "started": "2026-10-05T22:00:09.704Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,33 @@
   ],
   "version": "crush version v0.97.1",
   "automaticEventsBeforeBackfill": 23,
-  "completed": "2026-10-05T21:34:24.263Z"
+  "completed": "2026-10-05T22:00:11.588Z",
+  "nativeTools": [
+    "agent",
+    "agentic_fetch",
+    "bash",
+    "crush_info",
+    "crush_logs",
+    "download",
+    "edit",
+    "fetch",
+    "glob",
+    "grep",
+    "job_kill",
+    "job_output",
+    "ls",
+    "lsp_call_hierarchy",
+    "lsp_definition",
+    "lsp_diagnostics",
+    "lsp_references",
+    "lsp_rename",
+    "lsp_replace_symbol",
+    "lsp_restart",
+    "lsp_symbols",
+    "multiedit",
+    "sourcegraph",
+    "todos",
+    "view",
+    "write"
+  ]
 }

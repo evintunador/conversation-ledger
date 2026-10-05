@@ -4,46 +4,46 @@
   "platform": "darwin/arm64",
   "mode": "interactive",
   "inference": "scripted",
-  "status": "fail",
+  "status": "pass",
   "cases": {
     "multilineUnicode": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture; compared normalized human text, not echoed terminal"
     },
     "textRead": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Actual file tool result retains known UTF-8 text"
     },
     "toolError": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Actual failed native read and linked result; scripted provider observed native error response"
     },
     "imageReference": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "limitation",
+      "detail": "Continue 1.5.47 Read returns fs.readFileSync(path, 'utf-8') text even for this PNG; its actual linked result exposes no image carrier or original byte body. The lossy upstream text is preserved without inventing binary evidence. Native TUI user image retention is proved separately."
     },
     "userImageEntry": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Native input method: native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture; provider image input and persisted human/context reference required, without embedded binary bytes"
     },
     "noUnrecognized": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Unknown native records across initial and resumed turns stay explicit"
     },
     "resume": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
     },
     "backfill": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Both manual imports compared against automatic complete native ledger"
     }
   },
-  "requests": 0,
-  "events": 0,
+  "requests": 6,
+  "events": 22,
   "fullyCertified": false,
-  "started": "2026-10-05T21:34:33.945Z",
-  "inputMethod": "native editor bracketed paste",
+  "started": "2026-10-05T21:52:46.626Z",
+  "inputMethod": "native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture",
   "exclusions": [
     "live provider/model behavior",
     "headless mode",
@@ -52,9 +52,23 @@
     "PDF/archive/oversized or invalid text input",
     "compaction/fork/subagent lifecycle",
     "complete record-type coverage",
-    "other operating systems"
+    "other operating systems",
+    "real OS clipboard integration (lookup fixture only)"
   ],
   "version": "1.5.47",
-  "reason": "Observed initial TUI incomplete: /private/tmp/cledger-conformance-continue-mt2xim/repo ⊦master                                                                         ◉ Checking for updates\n██████╗ ██████╗ ███╗   ██╗████████╗██╗███╗   ██╗██╗   ██╗███████╗\n██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝██║████╗  ██║██║   ██║██╔════╝\n██║     ██║   ██║██╔██╗ ██║   ██║   ██║██╔██╗ ██║██║   ██║█████╗\n██║     ██║   ██║██║╚██╗██║   ██║   ██║██║╚██╗██║██║   ██║██╔══╝\n╚██████╗╚██████╔╝██║ ╚████║   ██║   ██║██║ ╚████║╚██████╔╝███████╗\n╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝\nv1.5.47\nConfig: Verification\nModel: fixture\n/private/tmp/cledger-conformance-continue-mt2xim/repo ⊦master                                                                         ◉ Checking for updates\n╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\n│ ● ▋Ask anything, @ for context, / for slash commands, ! for shell mode                                                                                       │\n╰───────────────────────────────────────────────────────────────────────────────────────────────���──────────────────────────────────────────────────────────────╯\n/private/tmp/cledger-conformance-continue-mt2xim/repo ⊦master                                                                                 ◉ Continue CLI\n^[[200~TESTONLY_CONFORMANCE\nUnicode café 日本語 🦉\nReference evidence.txt; check missing-TESTONLY.txt, then read evidence.txt and image-TESTONLY.png.^[[201~\n╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\n│ ● [200~TESTONLY_CONFORMANCE                                                                                                                                  │\n│   Unicode café 日本語 🦉                                                                                                                                     │\n│   Reference evidence.txt; check missing-TESTONLY.txt, then read evidence.txt and image-TESTONLY.png.                                                         │\n│                                                                                                                                                              │\n╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\n/private/tmp/cledger-conformance-continue-mt2xim/repo ⊦master                                                                                 ◉ Continue CLI",
-  "completed": "2026-10-05T21:35:19.980Z"
+  "automaticEventsBeforeBackfill": 22,
+  "completed": "2026-10-05T21:53:20.089Z",
+  "nativeTools": [
+    "Read",
+    "Write",
+    "List",
+    "Bash",
+    "Fetch",
+    "Checklist",
+    "CheckBackgroundJob",
+    "AskQuestion",
+    "Search",
+    "MultiEdit",
+    "Skills"
+  ]
 }

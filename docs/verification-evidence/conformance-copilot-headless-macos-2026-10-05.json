@@ -20,7 +20,7 @@
     },
     "imageReference": {
       "status": "pass",
-      "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case"
+      "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 5,
   "events": 37,
   "fullyCertified": false,
-  "started": "2026-10-05T21:20:41.038Z",
+  "started": "2026-10-05T21:45:01.597Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,25 @@
   ],
   "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates.",
   "automaticEventsBeforeBackfill": 37,
-  "completed": "2026-10-05T21:20:47.463Z"
+  "completed": "2026-10-05T21:45:06.780Z",
+  "nativeTools": [
+    "bash",
+    "read_bash",
+    "stop_bash",
+    "list_bash",
+    "view",
+    "create",
+    "edit",
+    "web_fetch",
+    "fetch_copilot_cli_documentation",
+    "skill",
+    "sql",
+    "session_store_sql",
+    "read_agent",
+    "list_agents",
+    "write_agent",
+    "grep",
+    "glob",
+    "task"
+  ]
 }

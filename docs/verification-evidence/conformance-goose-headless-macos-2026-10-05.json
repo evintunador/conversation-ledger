@@ -4,7 +4,7 @@
   "platform": "darwin/arm64",
   "mode": "headless",
   "inference": "scripted",
-  "status": "partial",
+  "status": "pass",
   "cases": {
     "multilineUnicode": {
       "status": "pass",
@@ -19,12 +19,12 @@
       "detail": "Actual failed native read and linked result; scripted provider observed native error response"
     },
     "imageReference": {
-      "status": "fail",
+      "status": "pass",
       "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
-      "status": "fail",
-      "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+      "status": "limitation",
+      "detail": "Goose 1.52.0 CLI run --text and session InputResult::Message accept strings, with no native image attachment input. The installed @image remained literal in the human record and provider request. Its real developer read_image tool result retains image references separately; a tool image is not user entry."
     },
     "noUnrecognized": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 5,
   "events": 14,
   "fullyCertified": false,
-  "started": "2026-10-05T21:38:09.418Z",
+  "started": "2026-10-05T21:57:06.776Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -56,7 +56,7 @@
   ],
   "version": "1.52.0",
   "automaticEventsBeforeBackfill": 14,
-  "completed": "2026-10-05T21:38:13.088Z",
+  "completed": "2026-10-05T21:57:09.360Z",
   "nativeTools": [
     "edit",
     "read_image",

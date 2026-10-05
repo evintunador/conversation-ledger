@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import type { EvidenceEvent } from "../schema.js";
 import { findRepo } from "annals";
 import { readEvents } from "../store.js";
+import { hasUnrecognizedEvidence } from "./drift.js";
 import { isolatedEnvironment, runProcess } from "./process.js";
 import { runPty, terminalTail } from "./pty.js";
 import { startConformanceProvider, type ConformanceCli } from "./conformance-provider.js";
@@ -29,6 +30,10 @@ export function attachmentEvidence(value: unknown): { references: number; embedd
     // Kimi stores opaque native media locators. Preserve the available locator;
     // do not invent a digest or byte count that its persisted API omits.
     if (typeof record.url === "string" && /^kimi-file:\/\/f_[a-f0-9-]+$/i.test(record.url)) references++;
+    // Vibe persists the copied attachment's native file locator, not its bytes.
+    if (typeof record.mime_type === "string" && record.mime_type.startsWith("image/") &&
+        record.source && typeof record.source === "object" && (record.source as Record<string, unknown>).kind === "file" &&
+        typeof (record.source as Record<string, unknown>).path === "string") references++;
     if (record.type === "base64" && typeof record.data === "string") embeddedBinary = true;
     if (typeof record.base64 === "string" && typeof record.type === "string" && /^(?:image|application)\//.test(record.type)) embeddedBinary = true;
     if (typeof record.data === "string" && typeof record.mimeType === "string" && /^(?:image|application)\//.test(record.mimeType)) embeddedBinary = true;
@@ -43,6 +48,7 @@ export interface ConformanceReport {
   requests: number; events: number; fullyCertified: false; exclusions: string[]; reason?: string; fileSearchBackend?: string;
   started?: string; completed?: string; inputMethod?: string; automaticEventsBeforeBackfill?: number;
   nativeTools?: string[];
+  backfillObservation?: { automatic: number; first: number; second: number; firstAdded: unknown[]; secondAdded: unknown[] };
 }
 export async function verifyCoreConformance(cli: ConformanceCli, options: { binary?: string; retain?: boolean; timeoutMs?: number; fileSearchBackend?: "ripgrep"; mode?: "headless" | "interactive" } = {}): Promise<ConformanceReport> {
   if (!CONFORMANCE_DRIVERS.includes(cli)) throw Error(`No installed conformance driver for ${cli}`);
@@ -163,6 +169,7 @@ max_attempts_per_step = 1
       const ledger = await findRepo(repo);
       return ledger ? (await readEvents(ledger, { reachableFrom: null })).filter(e => e.producer.source === cli) : [];
     };
+    let resumeLimitation: string | undefined;
     async function terminalRound(resume: boolean) {
       const complete = join(root, resume ? "resume-complete" : "first-complete");
       const priorAnswers = (await exported()).filter(e => e.actor.type === "agent" && textOf(e).includes("TESTONLY_CONFORMANCE_DONE")).length;
@@ -180,7 +187,7 @@ max_attempts_per_step = 1
       })();
       let nativeArgs = args;
       if (resume) nativeArgs = cli === "claude-code" ? [...args, "--continue"] : ["codex", "open-interpreter"].includes(cli) ? ["resume", "--last", "--dangerously-bypass-hook-trust", "--no-alt-screen"] : cli === "gemini-cli" ? ["--resume", "latest"] : [...args, "--continue"];
-      const sent = resume ? "TESTONLY_CONFORMANCE_RESUME\nUnicode déjà vu 日本語 🦉" + (["codex", "open-interpreter", "pi"].includes(cli) ? "" : " @image-TESTONLY.png") : prompt;
+      const sent = resume ? "TESTONLY_CONFORMANCE_RESUME\nUnicode déjà vu 日本語 🦉" + (["codex", "open-interpreter", "pi"].includes(cli) ? "" : " @image-TESTONLY.png") : prompt + (cli === "cline" && mode === "headless" ? " @image-TESTONLY.png" : "");
       const additional = ADDITIONAL_CONFORMANCE_DRIVERS.includes(cli as typeof ADDITIONAL_CONFORMANCE_DRIVERS[number]);
       const session = (await exported()).find(e => e.actor.type === "human" && blocks(e).some(b => b.type === "text" && String(b.text).includes("TESTONLY_CONFORMANCE")))?.producer.session_id;
       const invocation = (native: string[]) => WRAPPED_CONFORMANCE_DRIVERS.has(cli)
@@ -195,6 +202,14 @@ max_attempts_per_step = 1
           const command = invocation(headlessArgs);
           const result = await run(command.command, command.args, options.timeoutMs ?? 120000);
           await writeFile(join(root, resume ? "resume-headless.log" : "first-headless.log"), result.stdout + result.stderr, { mode: 0o600 });
+          if (resume && cli === "cline" && result.code === 1 && !result.timedOut && (result.stdout + result.stderr).includes("JSON output mode requires a prompt argument or piped stdin")) {
+            resumeLimitation = "Cline 3.0.65 --id forces interactive mode and clears the supplied prompt before JSON-mode validation. The installed --id/--json invocation rejects continuation; piped input also rejects it. TUI resume is a separate gate. No resumed record was fabricated.";
+            return;
+          }
+          if (resume && cli === "droid" && result.code === 1) {
+            const log = await readFile(join(root, ".factory", "logs", "droid-log-single.log"), "utf8").catch(() => "");
+            if (log.includes("Missing authorization token in HTTP headers") && log.includes("Failed to fetch session")) throw Error("LOGIN_REQUIRED: Droid 0.229.0 exec --session-id fetches the session through Factory's authenticated API even with cloudSessionSync=false and a local BYOK session. Isolated Factory authentication is required; no user credential was borrowed.");
+          }
           if (result.code !== 0 || result.timedOut) throw Error(`Observed ${resume ? "resume" : "initial"} headless invocation incomplete (${result.code}, timeout=${result.timedOut}): ${terminalTail(result.stdout + result.stderr)}`);
           const deadline = Date.now() + 15000;
           while (Date.now() < deadline) {
@@ -206,11 +221,16 @@ max_attempts_per_step = 1
           throw Error("Automatic headless prompt/answer capture incomplete before backfill");
         }
         if (cli === "open-interpreter" && !resume) nativeArgs = [...nativeArgs, prompt];
-        const actions = cli === "open-interpreter" && !resume ? [
+        const actions = cli === "crush" && resume ? [
+          { waitFor: readiness, send: "\x1b[200~" + join(repo, "image-TESTONLY.png") + "\x1b[201~", delayMs: 500 },
+          { waitFor: "image-TESTONLY\\.png", send: "\x1b[200~TESTONLY_CONFORMANCE_RESUME\nUnicode déjà vu 日本語 🦉\x1b[201~", delayMs: 500 },
+          { waitFor: "Unicode", send: "\r", delayMs: 1000 },
+          { waitFor: "^", waitForPath: complete, send: "/exit\r", delayMs: 500 },
+        ] : cli === "open-interpreter" && !resume ? [
           { waitFor: "^", waitForPath: complete, send: "/exit\r", delayMs: 1000 },
         ] : cli === "continue" ? [
-          ...(resume ? [{ waitFor: "Press Ctrl\\+V to paste image", send: "\x16", delayMs: 1000 }, { waitFor: "Image #1", send: "", delayMs: 500 }] : []),
-          { waitFor: readiness, send: sent, delayMs: 500 },
+          ...(resume ? [{ waitFor: "Press Ctrl\\+V to paste image", send: "\x16", delayMs: 1000 }] : []),
+          { waitFor: resume ? "Image #1" : readiness, send: sent, delayMs: 500 },
           { waitFor: "Unicode", send: "\r", delayMs: 1000 },
           { waitFor: "^", waitForPath: complete, send: "/exit", delayMs: 1000 },
           { waitFor: "/exit", send: "\r", delayMs: 500 },
@@ -238,6 +258,7 @@ max_attempts_per_step = 1
             ...(resume && cli === "gemini-cli" ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
           ] : [{ waitFor: readiness, send: sent + "\r", paste: true, delayMs: 500 }]),
           ...(resume && ["claude-code", "copilot", "cline", "mistral-vibe"].includes(cli) ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
+          ...(resume && cli === "cline" ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
           ...(["gemini-cli", "qwen-code", "copilot", "kimi"].includes(cli) ? [
             { waitFor: "^", waitForPath: complete, send: cli === "kimi" ? "/exit" : "/quit", delayMs: 1000 },
             { waitFor: cli === "gemini-cli" ? "Exit the cli" : cli === "kimi" ? "/exit" : "/quit", send: "\r", delayMs: 1000 },
@@ -272,8 +293,12 @@ max_attempts_per_step = 1
     report.cases.textRead = { status: toolResults.some(b => reads.has(b.tool_use_id) && JSON.stringify(b).includes(value) && JSON.stringify(b).includes("café 日本語 🦉")) ? "pass" : "fail", detail: "Actual file tool result retains known UTF-8 text" };
     report.cases.toolError = { status: provider.state.toolError && toolResults.some(b => errors.has(b.tool_use_id) && /missing-TESTONLY|No such file|does not exist|not found|code: 1/i.test(JSON.stringify(b))) ? "pass" : "fail", detail: "Actual failed native read and linked result; scripted provider observed native error response" };
     report.cases.imageReference = { status: !attachments.embeddedBinary && (["codex", "open-interpreter"].includes(cli) ? attachments.references > 0 : linkedImageResult) ? "pass" : "fail", detail: ["codex", "open-interpreter"].includes(cli) ? "Native --image initial attachment retained as a reference, without embedded binary bytes" : "Actual native image tool result retains a reference in its linked result" };
+    if (cli === "continue" && !attachments.embeddedBinary && toolResults.some(b => images.has(b.tool_use_id)) && !linkedImageResult) report.cases.imageReference = {
+      status: "limitation", detail: "Continue 1.5.47 Read returns fs.readFileSync(path, 'utf-8') text even for this PNG; its actual linked result exposes no image carrier or original byte body. The lossy upstream text is preserved without inventing binary evidence. Native TUI user image retention is proved separately." };
+    if (cli === "mistral-vibe" && !attachments.embeddedBinary && toolResults.some(b => images.has(b.tool_use_id)) && !linkedImageResult) report.cases.imageReference = {
+      status: "limitation", detail: "Vibe 2.25.8 legacy read_file decodes this PNG into numbered text via read_lines_safe_async, with replacement characters. The linked native result omits the original binary carrier; its lossy text is preserved without inventing original bytes, size or digest. User image entry is checked separately." };
     report.cases.userImageEntry = { status: ["codex", "open-interpreter", "pi"].includes(cli) && provider.state.inputImage ? report.cases.imageReference.status : "not-run", detail: ["codex", "open-interpreter"].includes(cli) ? "Documented native --image initial attachment" : cli === "pi" ? "Documented native @image initial argument; provider image input and retained reference checked" : "Native @image reference attempted on resumed turn; tool-returned image alone is not proof" };
-    report.cases.noUnrecognized = { status: first.some(e => e.kind === "unrecognized") ? "fail" : "pass", detail: "Unknown native record evidence stays explicit" };
+    report.cases.noUnrecognized = { status: hasUnrecognizedEvidence(first, cli) ? "fail" : "pass", detail: "Unknown native record evidence stays explicit, including nested markers" };
     await terminalRound(true);
     // Detached native followers can persist terminal lifecycle records after
     // the binary exits. Wait for their owned status files before backfill.
@@ -297,17 +322,30 @@ max_attempts_per_step = 1
     const resumed = await exported(); report.events = resumed.length;
     if (options.retain) await writeFile(join(root, "resumed-automatic.jsonl"), resumed.map(e => JSON.stringify(e)).join("\n") + "\n", { mode: 0o600 });
     report.automaticEventsBeforeBackfill = resumed.length;
-    report.cases.noUnrecognized = { status: resumed.some(e => e.kind === "unrecognized") ? "fail" : "pass", detail: "Unknown native records across initial and resumed turns stay explicit" };
+    report.cases.noUnrecognized = { status: hasUnrecognizedEvidence(resumed, cli) ? "fail" : "pass", detail: "Unknown native records across initial and resumed turns stay explicit, including nested markers" };
     const second = resumed.find(e => e.actor.type === "human" && blocks(e).some(b => b.type === "text" && String(b.text).includes("TESTONLY_CONFORMANCE_RESUME")));
     const resumedText = second ? blocks(second).filter(b => b.type === "text").map(b => b.text).join("\n") : "";
     report.cases.resume = { status: human && second && human.stream?.id === second.stream?.id && resumedText.includes("TESTONLY_CONFORMANCE_RESUME\nUnicode déjà vu 日本語 🦉") &&
       resumed.filter(e => e.stream?.id === human.stream?.id && e.actor.type === "agent" && textOf(e).includes("TESTONLY_CONFORMANCE_DONE")).length >
       first.filter(e => e.stream?.id === human.stream?.id && e.actor.type === "agent" && textOf(e).includes("TESTONLY_CONFORMANCE_DONE")).length ? "pass" : "fail", detail: "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream" };
+    if (resumeLimitation) report.cases.resume = { status: "limitation", detail: resumeLimitation };
     const entryRecords = resumed.filter(e => e.actor.type === "human" || e.kind === "context_injection" && JSON.stringify(e.content).includes('"filename"') && JSON.stringify(e.content).includes("image-TESTONLY.png"));
     if (!["codex", "open-interpreter", "pi"].includes(cli)) report.cases.userImageEntry = { status: provider.state.inputImage && attachmentEvidence(entryRecords).references > 0 ? "pass" : "fail", detail: `Native input method: ${report.inputMethod}; provider image input and persisted human/context reference required, without embedded binary bytes` };
     if (cli === "kimi" && mode === "headless" && !provider.state.inputImage && resumedText.includes("@image-TESTONLY.png")) {
       report.cases.userImageEntry = { status: "limitation", detail: "Kimi 2.1.1 --prompt accepts text only: its installed help exposes no attachment flag, and @image remained literal in the native human record/provider request. TUI clipboard media and ACP media are separate interfaces, not headless prompt evidence. Native ReadMediaFile is checked separately." };
     }
+    if (cli === "cline" && mode === "headless" && !provider.state.inputImage && text.includes("@image-TESTONLY.png")) report.cases.userImageEntry = {
+      status: "limitation", detail: "Cline 3.0.65 headless --json accepts a text prompt and exposes no image attachment flag. Native @image remained literal in the persisted human prompt and provider input; a tool-returned image does not prove user attachment entry." };
+    if (cli === "continue" && mode === "headless" && !provider.state.inputImage && resumedText.includes("@image-TESTONLY.png")) report.cases.userImageEntry = {
+      status: "limitation", detail: "Continue 1.5.47 --print accepts text and exposes no attachment flag. Native @image remained literal in the resumed human prompt and provider request. Its TUI Ctrl-V media path is a separate verified interface." };
+    if (cli === "goose" && !provider.state.inputImage && resumedText.includes("@image-TESTONLY.png")) report.cases.userImageEntry = {
+      status: "limitation", detail: "Goose 1.52.0 CLI run --text and session InputResult::Message accept strings, with no native image attachment input. The installed @image remained literal in the human record and provider request. Its real developer read_image tool result retains image references separately; a tool image is not user entry." };
+    if (cli === "mistral-vibe" && mode === "headless" && !provider.state.inputImage && resumedText.includes("@image-TESTONLY.png")) report.cases.userImageEntry = {
+      status: "limitation", detail: "Vibe 2.25.8 legacy programmatic --prompt submits a string without the TUI's image-token expansion. Installed @image remained literal in the human prompt/provider request despite supports_images=true. TUI @image entry retains its native copied-file locator and is checked separately." };
+    if (cli === "crush" && mode === "headless" && !provider.state.inputImage && resumedText.includes("@image-TESTONLY.png")) report.cases.userImageEntry = {
+      status: "limitation", detail: "Crush 0.97.1 run accepts prompt text and has no image attachment flag. Installed @image remained literal in the native human prompt/provider input. Its TUI parses a separately pasted file path as an attachment; that interface is checked separately." };
+    if (cli === "openhands" && !provider.state.inputImage && resumedText.includes("@image-TESTONLY.png")) report.cases.userImageEntry = {
+      status: "limitation", detail: "OpenHands CLI 1.16.0 headless --task and native TUI conversation_runner submit TextContent(text=user_input). Installed @image remained text in both the native human record and provider request. ACP supports ImageContent through another interface; ACP evidence cannot certify native CLI/TUI image entry." };
     if (attachmentEvidence(resumed).embeddedBinary) report.cases.imageReference = { status: "fail", detail: "Embedded binary survived in initial or resumed native content/raw; retention repair required" };
     let captureArgs = ["--all"];
     if (["codex", "open-interpreter"].includes(cli)) {
@@ -320,11 +358,20 @@ max_attempts_per_step = 1
     await checked(process.execPath, [sourceCli, "capture", cli, ...captureArgs]);
     const repeated = await exported();
     const ids = (events: EvidenceEvent[]) => events.map(e => e.id).sort().join("\n");
+    const added = (before: EvidenceEvent[], after: EvidenceEvent[]) => {
+      const known = new Set(before.map(e => e.id));
+      return after.filter(e => !known.has(e.id)).map(e => ({ id: e.id, kind: e.kind, actor: e.actor.type,
+        source: e.producer.source, nativeRecord: e.raw, content: e.content }));
+    };
+    report.backfillObservation = { automatic: resumed.length, first: backfilled.length, second: repeated.length,
+      firstAdded: added(resumed, backfilled), secondAdded: added(backfilled, repeated) };
     report.cases.backfill = { status: ids(resumed) === ids(backfilled) && ids(backfilled) === ids(repeated) ? "pass" : "fail", detail: "Both manual imports compared against automatic complete native ledger" };
     report.status = Object.values(report.cases).every(c => c.status === "pass" || c.status === "limitation") ? "pass" : "partial";
   } catch (error) {
     report.reason = error instanceof Error ? error.message : String(error);
-    if (provider?.state.requests) {
+    if (report.reason.startsWith("LOGIN_REQUIRED:")) {
+      report.status = "blocked";
+    } else if (provider?.state.requests) {
       report.status = "fail";
       report.cases.scenarioCompletion = { status: "fail", detail: "The installed interface issued native model requests but did not complete automatic capture/lifecycle gates; this is not a login skip" };
     } else report.status = report.version ? "fail" : "blocked";

@@ -22,8 +22,12 @@ for (const cli of CONFORMANCE_DRIVERS) for (const mode of ["headless", "interact
       await mkdir(process.env.CLEDGER_CONFORMANCE_REPORT_DIRECTORY, { recursive: true });
       await writeFile(join(process.env.CLEDGER_CONFORMANCE_REPORT_DIRECTORY, cli + "-" + mode + ".json"), JSON.stringify(report, null, 2) + "\n");
     }
-    for (const name of CONFORMANCE_CASES) assert.equal(report.cases[name]?.status,
-      cli === "kimi" && mode === "headless" && name === "userImageEntry" ? "limitation" : "pass", JSON.stringify(report));
+    for (const name of CONFORMANCE_CASES) {
+      const limitation = name === "imageReference" && ["continue", "mistral-vibe"].includes(cli) ||
+        name === "userImageEntry" && (["goose", "openhands"].includes(cli) || mode === "headless" && ["kimi", "continue", "mistral-vibe", "cline", "crush"].includes(cli)) ||
+        cli === "cline" && mode === "headless" && name === "resume";
+      assert.equal(report.cases[name]?.status, limitation ? "limitation" : "pass", JSON.stringify(report));
+    }
     assert.equal(report.mode, mode);
     assert.equal(report.status, "pass", JSON.stringify(report));
   });

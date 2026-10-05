@@ -4,45 +4,45 @@
   "platform": "darwin/arm64",
   "mode": "interactive",
   "inference": "scripted",
-  "status": "fail",
+  "status": "pass",
   "cases": {
     "multilineUnicode": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal"
     },
     "textRead": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Actual file tool result retains known UTF-8 text"
     },
     "toolError": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Actual failed native read and linked result; scripted provider observed native error response"
     },
     "imageReference": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes"
     },
     "noUnrecognized": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Unknown native records across initial and resumed turns stay explicit"
     },
     "resume": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
     },
     "backfill": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Both manual imports compared against automatic complete native ledger"
     }
   },
-  "requests": 0,
-  "events": 0,
+  "requests": 5,
+  "events": 16,
   "fullyCertified": false,
-  "started": "2026-10-05T21:37:11.033Z",
+  "started": "2026-10-05T21:58:12.177Z",
   "inputMethod": "native editor bracketed paste",
   "exclusions": [
     "live provider/model behavior",
@@ -55,6 +55,33 @@
     "other operating systems"
   ],
   "version": "3.0.65",
-  "reason": "Observed initial TUI incomplete:                                                                                                                                                                     ────────────────────────────────────────────────────────────────────                                                                                            ❯ What can I do for you?                                                                                                                                        ────────────────────────────────────────────────────────────────────                                                                                                                                                                                                                                                             fixture (0) $0.00                               ○ Plan ● Act (Tab)                                                                                              repo (master)                                                                                                                                                   ⏵⏵ Auto-approve all enabled (Shift+Tab)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           q",
-  "completed": "2026-10-05T21:37:58.330Z"
+  "automaticEventsBeforeBackfill": 16,
+  "completed": "2026-10-05T21:58:28.620Z",
+  "nativeTools": [
+    "read_files",
+    "search_codebase",
+    "run_commands",
+    "fetch_web_content",
+    "editor",
+    "ask_question",
+    "spawn_agent",
+    "team_spawn_teammate",
+    "team_shutdown_teammate",
+    "team_status",
+    "team_task",
+    "team_run_task",
+    "team_cancel_run",
+    "team_list_runs",
+    "team_await_runs",
+    "team_send_message",
+    "team_broadcast",
+    "team_read_mailbox",
+    "team_mission_log",
+    "team_cleanup",
+    "team_create_outcome",
+    "team_attach_outcome_fragment",
+    "team_review_outcome_fragment",
+    "team_finalize_outcome",
+    "team_list_outcomes"
+  ]
 }

@@ -20,11 +20,11 @@
     },
     "imageReference": {
       "status": "pass",
-      "detail": "Installed --image input attached to initial real TUI; binary retained as reference, not base64 bytes"
+      "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes"
     },
     "userImageEntry": {
       "status": "pass",
-      "detail": "Documented native --image initial attachment in TUI"
+      "detail": "Documented native --image initial attachment"
     },
     "noUnrecognized": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 4,
   "events": 37,
   "fullyCertified": false,
-  "started": "2026-10-05T21:13:11.175Z",
+  "started": "2026-10-05T21:42:08.913Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,19 @@
   ],
   "version": "codex-cli 0.159.0",
   "automaticEventsBeforeBackfill": 37,
-  "completed": "2026-10-05T21:13:19.783Z"
+  "completed": "2026-10-05T21:42:14.038Z",
+  "nativeTools": [
+    "exec_command",
+    "write_stdin",
+    "request_user_input",
+    "view_image",
+    "close_agent",
+    "resume_agent",
+    "send_input",
+    "spawn_agent",
+    "wait_agent",
+    "get_goal",
+    "create_goal",
+    "update_goal"
+  ]
 }

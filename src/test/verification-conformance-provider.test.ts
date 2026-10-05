@@ -26,3 +26,17 @@ test("Responses native image-only human input is distinct from function output",
     }
   } finally { await provider.close(); }
 });
+
+test("Pi's image-only human message qualifies while its explicit tool projection does not", async () => {
+  const provider = await startConformanceProvider("pi");
+  try {
+    for (const content of [
+      [{ type: "text", text: "Attached image(s) from tool result:" }, { type: "image_url", image_url: { url: "data:image/png;base64,TESTONLY" } }],
+      [{ type: "image_url", image_url: { url: "data:image/png;base64,TESTONLY" } }],
+    ]) {
+      const response = await fetch(provider.endpoint + "/v1/chat/completions", { method: "POST", body: JSON.stringify({ messages: [{ role: "user", content }] }) });
+      await response.text();
+      assert.equal(provider.state.inputImage, content.length === 1);
+    }
+  } finally { await provider.close(); }
+});

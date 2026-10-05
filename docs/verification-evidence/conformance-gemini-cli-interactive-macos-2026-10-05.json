@@ -20,7 +20,7 @@
     },
     "imageReference": {
       "status": "pass",
-      "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case"
+      "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 7,
   "events": 65,
   "fullyCertified": false,
-  "started": "2026-10-05T21:17:19.839Z",
+  "started": "2026-10-05T21:43:02.122Z",
   "inputMethod": "native editor bracketed paste",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,24 @@
   ],
   "version": "0.61.0",
   "automaticEventsBeforeBackfill": 65,
-  "completed": "2026-10-05T21:17:37.600Z"
+  "completed": "2026-10-05T21:43:16.943Z",
+  "nativeTools": [
+    "update_topic",
+    "list_directory",
+    "read_file",
+    "grep_search",
+    "glob",
+    "replace",
+    "write_file",
+    "web_fetch",
+    "run_shell_command",
+    "list_background_processes",
+    "read_background_output",
+    "google_web_search",
+    "ask_user",
+    "write_todos",
+    "enter_plan_mode",
+    "invoke_agent",
+    "activate_skill"
+  ]
 }

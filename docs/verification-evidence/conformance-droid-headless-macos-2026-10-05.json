@@ -4,7 +4,7 @@
   "platform": "darwin/arm64",
   "mode": "headless",
   "inference": "scripted",
-  "status": "fail",
+  "status": "blocked",
   "cases": {
     "multilineUnicode": {
       "status": "pass",
@@ -37,16 +37,12 @@
     "backfill": {
       "status": "not-run",
       "detail": "Installed scenario has not reached this gate"
-    },
-    "scenarioCompletion": {
-      "status": "fail",
-      "detail": "The installed interface issued native model requests but did not complete automatic capture/lifecycle gates; this is not a login skip"
     }
   },
   "requests": 4,
   "events": 15,
   "fullyCertified": false,
-  "started": "2026-10-05T21:31:16.704Z",
+  "started": "2026-10-05T21:48:56.872Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -59,6 +55,9 @@
     "other operating systems"
   ],
   "version": "0.229.0",
-  "reason": "Observed resume headless invocation incomplete (1, timeout=false): ",
-  "completed": "2026-10-05T21:31:21.955Z"
+  "reason": "LOGIN_REQUIRED: Droid 0.229.0 exec --session-id fetches the session through Factory's authenticated API even with cloudSessionSync=false and a local BYOK session. Isolated Factory authentication is required; no user credential was borrowed.",
+  "completed": "2026-10-05T21:49:01.183Z",
+  "nativeTools": [
+    "Read"
+  ]
 }

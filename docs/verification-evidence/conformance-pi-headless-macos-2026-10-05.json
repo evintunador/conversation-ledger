@@ -20,11 +20,11 @@
     },
     "imageReference": {
       "status": "pass",
-      "detail": "Actual native Read image output retains a reference in the linked image tool result; user editor image-paste entry is a separate unverified case"
+      "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
       "status": "pass",
-      "detail": "Native editor @image reference attempted on resumed turn; tool-returned image alone is not proof"
+      "detail": "Documented native @image initial argument; provider image input and retained reference checked"
     },
     "noUnrecognized": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 5,
   "events": 14,
   "fullyCertified": false,
-  "started": "2026-10-05T21:12:38.037Z",
+  "started": "2026-10-05T21:43:31.884Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,8 @@
   ],
   "version": "0.87.1",
   "automaticEventsBeforeBackfill": 14,
-  "completed": "2026-10-05T21:12:42.666Z"
+  "completed": "2026-10-05T21:43:34.986Z",
+  "nativeTools": [
+    "read"
+  ]
 }

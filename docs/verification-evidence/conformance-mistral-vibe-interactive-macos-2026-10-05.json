@@ -4,7 +4,7 @@
   "platform": "darwin/arm64",
   "mode": "interactive",
   "inference": "scripted",
-  "status": "fail",
+  "status": "pass",
   "cases": {
     "multilineUnicode": {
       "status": "pass",
@@ -19,34 +19,30 @@
       "detail": "Actual failed native read and linked result; scripted provider observed native error response"
     },
     "imageReference": {
-      "status": "fail",
-      "detail": "Actual native image tool result retains a reference in its linked result"
+      "status": "limitation",
+      "detail": "Vibe 2.25.8 legacy read_file decodes this PNG into numbered text via read_lines_safe_async, with replacement characters. The linked native result omits the original binary carrier; its lossy text is preserved without inventing original bytes, size or digest. User image entry is checked separately."
     },
     "userImageEntry": {
-      "status": "not-run",
-      "detail": "Native @image reference attempted on resumed turn; tool-returned image alone is not proof"
+      "status": "pass",
+      "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes"
     },
     "noUnrecognized": {
       "status": "pass",
-      "detail": "Unknown native record evidence stays explicit"
+      "detail": "Unknown native records across initial and resumed turns stay explicit"
     },
     "resume": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
     },
     "backfill": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
-    },
-    "scenarioCompletion": {
-      "status": "fail",
-      "detail": "The installed interface issued native model requests but did not complete automatic capture/lifecycle gates; this is not a login skip"
+      "status": "pass",
+      "detail": "Both manual imports compared against automatic complete native ledger"
     }
   },
-  "requests": 4,
-  "events": 9,
+  "requests": 5,
+  "events": 12,
   "fullyCertified": false,
-  "started": "2026-10-05T21:37:58.332Z",
+  "started": "2026-10-05T21:56:04.089Z",
   "inputMethod": "native editor bracketed paste",
   "exclusions": [
     "live provider/model behavior",
@@ -59,6 +55,9 @@
     "other operating systems"
   ],
   "version": "vibe 2.25.8",
-  "reason": "Observed resume TUI incomplete:                             Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                   ⡠⣒⠄  ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡠⣀⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                   ⡠⣒⠄  ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡢⣂⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆   ⡠⣒⠄  ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡢⣂⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡢⣂⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆ ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠈⡀⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇ ⢔⡢⡀    ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇ ⢔⡢⡀    ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡢⣂⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆",
-  "completed": "2026-10-05T21:38:49.422Z"
+  "automaticEventsBeforeBackfill": 12,
+  "completed": "2026-10-05T21:56:13.917Z",
+  "nativeTools": [
+    "read_file"
+  ]
 }

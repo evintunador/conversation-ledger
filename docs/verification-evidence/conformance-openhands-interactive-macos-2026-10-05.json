@@ -4,45 +4,45 @@
   "platform": "darwin/arm64",
   "mode": "interactive",
   "inference": "scripted",
-  "status": "fail",
+  "status": "pass",
   "cases": {
     "multilineUnicode": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal"
     },
     "textRead": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Actual file tool result retains known UTF-8 text"
     },
     "toolError": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Actual failed native read and linked result; scripted provider observed native error response"
     },
     "imageReference": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Actual native image tool result retains a reference in its linked result"
     },
     "userImageEntry": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "limitation",
+      "detail": "OpenHands CLI 1.16.0 headless --task and native TUI conversation_runner submit TextContent(text=user_input). Installed @image remained text in both the native human record and provider request. ACP supports ImageContent through another interface; ACP evidence cannot certify native CLI/TUI image entry."
     },
     "noUnrecognized": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
     },
     "resume": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
     },
     "backfill": {
-      "status": "not-run",
-      "detail": "Installed scenario has not reached this gate"
+      "status": "pass",
+      "detail": "Both manual imports compared against automatic complete native ledger"
     }
   },
-  "requests": 0,
-  "events": 0,
+  "requests": 5,
+  "events": 29,
   "fullyCertified": false,
-  "started": "2026-10-05T21:36:15.336Z",
+  "started": "2026-10-05T22:01:41.091Z",
   "inputMethod": "native editor bracketed paste",
   "exclusions": [
     "live provider/model behavior",
@@ -55,6 +55,15 @@
     "other operating systems"
   ],
   "version": "OpenHands CLI 1.16.0",
-  "reason": "Observed initial TUI incomplete:                                    │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │                                                                                                                                                           │",
-  "completed": "2026-10-05T21:37:04.029Z"
+  "automaticEventsBeforeBackfill": 29,
+  "completed": "2026-10-05T22:02:09.240Z",
+  "nativeTools": [
+    "terminal",
+    "file_editor",
+    "task_tracker",
+    "task",
+    "finish",
+    "think",
+    "invoke_skill"
+  ]
 }

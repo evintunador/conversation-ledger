@@ -4,7 +4,7 @@
   "platform": "darwin/arm64",
   "mode": "headless",
   "inference": "scripted",
-  "status": "partial",
+  "status": "pass",
   "cases": {
     "multilineUnicode": {
       "status": "pass",
@@ -19,12 +19,12 @@
       "detail": "Actual failed native read and linked result; scripted provider observed native error response"
     },
     "imageReference": {
-      "status": "fail",
-      "detail": "Actual native image tool result retains a reference in its linked result"
+      "status": "limitation",
+      "detail": "Vibe 2.25.8 legacy read_file decodes this PNG into numbered text via read_lines_safe_async, with replacement characters. The linked native result omits the original binary carrier; its lossy text is preserved without inventing original bytes, size or digest. User image entry is checked separately."
     },
     "userImageEntry": {
-      "status": "fail",
-      "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+      "status": "limitation",
+      "detail": "Vibe 2.25.8 legacy programmatic --prompt submits a string without the TUI's image-token expansion. Installed @image remained literal in the human prompt/provider request despite supports_images=true. TUI @image entry retains its native copied-file locator and is checked separately."
     },
     "noUnrecognized": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 5,
   "events": 12,
   "fullyCertified": false,
-  "started": "2026-10-05T21:34:24.267Z",
+  "started": "2026-10-05T21:58:28.621Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -56,5 +56,8 @@
   ],
   "version": "vibe 2.25.8",
   "automaticEventsBeforeBackfill": 12,
-  "completed": "2026-10-05T21:34:33.944Z"
+  "completed": "2026-10-05T21:58:31.782Z",
+  "nativeTools": [
+    "read_file"
+  ]
 }
