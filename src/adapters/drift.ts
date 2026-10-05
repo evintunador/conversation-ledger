@@ -16,6 +16,7 @@
  */
 
 import type { EventDraft, ProducerAgentContext } from "../schema.js";
+import { canonicalJson, sha256Hex } from "annals";
 
 export interface CaptureResult {
   appended: number;
@@ -130,7 +131,9 @@ export function reasoningDraft(params: {
       ...params.agent,
     },
     stream: { id: params.conversationId, seq: params.seq },
-    content: { opaque: true },
+    // Annals identities exclude raw. A revised opaque provider envelope at
+    // the same source position must not deduplicate away different bytes.
+    content: { opaque: true, raw_sha256: sha256Hex(canonicalJson(params.line)) },
     raw: { format: params.rawFormat, data: params.line },
   };
 }

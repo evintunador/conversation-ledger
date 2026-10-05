@@ -1,0 +1,37 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "continue",
+  "status": "pass",
+  "certification": "native-smoke",
+  "inference": "scripted",
+  "platform": "darwin/arm64",
+  "gates": {
+    "interactiveTerminal": true,
+    "automaticPrompt": true,
+    "automaticToolUse": true,
+    "automaticToolResult": true,
+    "automaticAnswer": true,
+    "noUnrecognizedRecords": true,
+    "backfillIdempotent": true,
+    "scriptedRequests": true
+  },
+  "durationMs": 14400,
+  "coverage": [
+    "explicit launch wrapper",
+    "human prompt",
+    "linked file read",
+    "assistant answer",
+    "native snapshot revisions",
+    "backfill idempotency",
+    "interactive PTY prompt and exit"
+  ],
+  "exclusions": [
+    "unwrapped sessions",
+    "compaction/resume",
+    "all record types",
+    "real provider authentication"
+  ],
+  "mode": "interactive",
+  "version": "1.5.47",
+  "requests": 3
+}

@@ -1,0 +1,38 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "crush",
+  "status": "pass",
+  "certification": "native-smoke",
+  "inference": "scripted",
+  "mode": "interactive",
+  "platform": "darwin/arm64",
+  "gates": {
+    "interactiveExit": true,
+    "noUnrecognizedRecords": true,
+    "automaticPrompt": true,
+    "automaticToolUse": true,
+    "automaticToolResult": true,
+    "automaticAnswer": true,
+    "backfillIdempotent": true,
+    "agentHeader": true,
+    "scriptedRequests": true
+  },
+  "durationMs": 2320,
+  "coverage": [
+    "explicit launch wrapper",
+    "human prompt",
+    "linked file read",
+    "assistant answer",
+    "native SQLite persistence",
+    "backfill idempotency",
+    "interactive PTY keyboard prompt and exit"
+  ],
+  "exclusions": [
+    "unwrapped sessions",
+    "compaction/resume",
+    "all record types",
+    "real provider authentication"
+  ],
+  "version": "crush version v0.97.1",
+  "requests": 3
+}

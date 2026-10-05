@@ -1,0 +1,44 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "kimi",
+  "version": "2.1.1",
+  "platform": "darwin/arm64",
+  "date": "2026-10-02",
+  "provider": "local DeepSeek gateway via OpenAI-compatible API",
+  "model": "deepseek-v4-flash",
+  "status": "partial",
+  "reasonCode": "verification-guard-blocked",
+  "reason": "The installed CLI completed its Read tool and received the canary, then its next model step received HTTP 429 from the local verification guard because the first response stream was still marked active. That stream subsequently reached its 180-second deadline. No final assistant answer was produced; this does not establish a provider rate-limit or model failure.",
+  "requestCount": 1,
+  "requestLimits": {
+    "requests": 4,
+    "maxOutputTokens": 2048,
+    "requestTimeoutMs": 180000,
+    "sessionTimeoutMs": 360000
+  },
+  "interactive": {
+    "execution": "real installed TUI through PTY; explicitly authorized native folder-trust acceptance for disposable test repository",
+    "prompt": "TESTONLY Kimi authorized DeepSeek TUI probe. Read evidence.txt using the Read tool and reply with its exact contents. Do not use any other tools.",
+    "exitCode": 0,
+    "timedOut": false,
+    "actionsCompleted": 4
+  },
+  "gates": {
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": false,
+    "nativeSessionState": true,
+    "normalExit": true
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 30,
+  "manualBackfillPerformed": false,
+  "testRequestsClosed": true,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "macOS interactive test only; no live Linux or full record-type certification",
+    "Native folder trust was explicitly approved and accepted only for the disposable Kimi test repository",
+    "Final-answer verification remains incomplete because the local test guard rejected the continuation request; no retry was performed"
+  ]
+}

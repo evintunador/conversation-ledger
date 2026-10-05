@@ -9,6 +9,7 @@ import { packageVersion, readCursor, writeCursor } from "./common.js";
 import {
   countUnrecognized,
   mergeCaptureResult,
+  reasoningDraft,
   unrecognizedDraft,
   warnUnrecognized,
   type CaptureResult,
@@ -60,6 +61,9 @@ const SESSION_STATE_LINE_TYPES = new Set([
   "worktree-state",
   "pr-link",
   "bridge-session",
+  // Observed in native 2.1.284: persisted latch and cumulative cost state.
+  "atis-latch",
+  "cost-state",
 ]);
 
 /** Line types recorded as `activity` — things that happened, not state. */
@@ -482,8 +486,9 @@ function convertLine(
   fileSessionId: string,
 ): EventDraft | null {
   if (line.type !== "user" && line.type !== "assistant") return null;
-  if (!line.message) return null;
+  if (!line.message || typeof line.message !== "object") return null;
   if (typeof line.timestamp !== "string") return null;
+  if (typeof line.message.content !== "string" && !Array.isArray(line.message.content)) return null;
   // Same fallback the record and preservation paths use. They must agree:
   // a line missing its own `sessionId` that landed in `claude-code:` here but
   // in `claude-code:<file>` there would put one transcript in two
@@ -491,16 +496,23 @@ function convertLine(
   const sessionId = line.sessionId ?? fileSessionId;
   const conversation = conversationFor(line, sessionId);
   const isSidechain = line.isSidechain === true;
+  // The native user envelope also carries tool output. A mixed envelope has
+  // no single human author either: retain its blocks without assigning the
+  // tool's words to the repository's human identity.
+  const hasToolResult = Array.isArray(line.message.content) && line.message.content.some(
+    (block: unknown) => block !== null && typeof block === "object" &&
+      (block as Record<string, unknown>)["type"] === "tool_result",
+  );
 
   const actor: Actor = line.type === "user" ? { type: "human" } : { type: "agent" };
   // A sidechain `user` line is the harness handing a subagent its prompt, not
   // the person typing; attributing it to the git identity would put words in
-  // their mouth. Every other user line is theirs.
-  if (line.type === "user" && !isSidechain) {
+  // their mouth. Tool-result envelopes have the same attribution constraint.
+  if (line.type === "user" && !isSidechain && !hasToolResult) {
     if (identity.email) actor.id = identity.email;
     if (identity.name) actor.display = identity.name;
   }
-  if (line.type === "user" && isSidechain) actor.type = "system";
+  if (line.type === "user" && (isSidechain || hasToolResult)) actor.type = "system";
   if (line.type === "assistant" && line.message.model) actor.id = line.message.model;
 
   return {
@@ -524,6 +536,46 @@ function convertLine(
     },
     raw: { format: RAW_FORMAT, data: line },
   };
+}
+
+/** Provider-withheld blocks get a sealed sibling. Preserve the native field
+ * path explicitly; only encrypted_content bypasses ordinary secret redaction. */
+function convertTurns(line: ClaudeTranscriptLine, seq: number, version: string,
+  identity: GitUserIdentity, sessionId: string): EventDraft[] {
+  const blocks = line.message?.content;
+  if (!Array.isArray(blocks)) {
+    const draft = convertLine(line, seq, version, identity, sessionId);
+    return draft ? [draft] : [];
+  }
+  const sealed: { path: (string | number)[]; encrypted_content: string }[] = [];
+  const visible = blocks.map((block: unknown, index: number) => {
+    if (!block || typeof block !== "object") return block;
+    const part = block as Record<string, unknown>;
+    if (part.type !== "redacted_thinking" || typeof part.data !== "string") return block;
+    sealed.push({ path: ["message", "content", index, "data"], encrypted_content: part.data });
+    return { ...part, data: { type: "reasoning_reference", index: sealed.length - 1 } };
+  });
+  const draft = convertLine(sealed.length ? { ...line, message: { ...line.message!, content: visible } } : line,
+    seq, version, identity, sessionId);
+  if (!draft) return [];
+  if (!sealed.length) return [draft];
+  const ctx = recordContext(line, draft.occurred_at, seq, sessionId, version);
+  const reasoning = reasoningDraft({ line: { native_format: RAW_FORMAT, sealed },
+    occurredAt: ctx.occurredAt, source: ctx.source, sessionId: ctx.sessionId, seq,
+    version, rawFormat: "claude-code-jsonl/sealed-reasoning/1", conversationId: ctx.conversationId,
+    ...(ctx.agent ? { agent: ctx.agent } : {}) });
+  if (reasoning.stream && ctx.parentConversationId) reasoning.stream.parent = ctx.parentConversationId;
+  if (draft.raw) draft.raw.format = "claude-code-jsonl/2";
+  return [draft, reasoning];
+}
+
+export function renormalizeUnrecognizedMany(event: EvidenceEvent, identity: GitUserIdentity): EventDraft[] | null {
+  if (!event.raw || !event.stream) return null;
+  const turns = convertTurns(event.raw.data as ClaudeTranscriptLine, event.stream.seq,
+    packageVersion(), identity, event.producer.session_id ?? "");
+  if (turns.length) return turns;
+  const record = renormalizeUnrecognized(event, identity);
+  return record ? [record] : null;
 }
 
 /**
@@ -733,8 +785,18 @@ async function captureTranscriptFile(
       drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version));
       continue;
     }
-    const draft = convertLine(parsed, i, version, identity, sessionId);
-    if (draft) drafts.push(draft);
+    const turns = convertTurns(parsed, i, version, identity, sessionId);
+    if (turns.length) {
+      drafts.push(...turns);
+    } else {
+      // A known discriminator with a changed body is drift too. Preserve the
+      // source instead of advancing the cursor over an uninterpretable turn.
+      if (baseTime === null) baseTime = firstTimestamp(lines) ?? (await sessionMtime(transcriptPath));
+      const occurredAt = typeof parsed.timestamp === "string" ? parsed.timestamp : baseTime;
+      const typeKey = `${type}/invalid-shape`;
+      countUnrecognized(result.unrecognized, typeKey);
+      drafts.push(preserve(typeKey, parsed, occurredAt, i, sessionId, version));
+    }
   }
 
   if (drafts.length > 0) {

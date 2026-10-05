@@ -22,12 +22,14 @@
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { findRepo, gitUserIdentity, type GitUserIdentity, type RepoInfo } from "annals";
 import { appendEvents } from "../store.js";
 import type { Actor, EventDraft, EvidenceEvent, ProducerAgentContext } from "../schema.js";
 import { packageVersion, readCursor, writeCursor } from "./common.js";
-import { convertParts, isEmptyParts } from "./genai-parts.js";
+import { convertParts, isEmptyParts, partIssues } from "./genai-parts.js";
+import { scheduleTailCapture, runTailCapture } from "./tail.js";
 import {
   countUnrecognized,
   mergeCaptureResult,
@@ -468,6 +470,7 @@ export function renormalizeUnrecognized(
 ): EventDraft | null {
   if (!event.raw || event.stream === undefined) return null;
   const line = event.raw.data as QwenTranscriptLine;
+  if (partIssues(line?.message?.parts).length) return null;
   const sessionId = event.producer.session_id ?? "";
   const parentId = event.stream.parent?.replace(/^qwen-code:/, "");
   const version = packageVersion();
@@ -552,6 +555,13 @@ async function captureTranscriptFile(
       countUnrecognized(result.unrecognized, type);
       drafts.push(preserve(type, parsed, occurredAt, i, sessionId, version, parentId));
       continue;
+    }
+    const issues = partIssues(parsed.message?.parts);
+    if (issues.length) {
+      const occurredAt = typeof parsed.timestamp === "string" ? parsed.timestamp : firstTimestamp(lines) ?? (await sessionMtime(transcriptPath));
+      const driftType = "message/parts";
+      countUnrecognized(result.unrecognized, driftType);
+      drafts.push(preserve(driftType, parsed, occurredAt, i, sessionId, version, parentId));
     }
     const draft = convertLine(parsed, i, version, identity, sessionId, parentId);
     if (draft) drafts.push(draft);
@@ -683,6 +693,12 @@ export async function runQwenHook(stdinJson: string): Promise<void> {
     const total: CaptureResult = { appended: 0, deduped: 0, unrecognized: {} };
     const seen = new Set<string>();
     if (payload.transcript_path) {
+      // Qwen can finish writing the turn after Stop/SessionEnd has read it.
+      // Start the bounded session worker before the synchronous capture so it
+      // survives a fast headless shutdown while observing only this transcript.
+      if (["Stop", "SessionEnd"].includes(payload.hook_event_name ?? "")) {
+        await scheduleTailCapture(payload.transcript_path, cwd, "qwen-code", fileURLToPath(import.meta.url));
+      }
       seen.add(payload.transcript_path);
       mergeCaptureResult(total, await captureTranscriptFile(repo, payload.transcript_path));
     }
@@ -694,4 +710,13 @@ export async function runQwenHook(stdinJson: string): Promise<void> {
       `cledger: qwen-code hook error: ${err instanceof Error ? err.message : String(err)}\n`,
     );
   }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2] === "--cledger-tail") {
+  const [path, cwd, lock, status] = process.argv.slice(3);
+  if (!path || !cwd || !lock || !status) throw new Error("Missing Qwen tail worker arguments");
+  await runTailCapture(lock, status, "qwen-code", async () => {
+    try { const info = await stat(path); return JSON.stringify([info.size, info.mtimeMs]); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return "missing"; throw error; }
+  }, () => captureQwenTranscript(path, cwd), { softMs: 20_000, hardMs: 25_000 });
 }

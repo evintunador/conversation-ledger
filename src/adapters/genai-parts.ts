@@ -16,12 +16,8 @@
  * of the source part is carried across, and the untouched part is kept
  * verbatim in `raw.data` regardless.
  *
- * Parts this module does not recognize (`inlineData`, `fileData`,
- * `executableCode`, and whatever Google adds next) pass through verbatim
- * rather than being dropped or coerced. Unlike an unrecognized *line* type,
- * an unknown part shape is not format drift worth a warning — it is content
- * inside a turn the adapter otherwise understands completely, and preserving
- * it inside the turn keeps the turn whole.
+ * Known media/code parts pass through verbatim. Unknown or malformed parts
+ * remain visible and are reported by partIssues so adapters can emit drift.
  */
 
 /** The subset of the GenAI `Part` union these CLIs actually persist. */
@@ -44,13 +40,63 @@ export interface GenAiPart {
 export function ensurePartArray(content: unknown): GenAiPart[] {
   if (content === undefined || content === null) return [];
   if (typeof content === "string") return [{ text: content }];
-  if (Array.isArray(content)) return content.filter(isPart);
+  if (Array.isArray(content))
+    return content.map((value) =>
+      isPart(value) ? value : { type: "unrecognized", data: value },
+    );
   if (isPart(content)) return [content];
-  return [];
+  return [{ type: "unrecognized", data: content }];
 }
 
 function isPart(value: unknown): value is GenAiPart {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Known SDK fields: https://googleapis.github.io/js-genai/release_docs/interfaces/types.Part.html */
+const OBJECT_FIELDS = new Set([
+  "functionCall",
+  "functionResponse",
+  "inlineData",
+  "fileData",
+  "executableCode",
+  "codeExecutionResult",
+  "audioTranscription",
+  "toolCall",
+  "toolResponse",
+  "mediaResolution",
+  "partMetadata",
+  "speechMetadata",
+  "videoMetadata",
+]);
+const STRING_FIELDS = new Set(["text", "thoughtSignature", "mediaProcessing"]);
+
+export function partIssues(
+  content: unknown,
+): Array<{ index: number; reason: string; value: unknown }> {
+  if (content === undefined || content === null || typeof content === "string")
+    return [];
+  const values = Array.isArray(content) ? content : [content];
+  return values.flatMap((value, index) => {
+    let reason: string | undefined;
+    if (!isPart(value)) reason = "non-object";
+    else {
+      const keys = Object.keys(value);
+      const known = keys.filter(
+        (key) =>
+          OBJECT_FIELDS.has(key) || STRING_FIELDS.has(key) || key === "thought",
+      );
+      if (!known.length && keys.length) reason = "unknown-shape";
+      for (const key of known) {
+        if (OBJECT_FIELDS.has(key) && !isPart(value[key]))
+          reason = `malformed-${key}`;
+        if (STRING_FIELDS.has(key) && typeof value[key] !== "string")
+          reason = `malformed-${key}`;
+        if (key === "thought" && typeof value[key] !== "boolean")
+          reason = "malformed-thought";
+      }
+    }
+    return reason ? [{ index, reason, value }] : [];
+  });
 }
 
 /**
@@ -62,6 +108,7 @@ function isPart(value: unknown): value is GenAiPart {
  * `raw.data` for a consumer replaying against the same provider.
  */
 export function convertPart(part: GenAiPart): unknown {
+  if (partIssues([part]).length) return { type: "unrecognized", data: part };
   if (part.functionCall) {
     const call = part.functionCall;
     const block: Record<string, unknown> = { type: "tool_use" };
@@ -105,6 +152,8 @@ export function isEmptyParts(content: unknown): boolean {
     (part) =>
       part.functionCall === undefined &&
       part.functionResponse === undefined &&
-      (typeof part.text !== "string" ? Object.keys(part).length === 0 : part.text.trim() === ""),
+      (typeof part.text !== "string"
+        ? Object.keys(part).length === 0
+        : part.text.trim() === ""),
   );
 }

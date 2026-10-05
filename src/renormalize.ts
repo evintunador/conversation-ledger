@@ -32,14 +32,31 @@ import type { RepoInfo } from "annals";
 import { gitUserIdentity } from "annals";
 import { appendEvents, readEvents } from "./store.js";
 import { eventId, type EventDraft, type EventLink, type EvidenceEvent } from "./schema.js";
-import { renormalizeUnrecognized as renormalizeClaude } from "./adapters/claude-code.js";
-import { renormalizeUnrecognized as renormalizeCodex } from "./adapters/codex.js";
+import { renormalizeUnrecognizedMany as renormalizeClaude } from "./adapters/claude-code.js";
+import { renormalizeUnrecognizedMany as renormalizeCodex } from "./adapters/codex.js";
 import { renormalizeUnrecognized as renormalizeOpencode } from "./adapters/opencode.js";
 import { renormalizeUnrecognized as renormalizeGemini } from "./adapters/gemini-cli.js";
 import { renormalizeUnrecognized as renormalizeQwen } from "./adapters/qwen-code.js";
+import { renormalizeUnrecognizedMany as renormalizePi } from "./adapters/pi.js";
+import { renormalizeUnrecognizedMany as renormalizeMistralVibe } from "./adapters/mistral-vibe.js";
+import { renormalizeUnrecognizedMany as renormalizeCopilot } from "./adapters/copilot.js";
+import { renormalizeUnrecognizedMany as renormalizeKimi } from "./adapters/kimi.js";
+
+import { renormalizeUnrecognizedMany as renormalizeGoose } from "./adapters/goose.js";
+
+import { renormalizeUnrecognizedMany as renormalizeDroid } from "./adapters/droid.js";
+import { renormalizeUnrecognized as renormalizeAider } from "./adapters/aider.js";
+
+import { renormalizeUnrecognizedMany as renormalizeCline } from "./adapters/cline.js";
+import { renormalizeUnrecognizedMany as renormalizeCrush } from "./adapters/crush.js";
+import { renormalizeUnrecognizedMany as renormalizeContinue } from "./adapters/continue.js";
+
+import { renormalizeUnrecognizedMany as renormalizeOpenInterpreter } from "./adapters/open-interpreter.js";
+import { renormalizeUnrecognizedMany as renormalizeOpenHands } from "./adapters/openhands.js";
+import { renormalizeUnrecognized as renormalizeKilo } from "./adapters/kilo.js";
 
 /** Route a preserved event to the adapter that owns its `producer.source`. */
-type Renormalizer = (event: EvidenceEvent, identity: Awaited<ReturnType<typeof gitUserIdentity>>) => EventDraft | null;
+type Renormalizer = (event: EvidenceEvent, identity: Awaited<ReturnType<typeof gitUserIdentity>>) => EventDraft | EventDraft[] | null;
 
 const RENORMALIZERS: Record<string, Renormalizer> = {
   "claude-code": renormalizeClaude,
@@ -47,6 +64,19 @@ const RENORMALIZERS: Record<string, Renormalizer> = {
   opencode: renormalizeOpencode,
   "gemini-cli": renormalizeGemini,
   "qwen-code": renormalizeQwen,
+  pi: renormalizePi,
+  "mistral-vibe": renormalizeMistralVibe,
+  copilot: renormalizeCopilot,
+  kimi: renormalizeKimi,
+  goose: renormalizeGoose,
+  droid: renormalizeDroid,
+  aider: renormalizeAider,
+  cline: renormalizeCline,
+  continue: renormalizeContinue,
+  crush: renormalizeCrush,
+  openhands: renormalizeOpenHands,
+  "open-interpreter": renormalizeOpenInterpreter,
+  kilo: renormalizeKilo,
 };
 
 function renormalizerFor(source: string | undefined): Renormalizer | null {
@@ -109,8 +139,9 @@ export async function renormalize(repo: RepoInfo): Promise<RenormalizeResult> {
       result.skipped++;
       continue;
     }
-    const turnDraft = renormalizer(event, identity);
-    if (!turnDraft) {
+    const converted = renormalizer(event, identity);
+    const interpreted = converted ? (Array.isArray(converted) ? converted : [converted]) : [];
+    if (interpreted.length === 0) {
       result.skipped++;
       continue;
     }
@@ -119,10 +150,15 @@ export async function renormalize(repo: RepoInfo): Promise<RenormalizeResult> {
     // The turn's id, computed the same way a fresh capture would (the stored
     // raw.data is already redacted, so the appendEvents redaction pass is a
     // no-op and does not shift this id).
-    const turnId = eventId(turnDraft);
-    if (!existingIds.has(turnId)) {
-      drafts.push(turnDraft);
-      existingIds.add(turnId);
+    const turnDraft = interpreted[0]!;
+    const turnIds = interpreted.map(eventId);
+    const turnId = turnIds[0]!;
+    for (const [index, draft] of interpreted.entries()) {
+      const id = turnIds[index]!;
+      if (!existingIds.has(id)) {
+        drafts.push(draft);
+        existingIds.add(id);
+      }
     }
 
     const link: EventLink = { rel: "supersedes", target: event.id };
@@ -142,6 +178,7 @@ export async function renormalize(repo: RepoInfo): Promise<RenormalizeResult> {
       content: {
         superseded: event.id,
         by: turnId,
+        ...(turnIds.length > 1 ? { by_all: turnIds } : {}),
         reason: "renormalized",
         ...(event.raw?.format ? { raw_format: event.raw.format } : {}),
       },

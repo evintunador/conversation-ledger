@@ -1,0 +1,35 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "openhands",
+  "version": "1.16.0",
+  "platform": "darwin/arm64",
+  "provider": "Ollama on localhost via OpenAI-compatible API",
+  "model": "ledger-test",
+  "repository": "isolated synthetic temporary Git repository without a remote",
+  "status": "partial",
+  "headless": "not run with a real model",
+  "interactive": {
+    "execution": "installed OpenHands CLI TUI in a real PTY with isolated HOME and native Stop plus SessionEnd hooks",
+    "firstPrompt": "TESTONLY amber owl probe. Use file_editor view to read evidence.txt and report the exact contents. Do not edit files.",
+    "secondPrompt": "TESTONLY follow-up. Call file_editor with command=view, path=/private/tmp/cledger-openhands-live-20261001/repo/evidence.txt, security_risk=LOW. Then quote the file exactly. Do not edit.",
+    "syntheticFileContent": "TESTONLY copper heron seven rivers",
+    "observedTool": "file_editor call omitted required security_risk field; linked native error result captured",
+    "exit": "Ctrl+Q ended the TUI with code 0; upstream SessionEnd self-observation emitted an App is not running traceback after shutdown"
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 11,
+  "humanPromptCount": 2,
+  "toolCallCount": 1,
+  "linkedToolErrorCount": 1,
+  "successfulLinkedReadCount": 0,
+  "exactAnswerCount": 0,
+  "stopHookObservationCount": 2,
+  "unrecognizedRecordCount": 0,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "The tiny model omitted required file_editor arguments and produced no successful file result",
+    "Second prompt did not lead to a tool call or exact answer",
+    "No live headless or Linux result",
+    "Attachment, branching, compaction, resume, and full record-type coverage were not established"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "qwen-code",
+  "version": "0.21.9 from --version; running TUI banner and native transcript reported 0.21.5",
+  "platform": "darwin/arm64",
+  "provider": "Ollama on localhost via OpenAI-compatible API",
+  "model": "ledger-test",
+  "repository": "isolated synthetic temporary Git repository",
+  "status": "partial",
+  "headless": "not run with a real model",
+  "interactive": {
+    "execution": "installed Qwen Code in a PTY with isolated HOME and QWEN_RUNTIME_DIR, native Stop and SessionEnd hooks, typed prompts and normal /exit",
+    "exitCode": 0,
+    "prompts": [
+      "TESTONLY Qwen live verification. Use your file-reading tool to read evidence.txt, then answer with its exact contents. Do not modify files.",
+      "TESTONLY second attempt: call the read_file tool now with file_path /private/tmp/cledger-qwen-live-20261001/repo/evidence.txt. After the tool returns, copy its entire content exactly. Do not guess."
+    ],
+    "observed": [
+      "both typed human prompts and both assistant answers captured automatically by the native Stop hook",
+      "second turn called read_file on the synthetic evidence file",
+      "tool result was linked to the call ID and contained TESTONLY the violet canoe counts seven brass hinges. followed by a newline",
+      "file snapshots, activity and session shutdown captured; no unrecognized records"
+    ],
+    "gap": "The first turn hallucinated a file description without calling a tool; the second turn read the file but paraphrased its content as The violet canoe contains 7 brass hinges. instead of reproducing the exact text."
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 17,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "No exact-answer pass despite a successful native file-read result",
+    "No real-model headless or Linux result",
+    "No attachment, branching, compaction, or full record-type coverage established"
+  ]
+}

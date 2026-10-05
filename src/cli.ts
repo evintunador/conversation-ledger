@@ -43,8 +43,23 @@ import {
   captureGeminiTranscript,
 } from "./adapters/gemini-cli.js";
 import { runQwenHook, captureQwenAll, captureQwenTranscript } from "./adapters/qwen-code.js";
+import { runPiHook, capturePiAll, capturePiTranscript } from "./adapters/pi.js";
+import { runMistralVibeHook, captureMistralVibeAll, captureMistralVibeTranscript } from "./adapters/mistral-vibe.js";
+import { runCopilotHook, captureCopilotAll, captureCopilotTranscript } from "./adapters/copilot.js";
+import { runCursorHook, captureCursorTranscript, runCursor } from "./adapters/cursor.js";
+import { runKimiHook, captureKimiAll, captureKimiTranscript } from "./adapters/kimi.js";
+import { runKiroHook, captureKiroAll, captureKiroTranscript, runKiro } from "./adapters/kiro.js";
+import { runGooseHook, captureGooseTranscript, captureGooseAll, captureGooseSession } from "./adapters/goose.js";
+import { runAider, captureAiderTranscript, captureAiderAll } from "./adapters/aider.js";
+import { runDroidHook, captureDroidTranscript, captureDroidAll } from "./adapters/droid.js";
+import { runClineHook, captureClineTranscript, captureClineAll } from "./adapters/cline.js";
+import { runOpenInterpreterHook, captureOpenInterpreterTranscript, captureOpenInterpreterAll } from "./adapters/open-interpreter.js";
+import { runOpenHandsHook, captureOpenHandsTranscript, captureOpenHandsAll } from "./adapters/openhands.js";
+import { runKiloHook, captureKiloExportFile, captureKiloSession, captureKiloAll } from "./adapters/kilo.js";
+import { runCrush, runCrushHook, captureCrushDatabase, captureCrushAll } from "./adapters/crush.js";
+import { runContinue, runContinueHook, captureContinueTranscript, captureContinueAll } from "./adapters/continue.js";
 import { renormalize } from "./renormalize.js";
-import { installAdapters } from "./install.js";
+import { installAdapters, INSTALLABLE_ADAPTERS } from "./install.js";
 import {
   addToAllowlist,
   filterFindings,
@@ -111,18 +126,23 @@ Usage:
                                            cledger version can now parse into their proper kind
                                            (conversation_turn, session_state, activity, ...),
                                            superseding the raw-only placeholders (append-only, idempotent)
-  cledger install <claude-code|codex|opencode|gemini-cli|qwen-code|all>
+  cledger run aider [--python PATH] -- <aider arguments>
+  cledger run <continue|crush|cursor|kiro> [--binary PATH] -- <native arguments>
+
+  cledger install <${Object.keys(INSTALLABLE_ADAPTERS).join("|")}|all>
                                            hook capture into coding CLIs (global)
-  cledger hook <claude-code|codex|opencode|gemini-cli|qwen-code>
+  cledger hook SOURCE                internal native hook entrypoint
                                            capture entrypoint invoked by CLI hooks (stdin: hook payload)
   cledger capture codex --transcript PATH  manual/backfill ingestion
-  cledger capture <claude-code|gemini-cli|qwen-code> [--transcript PATH | --all]
-                                           all three keep per-project session logs; --all backfills
+  cledger capture <claude-code|gemini-cli|qwen-code|pi|copilot|kimi|kiro|droid|cline|continue|aider|openhands|open-interpreter> [--transcript PATH | --all]
+  cledger capture crush [--database PATH | --all]
+  cledger capture mistral-vibe [--transcript PATH | --all [--session-root DIR]]
+                                           adapters scope session discovery by project; --all backfills
                                            every session the CLI scopes to this exact directory,
                                            including ones cledger has never seen (the hook's own
                                            catch-up sweep is deliberately narrower — it only finishes
                                            sessions cledger already tracks)
-  cledger capture opencode [--session ID | --all | --transcript EXPORT.json]
+  cledger capture <opencode|goose|kilo> [--session ID | --all | --transcript EXPORT.json]
                                            opencode keeps sessions in SQLite, not a transcript file,
                                            so capture shells out to \`opencode export\`; --all sweeps
                                            every session opencode scopes to this project
@@ -940,6 +960,21 @@ async function main(): Promise<void> {
   }
   if (command === "records") return cmdRecords(rest);
   if (command === "transport-push") return cmdTransportPush(rest[0]);
+  if (command === "run") {
+    const source = rest[0], separator = rest.indexOf("--");
+    const options = rest.slice(1, separator < 0 ? undefined : separator);
+    const option = source === "aider" ? "--python" : "--binary";
+    if (!["aider", "continue", "crush", "cursor", "kiro"].includes(source ?? "") || separator < 0 ||
+      !(options.length === 0 || (options.length === 2 && options[0] === option && options[1]))) {
+      throw new Error("Usage: cledger run aider [--python PATH] -- <args> | cledger run <continue|crush|cursor|kiro> [--binary PATH] -- <args>");
+    }
+    process.exitCode = source === "aider" ? await runAider(rest.slice(separator + 1), options[1])
+      : source === "crush" ? await runCrush(rest.slice(separator + 1), options[1])
+      : source === "cursor" ? await runCursor(rest.slice(separator + 1), options[1])
+      : source === "kiro" ? await runKiro(rest.slice(separator + 1), options[1])
+      : await runContinue(rest.slice(separator + 1), options[1]);
+    return;
+  }
   const { positional, flags } = parseArgs(rest);
   switch (command) {
     case "append":
@@ -971,88 +1006,83 @@ async function main(): Promise<void> {
     case "install":
       return installAdapters(positional[0] ?? "all");
     case "hook": {
-      if (positional[0] === "claude-code") {
-        return runClaudeCodeHook(await readStdin());
-      }
-      if (positional[0] === "codex") {
-        return runCodexHook(await readStdin());
-      }
-      if (positional[0] === "opencode") {
-        return runOpencodeHook(await readStdin());
-      }
-      if (positional[0] === "gemini-cli") {
-        return runGeminiHook(await readStdin());
-      }
-      if (positional[0] === "qwen-code") {
-        return runQwenHook(await readStdin());
-      }
+      const hooks: Record<string, (input: string) => Promise<void>> = {
+        "claude-code": runClaudeCodeHook, codex: runCodexHook, opencode: runOpencodeHook,
+        "gemini-cli": runGeminiHook, "qwen-code": runQwenHook, pi: runPiHook,
+        "mistral-vibe": runMistralVibeHook, copilot: runCopilotHook, cursor: runCursorHook, kimi: runKimiHook, kiro: runKiroHook, goose: runGooseHook, droid: runDroidHook, cline: runClineHook, continue: runContinueHook, openhands: runOpenHandsHook, kilo: runKiloHook, crush: runCrushHook, "open-interpreter": runOpenInterpreterHook,
+      };
+      const hook = hooks[positional[0] ?? ""];
+      if (hook) return hook(await readStdin());
       process.stderr.write(`unknown hook source: ${positional[0]}\n`);
       process.exit(2);
       return;
     }
     case "capture": {
       const source = positional[0];
+      if (source === "crush") {
+        if (typeof flags["database"] === "string") return void await captureCrushDatabase(flags["database"], process.cwd());
+        if (flags["all"]) return void await captureCrushAll(process.cwd());
+        throw new Error("Usage: cledger capture crush (--database PATH | --all)");
+      }
       const transcript = typeof flags["transcript"] === "string" ? flags["transcript"] : undefined;
-      if (source === "claude-code") {
-        if (transcript) {
-          await captureClaudeTranscript(transcript, process.cwd());
-          return;
-        }
-        if (flags["all"]) {
-          await captureClaudeAll(process.cwd());
-          return;
-        }
-        process.stderr.write("usage: cledger capture claude-code (--transcript PATH | --all)\n");
+      const simple: Record<string, {
+        one: (path: string, cwd: string) => Promise<unknown>;
+        all?: (cwd: string) => Promise<unknown>;
+        usage?: string;
+      }> = {
+        "claude-code": { one: captureClaudeTranscript, all: captureClaudeAll },
+        codex: { one: captureCodexTranscript },
+        "gemini-cli": { one: captureGeminiTranscript, all: captureGeminiAll },
+        "qwen-code": { one: captureQwenTranscript, all: captureQwenAll },
+        pi: { one: capturePiTranscript, all: capturePiAll },
+        aider: { one: captureAiderTranscript, all: captureAiderAll },
+        droid: { one: captureDroidTranscript, all: captureDroidAll },
+        cline: { one: captureClineTranscript, all: captureClineAll },
+        continue: { one: captureContinueTranscript, all: captureContinueAll },
+        "open-interpreter": { one: captureOpenInterpreterTranscript, all: captureOpenInterpreterAll },
+        openhands: { one: captureOpenHandsTranscript, all: captureOpenHandsAll },
+        copilot: { one: captureCopilotTranscript, all: captureCopilotAll },
+        cursor: { one: captureCursorTranscript },
+        kimi: { one: captureKimiTranscript, all: captureKimiAll },
+        kiro: { one: captureKiroTranscript, all: captureKiroAll },
+        "mistral-vibe": {
+          one: captureMistralVibeTranscript,
+          all: cwd => captureMistralVibeAll(cwd, typeof flags["session-root"] === "string" ? flags["session-root"] : undefined),
+          usage: "(--transcript PATH | --all [--session-root DIR])",
+        },
+      };
+      const adapter = simple[source ?? ""];
+      if (adapter) {
+        if (transcript) { await adapter.one(transcript, process.cwd()); return; }
+        if (flags["all"] && adapter.all) { await adapter.all(process.cwd()); return; }
+        process.stderr.write(`usage: cledger capture ${source} ${adapter.usage ?? (adapter.all ? "(--transcript PATH | --all)" : "--transcript PATH")}\n`);
         process.exit(2);
         return;
       }
-      if (source === "codex" && transcript) {
-        await captureCodexTranscript(transcript, process.cwd());
-        return;
-      }
-      // gemini-cli and qwen-code both keep a per-project session log, so a
-      // sweep is scoped by the CLI's own project directory for this cwd.
-      if (source === "gemini-cli" || source === "qwen-code") {
-        const captureOne = source === "gemini-cli" ? captureGeminiTranscript : captureQwenTranscript;
-        const captureAll = source === "gemini-cli" ? captureGeminiAll : captureQwenAll;
-        if (transcript) {
-          await captureOne(transcript, process.cwd());
-          return;
-        }
-        if (flags["all"]) {
-          await captureAll(process.cwd());
-          return;
-        }
-        process.stderr.write(`usage: cledger capture ${source} (--transcript PATH | --all)\n`);
-        process.exit(2);
-        return;
-      }
-      if (source === "opencode") {
-        // opencode has no transcript file; --transcript takes a saved
-        // `opencode export` JSON so backfill works without opencode present.
+      const exports: Record<string, {
+        one: (path: string, cwd: string) => Promise<unknown>;
+        session: (id: string, cwd: string) => Promise<unknown>;
+        all: (cwd: string) => Promise<unknown>;
+      }> = {
+        goose: { one: captureGooseTranscript, session: captureGooseSession, all: captureGooseAll },
+        opencode: { one: captureOpencodeExportFile, session: captureOpencodeSession, all: captureOpencodeAll },
+        kilo: { one: captureKiloExportFile, session: captureKiloSession, all: captureKiloAll },
+      };
+      const exported = exports[source ?? ""];
+      if (exported) {
         const session = typeof flags["session"] === "string" ? flags["session"] : undefined;
-        if (transcript) {
-          await captureOpencodeExportFile(transcript, process.cwd());
-          return;
-        }
-        if (session) {
-          await captureOpencodeSession(session, process.cwd());
-          return;
-        }
-        if (flags["all"]) {
-          await captureOpencodeAll(process.cwd());
-          return;
-        }
-        process.stderr.write(
-          "usage: cledger capture opencode (--session ID | --all | --transcript EXPORT.json)\n",
-        );
-        process.exit(2);
-        return;
+        if (transcript) { await exported.one(transcript, process.cwd()); return; }
+        if (session) { await exported.session(session, process.cwd()); return; }
+        if (flags["all"]) { await exported.all(process.cwd()); return; }
+        process.stderr.write(`usage: cledger capture ${source} (--session ID | --all | --transcript EXPORT.json)\n`);
+        process.exit(2); return;
       }
       process.stderr.write(
         "usage: cledger capture codex --transcript PATH\n" +
-          "       cledger capture <claude-code|gemini-cli|qwen-code> (--transcript PATH | --all)\n" +
-          "       cledger capture opencode (--session ID | --all | --transcript EXPORT.json)\n",
+          "       cledger capture <claude-code|gemini-cli|qwen-code|pi|copilot|kimi|droid|cline|continue|aider|openhands|open-interpreter> (--transcript PATH | --all)\n" +
+          "       cledger capture crush (--database PATH | --all)\n" +
+          "       cledger capture mistral-vibe (--transcript PATH | --all [--session-root DIR])\n" +
+          "       cledger capture <opencode|goose|kilo> (--session ID | --all | --transcript EXPORT.json)\n",
       );
       process.exit(2);
       return;

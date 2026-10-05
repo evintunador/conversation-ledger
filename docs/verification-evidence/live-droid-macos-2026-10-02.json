@@ -1,0 +1,54 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "droid",
+  "version": "0.232.0",
+  "platform": "darwin/arm64",
+  "provider": "Local ds4-gateway on localhost via OpenAI-compatible API",
+  "endpoint": "http://127.0.0.1:9001/v1",
+  "model": "deepseek-v4-flash",
+  "repository": "Synthetic temporary Git repository without a remote; transport hooks disabled",
+  "status": "pass",
+  "headless": "Prior real Ollama headless pass; DeepSeek headless not run",
+  "interactive": {
+    "execution": "Installed Droid TUI in a real PTY using existing account authentication, synthetic runtime --settings with cloudSessionSync=false, custom local model, and project-scoped native hooks",
+    "prompt": "TESTONLY_DROID_DEEPSEEK_INTERACTIVE_20261002. Please use the Read tool to read evidence.txt and report its exact contents. Do not use any other tools or edit files.",
+    "syntheticFileContent": "TESTONLY violet cactus lantern\n",
+    "observedTool": "Read(evidence.txt)",
+    "toolCallId": "call_6b356e8c3713c450d3ece419cd63497a",
+    "assistantAnswer": "The file `evidence.txt` contains exactly one line:\n\n```\nTESTONLY violet cactus lantern\n```",
+    "exit": "/quit completed with code 0",
+    "visibleStopHook": "cledger hook droid (120s timeout) : Exit code 0"
+  },
+  "automaticLedgerEventsBeforeExitOrManualBackfill": 14,
+  "humanPromptCount": 2,
+  "readCallCount": 1,
+  "successfulLinkedReadCount": 1,
+  "exactAnswerCount": 1,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "accountCredentialsReadOrExported": false,
+  "launchFinding": {
+    "unsupportedInteractiveFlag": "--model custom:LedgerDeepSeek-0",
+    "observedBehavior": "Top-level --help does not list --model; installed TUI recorded this argument as an unintended initial human prompt. Model selection came from runtime settings.model. Esc interrupted that initial request before the intended prompt was typed.",
+    "extraHumanPrompt": "--model custom:LedgerDeepSeek-0",
+    "cancellationRecords": [
+      "Request cancelled by user",
+      "Request interrupted by user"
+    ]
+  },
+  "limitations": [
+    "Fresh isolated HOME requires Factory login; existing user login succeeds without reading credential/config files.",
+    "One extra cancelled initial prompt caused by unsupported interactive --model flag.",
+    "No Linux real-provider evidence or attachment/branching/compaction/full-record-type coverage.",
+    "Factory account credits were not inspected; model route was local DeepSeek."
+  ],
+  "gates": {
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "nativeSessionState": true,
+    "interactiveExit": true
+  }
+}

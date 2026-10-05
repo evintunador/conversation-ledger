@@ -1,0 +1,36 @@
+{
+  "schema": "cledger-native-input-verification/1",
+  "cli": "kimi",
+  "version": "2.1.1",
+  "date": "2026-10-03",
+  "platform": "darwin/arm64",
+  "inference": "none; deny-only local fixture",
+  "upstreamRequests": 0,
+  "attemptedFixtureRequests": 1,
+  "fixtureImageParts": 1,
+  "manualBackfillPerformed": false,
+  "automaticCurrentStreamEvents": 19,
+  "gates": {
+    "normalExit": true,
+    "humanCaptured": true,
+    "unicodeMultilinePreserved": true,
+    "nativeImageSubmitted": true,
+    "binaryFilePathRetained": true,
+    "imageFilePathRetained": true,
+    "imageBytesExcluded": true,
+    "noUnrecognizedRecords": true,
+    "nativeProviderErrorCaptured": true,
+    "nativeImageReferenceRetained": true
+  },
+  "limitations": [
+    "Model capability image_in enabled only for input fixture; no claim of DeepSeek vision or model response",
+    "Clipboard-file lookup fixture; actual installed TUI image parsing and submission exercised",
+    "Known text filenames and binary filepaths typed; file-reading tools not exercised in this error fixture"
+  ],
+  "terminal": {
+    "actionsCompleted": 4,
+    "exitCode": 0,
+    "timedOut": false
+  },
+  "status": "pass"
+}

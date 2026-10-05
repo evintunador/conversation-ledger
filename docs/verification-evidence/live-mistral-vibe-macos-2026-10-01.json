@@ -1,0 +1,31 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "mistral-vibe",
+  "version": "2.25.8",
+  "platform": "darwin/arm64",
+  "provider": "Ollama on localhost via OpenAI-compatible API",
+  "model": "ledger-test",
+  "repository": "isolated synthetic temporary Git repository without a remote",
+  "status": "pass",
+  "headless": "not run with a real model",
+  "interactive": {
+    "execution": "installed Vibe legacy TUI in a real PTY, isolated profile and native post_agent hook, typed prompts",
+    "firstAttempt": "The tiny model called read_file with a nonexistent path; the hook captured the prompt, call, linked file-not-found result, and answer.",
+    "secondAttempt": "A second typed prompt supplied the exact absolute path. The hook captured the successful read_file call, linked result containing the synthetic canary, and assistant answer repeating that canary.",
+    "exit": "TUI was closed after the complete hook capture; graceful command exit was not established."
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 10,
+  "humanPromptCount": 2,
+  "readFileCallCount": 2,
+  "successfulLinkedReadCount": 1,
+  "exactAnswerCount": 1,
+  "sessionStateCaptured": true,
+  "unrecognizedRecordCount": 0,
+  "manualBackfillPerformed": false,
+  "inferenceCostUsd": 0,
+  "limitations": [
+    "No real-model headless or Linux result",
+    "No graceful terminal exit, attachment, branching, compaction, subagent, or full record-type coverage established",
+    "The successful read needed an explicit absolute path because this tiny model invented a path on its first attempt"
+  ]
+}

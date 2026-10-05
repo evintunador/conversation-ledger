@@ -1,0 +1,36 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "kimi",
+  "platform": "linux/x64",
+  "date": "2026-10-03",
+  "version": "2.1.1",
+  "provider": "local Ollama OpenAI-compatible route",
+  "model": "Qwen3:8b",
+  "status": "pass",
+  "requests": 2,
+  "gates": {
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "nativeSessionState": true,
+    "normalExit": true
+  },
+  "automaticLedgerEventsBeforeManualBackfill": 36,
+  "normalExit": true,
+  "actionsCompleted": 5,
+  "inferenceCostUsd": 0,
+  "limits": {
+    "requests": 4,
+    "maxOutputTokens": 1024,
+    "requestTimeoutMs": 180000,
+    "sessionTimeoutMs": 360000
+  },
+  "scope": "actual installed TUI, typed prompt and native folder trust; synthetic disposable repository",
+  "exclusions": [
+    "full record-type certification",
+    "headless live proof",
+    "paid providers"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "droid",
+  "status": "blocked",
+  "certification": "native-smoke",
+  "mode": "interactive",
+  "inference": "scripted",
+  "platform": "darwin/arm64",
+  "gates": {
+    "installedHook": true,
+    "interactiveExit": false
+  },
+  "coverage": [
+    "public BYOK startup (no enterprise overrides)",
+    "installed native hooks",
+    "interactive PTY session and exit (initial argv prompt)",
+    "human prompt",
+    "tool call/result linkage",
+    "assistant answer",
+    "session header",
+    "backfill idempotency",
+    "bounded tail worker exit"
+  ],
+  "exclusions": [
+    "Factory account authentication",
+    "real provider/model behavior",
+    "attachments",
+    "branching/forks",
+    "compaction",
+    "full record coverage",
+    "ephemeral sessions"
+  ],
+  "durationMs": 22044,
+  "version": "0.229.0",
+  "reason": "Public Droid interactive mode requires Factory account login. Headless BYOK works without it; no isolated test-account authentication has been supplied. Configure CLEDGER_VERIFY_DROID_FACTORY_API_KEY outside chat with an authorized test key; the verifier maps it to documented FACTORY_API_KEY only for Droid in the isolated profile.",
+  "requests": 0
+}

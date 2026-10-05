@@ -1,0 +1,67 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "opencode",
+  "status": "pass",
+  "certification": "native-smoke",
+  "inference": "configured-loopback",
+  "platform": "darwin/arm64",
+  "gates": {
+    "installedHook": true,
+    "interactiveTerminal": true,
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "backfillIdempotent": true,
+    "hookEvidenceRetained": true
+  },
+  "coverage": [
+    "interactive PTY terminal input",
+    "native hook",
+    "human text",
+    "tool call/result",
+    "assistant text",
+    "backfill idempotency"
+  ],
+  "exclusions": [
+    "attachments",
+    "subagents",
+    "compaction/rewind",
+    "paid providers",
+    "full record coverage"
+  ],
+  "durationMs": 54421,
+  "mode": "interactive",
+  "version": "1.18.10",
+  "requests": 3,
+  "date": "2026-10-02",
+  "provider": "local-deepseek",
+  "model": "deepseek-v4-flash",
+  "endpoint": "http://127.0.0.1:9001/v1",
+  "repo": "/var/folders/_4/scyv26b567s2jzpwpc6c5zmc0000gn/T/cledger-native-8M0ldu/repo",
+  "marker": "TESTONLY-opencode-deepseek-8cb679d7-e6d3-487a-b739-cc19b6c24096",
+  "fileText": "TESTONLY-file-value-a794d143-1675-4c7f-97a9-7d3870d58e92",
+  "eventCount": 8,
+  "capturedBeforeBackfill": true,
+  "paidSpendUsd": 0,
+  "priorAttempt": {
+    "status": "blocked",
+    "reason": "60-second upstream deadline",
+    "requests": 1,
+    "retry": "User-authorized final independent attempt raised upstream bound to180s and terminal bound to360s"
+  },
+  "eventIds": [
+    "ev2-8aebf453960a7ed2ac12b9684e1d3d80e5496f93949d4ec1f77b6a257f22b977",
+    "ev2-eb1dbf25ee9cfa9ed136d9306c93f48b925aa02bdc8041fd419e5be9e8ec3bc0",
+    "ev2-fde5c9d3ef459bf83d309742731e06e9ee6b208409fd9fb83af60038904b1766",
+    "ev2-0061d5115ac5a43c736835693d3ca05cab9d0c13bfadadaab506c1c4caff1da5",
+    "ev2-d10147129b3cef8f9b4214dee92f150de5ceaa9a8245b67e1b9c41613b5cedc0",
+    "ev2-f0ef49af1205d746c4de4626c7d250fd4d58d8eb82d6a7638331d28f30d30431",
+    "ev2-eb1b57861757357bb19cb183f447c93a5d2e1aaf91be1cdc9e834ceea2488cfe",
+    "ev2-89f47ba72c9592208ec9fc31f388cbdb4f294ebe40c0d219c3de2dada7460b02"
+  ],
+  "prompt": "TESTONLY-opencode-deepseek-8cb679d7-e6d3-487a-b739-cc19b6c24096. Use the read tool to read evidence.txt. Reply with its exact contents. Do not call any other tool.",
+  "toolCallId": "call_2f2b4c0046a19e296150598110b3982d",
+  "assistantAnswer": "TESTONLY-file-value-a794d143-1675-4c7f-97a9-7d3870d58e92"
+}

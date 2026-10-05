@@ -1,0 +1,42 @@
+{
+  "schema": "cledger-verification/1",
+  "cli": "qwen-code",
+  "status": "pass",
+  "certification": "native-smoke",
+  "inference": "scripted",
+  "platform": "darwin/arm64",
+  "gates": {
+    "installedHooks": true,
+    "interactiveTerminal": true,
+    "tailWorkerCompleteAndExited": true,
+    "noUnrecognizedRecords": true,
+    "hookPrompt": true,
+    "hookToolUse": true,
+    "hookToolResult": true,
+    "hookAnswer": true,
+    "backfillIdempotent": true,
+    "hookEvidenceRetained": true,
+    "scriptedRequests": true,
+    "agentHeader": true
+  },
+  "durationMs": 12842,
+  "coverage": [
+    "interactive PTY terminal input",
+    "native hook capture",
+    "read tool call/result",
+    "assistant text",
+    "backfill idempotency"
+  ],
+  "exclusions": [
+    "individual Stop versus SessionEnd timing",
+    "ACP/daemon",
+    "attachments",
+    "subagents",
+    "compaction/rewind",
+    "real model/provider behavior",
+    "full record coverage"
+  ],
+  "mode": "interactive",
+  "version": "0.24.6",
+  "requests": 3
+}
