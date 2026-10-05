@@ -71,6 +71,13 @@ export function buildSupportMatrix(documents: EvidenceDocument[]): { schema: "cl
     }
     if (data.schema === "cledger-conformance/1" && data.inference === "scripted") {
       cell.scenario = { status: validStatus(data.status) ? data.status : data.status === "partial" ? "fail" : "not-run", detail: data.reason ?? `Installed scenario: ${data.status}`, evidence: document.path, version: data.version };
+      // A newer attempt replaces the whole case observation, including an
+      // attempt that exits before recording any evidence. Historical passes
+      // must not survive a zero-request failure and satisfy the closing gate.
+      cell.cases = Object.fromEntries(CONFORMANCE_CASES.map(name => [name, {
+        status: "not-run" as const, detail: "Latest installed scenario has not proved this case",
+        evidence: document.path, version: data.version,
+      }]));
       if (!Number.isInteger(data.events) || data.events <= 0 || !Number.isInteger(data.requests) || data.requests <= 0) continue;
       for (const name of CONFORMANCE_CASES) {
         const result = object(data.cases?.[name]);

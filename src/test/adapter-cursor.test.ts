@@ -265,3 +265,39 @@ test("Cursor stream wrapper links result body to the one native transcript tool 
     assert.equal((await readEvents(repo)).length, events.length);
   } finally { process.chdir(prior); await rm(dir, { recursive: true, force: true }); await cleanupRepo(repo); }
 });
+
+test("Cursor stream keeps actual hook call IDs and references native Read binary bytes in raw and normalized evidence", async () => {
+  const repo = await makeTempRepo("cledger-cursor-native-stream-test-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-cursor-native-stream-"));
+  const prior = process.cwd();
+  try {
+    await makeCommit(repo);
+    for (const id of ["native-text", "native-image"]) await captureCursorToolHook({ session_id: "TESTONLY-native",
+      generation_id: "TESTONLY-generation", hook_event_name: "preToolUse", tool_use_id: id,
+      tool_name: "Read", tool_input: { file_path: id === "native-image" ? "image.png" : "text.txt" } }, repo.root);
+    const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 255]), encoded = bytes.toString("base64");
+    const rows = ["native-image", "native-text"].flatMap(id => {
+      const args = { path: id === "native-image" ? "image.png" : "text.txt" };
+      const start = { type: "tool_call", subtype: "started", session_id: "TESTONLY-native", call_id: id,
+        tool_call: { readToolCall: { args } } };
+      return [start, { ...start, subtype: "completed", timestamp_ms: 1000,
+        tool_call: { readToolCall: { args, result: { success: id === "native-image" ? { data: encoded } : { content: "café 日本語 🦉" } } } } }];
+    });
+    const binary = join(dir, "agent");
+    await writeFile(binary, `#!${process.execPath}\n` + rows.map(row => `console.log(${JSON.stringify(JSON.stringify(row))});`).join("\n"), { mode: 0o755 });
+    process.chdir(repo.root);
+    assert.equal(await runCursor(["synthetic"], binary), 0);
+    const events = await readEvents(repo);
+    const stream = events.filter(e => e.raw?.format.startsWith("cursor-agent-stream-json/1"));
+    assert.equal(stream.length, 2);
+    for (const e of stream) assert.equal((e.content as any).blocks[0].tool_use_id, (e.content as any).source_call_id);
+    const image = stream.find(e => (e.content as any).source_call_id === "native-image")!;
+    const reference = (image.content as any).blocks[0].content.success.data.file_data;
+    assert.equal(reference.type, "attachment_reference");
+    assert.equal(reference.size, bytes.length);
+    assert.equal(reference.media_type, "application/octet-stream");
+    assert.ok(JSON.stringify(image.raw).includes(reference.sha256));
+    assert.ok(!JSON.stringify(events).includes(encoded));
+    assert.ok(JSON.stringify(stream).includes("café 日本語 🦉"));
+  } finally { process.chdir(prior); await rm(dir, { recursive: true, force: true }); await cleanupRepo(repo); }
+});

@@ -315,6 +315,16 @@ export async function captureCursorTranscript(path: string, cwd: string, session
   return out;
 }
 
+/** The native Read stream's success.data is protobuf bytes encoded as base64.
+ * Scope this conversion to that carrier, preserving unrelated tool prose. */
+export function prepareCursorStreamRow(row: Record<string, unknown>): Record<string, unknown> {
+  const call = fields(row.tool_call), read = fields(call.readToolCall), result = fields(read.result), success = fields(result.success);
+  if (typeof success.data !== "string") return row;
+  const carrier = { type: "input_file", filename: fields(read.args).path, file_data: success.data };
+  return { ...row, tool_call: { ...call, readToolCall: { ...read, result: { ...result,
+    success: { ...success, data: carrier } } } } };
+}
+
 /** Native hooks run from the workspace root for project settings and from
  * ~/.cursor for global settings; use the payload's explicit workspace root. */
 export async function runCursorHook(stdinJson: string): Promise<void> {
@@ -399,11 +409,13 @@ export async function runCursor(args: string[], binary = "cursor-agent"): Promis
       const existing = await readEvents(repo);
       const links = new Map<string, string>();
       for (const sessionId of new Set(starts.map(start => start.sessionId))) {
-        const calls = existing.filter(event => event.producer.source === "cursor" &&
+        // Hook records carry actual call IDs, have no native sequence number,
+        // and can be returned in ledger storage order. Never remap their IDs.
+        const calls = existing.filter(event => event.producer.source === "cursor" && event.raw?.format.split("+", 1)[0] === FORMAT &&
           event.stream?.id === `cursor:${sessionId}`)
           .sort((a, b) => (a.stream?.seq ?? 0) - (b.stream?.seq ?? 0))
           .flatMap(event => (object(event.content) && Array.isArray(event.content.blocks) ? event.content.blocks : []))
-          .filter(block => object(block) && block.type === "tool_use");
+          .filter(block => object(block) && block.type === "tool_use" && block.native_id_missing === true);
         const sessionStarts = starts.filter(start => start.sessionId === sessionId);
         // Cursor's transcript has tool starts in model order but no native
         // call IDs. Link only if the complete sequence matches by tool name;
@@ -414,7 +426,8 @@ export async function runCursor(args: string[], binary = "cursor-agent"): Promis
         }
       }
       const drafts: EventDraft[] = [];
-      for (const { row, index } of rows) {
+      for (const { row: nativeRow, index } of rows) {
+        const row = prepareCursorStreamRow(nativeRow);
         const sessionId = str(row.session_id);
         const callId = str(row.call_id);
         if (!sessionId || !callId) continue;

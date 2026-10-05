@@ -11,6 +11,8 @@ export async function prepareAdditionalNative(cli: string, c: NativeContext): Pr
     Object.assign(c.env, { CONTINUE_GLOBAL_DIR: directory, DO_NOT_TRACK: "1" });
     await writeFile(join(directory, "config.yaml"), `name: Verification\nversion: 1.0.0\nschema: v1\nmodels:\n  - name: fixture\n    provider: openai\n    model: gpt-4o\n    apiBase: ${c.endpoint}/v1\n    apiKey: TESTONLY-local-verification\n    roles: [chat]\n`);
   } else if (cli === "cline") {
+    c.env.CLINE_DISABLE_CLINE_PASS_NOTICE = "1";
+    c.env.CLINE_NO_AUTO_UPDATE = "1";
     c.env.CLINE_DIR = directory;
     c.env.BROWSER = "/usr/bin/true";
     await c.checked(c.binary, ["auth", "openai-compatible", "--apikey", "TESTONLY-local-verification", "--modelid", "fixture", "--baseurl", c.endpoint + "/v1"]);

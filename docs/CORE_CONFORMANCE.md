@@ -231,7 +231,13 @@ an OpenAI-compatible model endpoint is insufficient. A subsequent headless explo
 linked automatic tool evidence, native checkpoint persistence of the submitted
 prompt and scripted answer, normal exit, and `--resume` of the saved session.
 The resumed run received the two saved native prompt-message pointers and read
-a fresh file value. This temporary protocol probe is not a reproducible
+a fresh file value. After repairing binary Read stream retention and preserving real native tool
+call IDs during result matching, automatic capture contained 21 records; two
+explicit transcript backfills each retained exactly those 21 records. The
+initial run exercised a real missing-file error, UTF-8 Read, and PNG Read; the
+resumed run read a fresh value. Binary bytes became attachment references in
+normalized and raw evidence. This temporary
+protocol probe is not a reproducible
 conformance driver and does not close Cursor cases or any TUI item. Cursor
 conformance remains pending.
 
@@ -239,7 +245,7 @@ conformance remains pending.
 
 The expanded sixteen-CLI CI run recorded 29/32 Linux scenario passes and
 29/32 macOS passes. Failures remain in the matrix until newer installed evidence
-supersedes them. The [focused six-CLI rerun](https://github.com/evintunador/conversation-ledger/actions/runs/37384076086) passed all 12 scenarios on each OS, including Aider and all previously failing cases. A full seventeen-CLI gate remains required. Kilo's isolated profile now uses its
+supersedes them. The [focused six-CLI rerun](https://github.com/evintunador/conversation-ledger/actions/runs/37384076086) passed all 12 scenarios on each OS, including Aider and all previously failing cases. The [full seventeen-CLI rerun](https://github.com/evintunador/conversation-ledger/actions/runs/37384796882) passed 34/34 macOS scenarios and 32/34 Linux scenarios; Cline headless automatic capture and Vibe TUI resume remain failures in that run. A later green full gate remains required. Kilo's isolated profile now uses its
 [documented `snapshot: false` setting](https://kilo.ai/docs/code-with-ai/features/checkpoints)
 because native snapshot initialization stalled on resume; snapshot/rewind proof
 is excluded. Cline's native single-file path paste creates an image attachment;
@@ -252,6 +258,16 @@ a hook for it. If first backfill adds only two unchanged creation-metadata rows
 and one system `session_context` in a new stream, and the second adds nothing,
 this is an observed backfill limitation. Missing human, assistant, tool, active
 stream or additional lifecycle records remain failures.
+
+Cline headless sometimes exits with code 0, no stdout, no model requests and
+no automatic records. The full Linux run and later macOS probes retain this
+failure; an earlier short-profile pass did not establish a reliable path-based
+fix. Cline auto-update and startup marketing notices are disabled in isolated
+profiles to preserve the pin and make TUI startup reproducible. The headless
+failure's cause remains under investigation; fresh native probes reproduce it
+without ledger configuration or hooks, so installation is not an established
+cause. Vibe now receives bracketed
+paste and Enter as separate native input actions.
 
 A manual `native-verification.yml` dispatch can set `focus` to comma-separated
 CLI IDs (for example `kilo,cline,gemini-cli,open-interpreter,aider,opencode`).

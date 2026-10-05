@@ -67,7 +67,7 @@ export interface ConformanceReport {
   cases: Record<string, { status: "pass" | "fail" | "not-run" | "limitation"; detail: string }>;
   requests: number; events: number; fullyCertified: false; exclusions: string[]; reason?: string; fileSearchBackend?: string;
   started?: string; completed?: string; inputMethod?: string; automaticEventsBeforeBackfill?: number;
-  nativeTools?: string[];
+  nativeTools?: string[]; rejectedRequests?: string[];
   inputObservation?: { providerImage: boolean; references: number; embeddedBinary: boolean; humanEntries?: unknown[] };
   backfillObservation?: { automatic: number; first: number; second: number; firstAdded: unknown[]; secondAdded: unknown[] };
 }
@@ -242,7 +242,7 @@ max_attempts_per_step = 1
             if (h && events.filter(e => e.stream?.id === h.stream?.id && e.actor.type === "agent" && textOf(e).includes("TESTONLY_CONFORMANCE_DONE")).length > priorAnswers) return;
             await new Promise(done => setTimeout(done, 200));
           }
-          throw Error("Automatic headless prompt/answer capture incomplete before backfill");
+          throw Error("Automatic headless prompt/answer capture incomplete before backfill; native output: " + terminalTail(result.stdout + result.stderr));
         }
         if (cli === "open-interpreter" && !resume) nativeArgs = [...nativeArgs, prompt];
         const actions: PtyAction[] = cli === "crush" && resume ? [
@@ -276,12 +276,11 @@ max_attempts_per_step = 1
         ] : [
           ...(resume && ["gemini-cli", "copilot"].includes(cli) ? [{ waitFor: "Resuming.*session", send: "" }] : []),
           ...(!resume && cli === "kimi" ? [{ waitFor: "Trust this folder", send: "\r" }] : []),
-          ...(!resume && cli === "cline" ? [{ waitFor: "any other key to close", send: "\x1b", delayMs: 500 }] : []),
           ...(!resume && cli === "crush" ? [{ waitFor: "Would you like to initialize", send: "n", delayMs: 500 }] : []),
           ...(cli === "kimi" && resume ? [
             { waitFor: roundReadiness, send: "\x16", delayMs: 1000 },
             { waitFor: "image #|image:", send: sent + "\r", paste: true, delayMs: 500 },
-          ] : ["gemini-cli", "openhands"].includes(cli) ? [
+          ] : ["gemini-cli", "openhands", "mistral-vibe"].includes(cli) ? [
             { waitFor: roundReadiness, send: "\x1b[200~" + sent + "\x1b[201~", delayMs: 500 },
             { waitFor: "Unicode", send: cli === "openhands" ? "\x0a" : "\r", delayMs: 1000 },
             ...(resume && cli === "gemini-cli" ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
@@ -418,6 +417,7 @@ max_attempts_per_step = 1
   finally {
     report.completed = new Date().toISOString();
     report.requests = provider?.state.requests ?? 0;
+    report.rejectedRequests = provider?.state.rejectedRequests ?? [];
     report.nativeTools = provider?.state.nativeTools ?? [];
     await provider?.close();
     if (options.retain) await writeFile(join(root, "report.json"), JSON.stringify(report, null, 2));

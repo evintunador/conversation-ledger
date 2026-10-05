@@ -4,12 +4,14 @@ import { join } from "node:path";
 export type CoreCli = "claude-code" | "codex" | "opencode";
 export type ConformanceCli = CoreCli | "gemini-cli" | "qwen-code" | "pi" | "kilo" | "copilot" | "kimi" | "open-interpreter" | "continue" | "cline" | "goose" | "openhands" | "droid" | "mistral-vibe" | "crush" | "aider";
 export async function startConformanceProvider(cli: ConformanceCli, repository?: string) {
-  const state = { requests: 0, typedInputs: [] as string[], inputImage: false, imageToolResult: false, toolError: false, nativeTools: [] as string[] };
+  const state = { requests: 0, rejectedRequests: [] as string[], typedInputs: [] as string[], inputImage: false, imageToolResult: false, toolError: false, nativeTools: [] as string[] };
   let calls = 0;
   const server = createServer(async (req, res) => {
     if (req.method === "HEAD" && req.url === "/api/hello") { res.writeHead(200); res.end(); return; }
     const google = cli === "gemini-cli" && /:(?:countTokens|generateContent|streamGenerateContent)/.test(req.url ?? "");
-    if (req.method !== "POST" || (!google && !/^\/v1\/(?:messages|responses|chat\/completions)(?:\?.*)?$/.test(req.url ?? ""))) { res.writeHead(400); res.end(); return; }
+    if (req.method !== "POST" || (!google && !/^\/v1\/(?:messages|responses|chat\/completions)(?:\?.*)?$/.test(req.url ?? ""))) {
+      if (state.rejectedRequests.length < 16) state.rejectedRequests.push(`${req.method} ${req.url?.split("?", 1)[0]}`); res.writeHead(400); res.end(); return;
+    }
     if (++state.requests > 16) { res.writeHead(429); res.end(); return; }
     try {
       let body = "";
