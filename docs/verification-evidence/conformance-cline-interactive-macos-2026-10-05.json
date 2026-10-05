@@ -24,11 +24,11 @@
     },
     "userImageEntry": {
       "status": "pass",
-      "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes"
+      "detail": "Native input method: native editor multiline paste; resumed separate image-file path paste; provider image input and persisted human/context reference required, without embedded binary bytes"
     },
     "noUnrecognized": {
       "status": "pass",
-      "detail": "Unknown native records across initial and resumed turns stay explicit"
+      "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
     },
     "resume": {
       "status": "pass",
@@ -42,8 +42,8 @@
   "requests": 5,
   "events": 16,
   "fullyCertified": false,
-  "started": "2026-10-05T21:58:12.177Z",
-  "inputMethod": "native editor bracketed paste",
+  "started": "2026-10-05T22:38:59.673Z",
+  "inputMethod": "native editor multiline paste; resumed separate image-file path paste",
   "exclusions": [
     "live provider/model behavior",
     "headless mode",
@@ -56,7 +56,19 @@
   ],
   "version": "3.0.65",
   "automaticEventsBeforeBackfill": 16,
-  "completed": "2026-10-05T21:58:28.620Z",
+  "inputObservation": {
+    "providerImage": true,
+    "references": 2,
+    "embeddedBinary": false
+  },
+  "backfillObservation": {
+    "automatic": 16,
+    "first": 16,
+    "second": 16,
+    "firstAdded": [],
+    "secondAdded": []
+  },
+  "completed": "2026-10-05T22:39:16.782Z",
   "nativeTools": [
     "read_files",
     "search_codebase",

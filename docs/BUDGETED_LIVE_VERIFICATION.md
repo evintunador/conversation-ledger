@@ -160,3 +160,28 @@ pricing, stale locks, missing state, and oversized input refusal before reservat
 requires loopback permission; a restricted sandbox reports an explicit skip.
 These tests do not activate the authority, configure keys, dispatch paid CI or
 claim that a production provider's pricing has been reviewed.
+
+## Issue #27 campaign canaries
+
+The `issue27` campaign has a shared **$20 total** ceiling across CLI IDs,
+provider routes, initial/maintenance phases and months. Reservations are durable
+worst-case charges and are never refunded from usage estimates. Existing
+per-CLI ceilings also apply. A missing campaign counter with existing campaign
+sessions fails closed instead of recreating an allocation.
+
+The initial registered canary consumer is OpenCode in either native headless or
+TUI mode. Set the existing explicit authority/provider/model/session variables
+and use `budget-client authorize-canary`; this issues up to eight requests with
+`campaign: issue27`. The client requires the authority to confirm that scope.
+Run `budget-client run-canary SESSION OUTPUT OPENCODE_BINARY headless` (or
+`interactive`). An ordinary legacy authorization cannot launch this canary.
+
+The canary uses two fresh random text file values, normal exit and native
+resume, automatic linked reads/results/answers, and two unchanged manual
+backfills. Reports use `cledger-canary/1` with `inference: usual-provider` and
+record the authority pricing revision. Provider/admin credentials stay outside
+the native synthetic CLI profile.
+
+No funded route, paid call or new protected CI environment has been activated.
+Real provider pricing/account prerequisites remain pending. The free CI tests
+use scripted substitutes and cannot satisfy real-model matrix cells.

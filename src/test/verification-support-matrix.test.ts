@@ -17,9 +17,10 @@ test("a later failed scenario supersedes a historical pass and cannot certify it
   assert.equal(cell([native({ events: 0 })])['darwin/interactive']!.cases.resume!.status, "not-run");
 });
 test("a live label cannot replace explicit automatic capture/resume/two-backfill canary gates", () => {
-  const report = { schema: "cledger-canary/1", cli: "gemini-cli", version: "0.61.0", platform: "darwin/arm64", mode: "interactive", inference: "usual-provider", status: "pass", gates: { answer: true } };
+  const report = { schema: "cledger-canary/1", cli: "gemini-cli", version: "0.61.0", platform: "darwin/arm64", mode: "interactive", inference: "usual-provider", provider: "TESTONLY", model: "TESTONLY", requests: 4, status: "pass", gates: { answer: true } };
   assert.equal(cell([report])['darwin/interactive']!.usualProvider.status, "fail");
   assert.equal(cell([{ ...report, gates: Object.fromEntries(CANARY_GATES.map(g => [g, true])) }])['darwin/interactive']!.usualProvider.status, "pass");
+  assert.equal(cell([{ ...report, requests: 0, gates: Object.fromEntries(CANARY_GATES.map(g => [g, true])) }])['darwin/interactive']!.usualProvider.status, "fail");
   assert.equal(cell([{ ...report, schema: "cledger-live-verification/1" }])['darwin/interactive']!.usualProvider.status, "not-run");
 });
 test("matrix retains the complete roster and never closes with absent evidence", () => {

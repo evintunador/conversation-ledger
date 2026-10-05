@@ -154,10 +154,11 @@ macOS/Linux rerun exercises the stricter assertions against those pins.
 ## Issue #27 expansion (2026-10-05)
 
 The installed macOS campaign resolves the eight cases (passes or observed upstream
-limitations) in both modes for sixteen CLIs: Claude, Codex, OpenCode, Gemini,
+limitations) in both modes for seventeen CLIs: Claude, Codex, OpenCode, Gemini,
 Qwen, Pi, Kilo, Copilot, Kimi, Continue, Cline, Goose, Open Interpreter,
-OpenHands, Crush and Mistral Vibe. Droid is blocked on isolated resume authentication;
-Aider, Cursor and Kiro still need conformance proof. The initial nine-CLI CI run
+OpenHands, Crush, Mistral Vibe and Aider. Aider reloads native chat history but
+has no stable native session ID, recorded as a resume limitation. Droid is blocked on isolated resume authentication;
+Cursor and Kiro still need conformance proof. The initial nine-CLI CI run
 passed all macOS scenarios; Linux Gemini TUI backfill remains a recorded failure. See the matrix
 for the latest per-case result; partial runs do not certify a CLI.
 
@@ -194,3 +195,62 @@ Follow-up issues cover [text-file attachment entry (#28)](https://github.com/evi
 [fork/branch (#32)](https://github.com/evintunador/conversation-ledger/issues/32),
 [compaction/rewind (#33)](https://github.com/evintunador/conversation-ledger/issues/33),
 and [subagents (#34)](https://github.com/evintunador/conversation-ledger/issues/34).
+
+### Real-model canary runner
+
+`npm run verify:canary -- --local` currently implements OpenCode, using the
+explicit `CLEDGER_VERIFY_ENDPOINT`, `CLEDGER_VERIFY_MODEL`,
+`CLEDGER_VERIFY_BINARY` and optional `CLEDGER_VERIFY_INTERACTIVE=1`. Run this
+only after local power and cooling are ready. No model endpoint is selected
+implicitly. Other CLI canary drivers remain pending.
+
+The runner performs an initial read/answer, normal exit, native session resume,
+and a second read of a newly randomized file value. Neither value appears in
+the prompt. It requires automatic linked evidence before both manual backfills.
+CI verifies this driver with scripted model substitutes; those reports are
+explicitly scripted and cannot satisfy real-model matrix cells. Paid canaries use `budget-client authorize-canary` and
+`budget-client run-canary SESSION OUTPUT OPENCODE_BINARY headless|interactive`.
+The durable authority now enforces a shared $20 `issue27` campaign ceiling
+in addition to per-CLI limits. No paid execution has been activated; selected
+funded API routes and current reviewed prices are still required.
+
+### Remaining prerequisites
+
+Kiro's freshly probed installed version is 2.27.1; historical 2.27.0 proof is
+not promoted to that pin. Its [official authentication contract](https://kiro.dev/docs/getting-started/authentication/)
+restricts API-key creation to paid accounts, and
+[headless mode](https://kiro.dev/docs/cli/headless/) requires that key. Usual-provider
+headless canaries are blocked pending a subscription-owning contributor on both
+OSes. This prerequisite record does not assert an installed Linux run. Browser
+sign-in/free-account TUI verification is a separate pending path.
+
+Cursor 2026.10.01-e373342's installed help exposes `--endpoint`; a synthetic
+loopback probe reached native authentication exchange, protobuf model discovery
+and prompt persistence. Its agent uses a distinct bidirectional RPC protocol;
+an OpenAI-compatible model endpoint is insufficient. The probe did not complete
+a read/answer or lifecycle gate, so Cursor conformance remains pending.
+
+### CI reproduction and native boundaries
+
+The expanded sixteen-CLI CI run recorded 29/32 Linux scenario passes and
+29/32 macOS passes. Failures remain in the matrix until newer installed evidence
+supersedes them. Kilo's isolated profile now uses its
+[documented `snapshot: false` setting](https://kilo.ai/docs/code-with-ai/features/checkpoints)
+because native snapshot initialization stalled on resume; snapshot/rewind proof
+is excluded. Cline's native single-file path paste creates an image attachment;
+`@image` selects a generic text-file context and may reject a PNG as binary.
+Open Interpreter exits only after automatic capture and a bounded idle terminal
+interval, so a busy native Stop hook cannot consume the exit command.
+
+Gemini may leave a separate unused bootstrap transcript during resume, without
+a hook for it. If first backfill adds only two unchanged creation-metadata rows
+and one system `session_context` in a new stream, and the second adds nothing,
+this is an observed backfill limitation. Missing human, assistant, tool, active
+stream or additional lifecycle records remain failures.
+
+A manual `native-verification.yml` dispatch can set `focus` to comma-separated
+CLI IDs (for example `kilo,cline,gemini-cli,open-interpreter,aider,opencode`).
+It provisions pinned binaries and runs installed cases on both OSes, skipping
+the broad smoke campaign for that focused dispatch. The normal PR/default
+workflow retains the full smoke and conformance gate. Focused dispatch is not
+a substitute for the full gate.

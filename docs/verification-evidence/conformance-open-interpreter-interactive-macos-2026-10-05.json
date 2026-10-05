@@ -28,7 +28,7 @@
     },
     "noUnrecognized": {
       "status": "pass",
-      "detail": "Unknown native records across initial and resumed turns stay explicit"
+      "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
     },
     "resume": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 5,
   "events": 36,
   "fullyCertified": false,
-  "started": "2026-10-05T21:46:48.820Z",
+  "started": "2026-10-05T22:39:16.786Z",
   "inputMethod": "native TUI initial prompt/--image arguments; resumed editor bracketed paste",
   "exclusions": [
     "live provider/model behavior",
@@ -56,7 +56,19 @@
   ],
   "version": "interpreter 0.0.45",
   "automaticEventsBeforeBackfill": 36,
-  "completed": "2026-10-05T21:46:56.719Z",
+  "inputObservation": {
+    "providerImage": true,
+    "references": 2,
+    "embeddedBinary": false
+  },
+  "backfillObservation": {
+    "automatic": 36,
+    "first": 36,
+    "second": 36,
+    "firstAdded": [],
+    "secondAdded": []
+  },
+  "completed": "2026-10-05T22:39:25.431Z",
   "nativeTools": [
     "exec_command",
     "write_stdin",

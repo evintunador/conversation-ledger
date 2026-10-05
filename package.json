@@ -68,7 +68,8 @@
     "verify:open-interpreter": "npm run build && node dist/verification/open-interpreter.js",
     "verify:schedule": "npm run build && node dist/verification/schedule.js",
     "verify:matrix": "npm run build && node dist/verification/support-matrix.js",
-    "verify:conformance": "npm run build && node dist/verification/conformance-campaign.js"
+    "verify:conformance": "npm run build && node dist/verification/conformance-campaign.js",
+    "verify:canary": "npm run build && node dist/verification/canary.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

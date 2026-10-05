@@ -20,14 +20,17 @@ export interface ReviewedPrice {
 }
 interface Session {
   cli: string; provider: string; model: string; revision: string; phase: "initial" | "maintenance";
+  campaign?: "issue27";
   expires: number; maxRequests: number; maxMicroUsd: number; requests: number; reservedMicroUsd: number;
 }
 interface State {
   schema: "cledger-budget/1";
   initial: Record<string, number>; months: Record<string, Record<string, number>>;
   sessions: Record<string, Session>;
+  campaigns?: { issue27?: number };
 }
 const CEILING = 5_000_000;
+const ISSUE27_CEILING = 20_000_000;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const positive = (value: number) => Number.isSafeInteger(value) && value > 0;
 const counter = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
@@ -35,6 +38,7 @@ function validScope(input: Omit<Session, "requests" | "reservedMicroUsd">): bool
   return typeof input.cli === "string" && /^[a-z][a-z0-9-]*$/.test(input.cli) &&
     [input.provider, input.model, input.revision].every(v => typeof v === "string" && !!v.trim()) &&
     ["initial", "maintenance"].includes(input.phase) && positive(input.expires) &&
+    (input.campaign === undefined || input.campaign === "issue27") &&
     positive(input.maxRequests) && input.maxRequests <= 8 && positive(input.maxMicroUsd) && input.maxMicroUsd <= CEILING;
 }
 export function reservationCost(price: ReviewedPrice, now = Date.now()): number {
@@ -74,6 +78,14 @@ export class BudgetStore {
       const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
       if (state.schema !== "cledger-budget/1" || !record(state.initial) || !record(state.months) || !record(state.sessions) ||
           Object.values(state.months).some(v => !record(v))) throw Error("Invalid budget state");
+      if (state.campaigns !== undefined && (!record(state.campaigns) || Object.entries(state.campaigns).some(([name, amount]) =>
+        name !== "issue27" || !counter(amount) || amount > ISSUE27_CEILING))) throw Error("Invalid campaign budget state");
+      // A missing counter must not restore funds after an authorized campaign
+      // has already reserved costs. Older ledgers without campaign sessions
+      // remain compatible with their original per-CLI contract.
+      const campaignSessions = Object.values(state.sessions).filter(s => s.campaign === "issue27");
+      const campaignReservations = campaignSessions.reduce((sum, s) => sum + s.reservedMicroUsd, 0);
+      if (campaignSessions.length && (!counter(state.campaigns?.issue27) || state.campaigns!.issue27! < campaignReservations)) throw Error("Campaign reservations missing or inconsistent");
       const allocations = (v: Record<string, unknown>) => Object.entries(v).every(([cli, amount]) => /^[a-z][a-z0-9-]*$/.test(cli) && counter(amount) && amount <= CEILING);
       if (!allocations(state.initial) || Object.entries(state.months).some(([month, amounts]) => !/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !allocations(amounts)) ||
           Object.entries(state.sessions).some(([token, session]) => !/^[a-f0-9]{64}$/.test(token) || !record(session) || !validScope(session as unknown as Session) ||
@@ -93,7 +105,10 @@ export class BudgetStore {
     if (!validScope(input) ||
         input.expires <= now || input.expires > now + 900_000) throw Error("Invalid run authorization");
     const token = randomUUID() + randomUUID();
-    await this.change(state => { state.sessions[hash(token)] = { ...input, requests: 0, reservedMicroUsd: 0 }; });
+    await this.change(state => {
+      if (input.campaign === "issue27") { state.campaigns ??= {}; state.campaigns.issue27 ??= 0; }
+      state.sessions[hash(token)] = { ...input, requests: 0, reservedMicroUsd: 0 };
+    });
     return token;
   }
   async reserve(token: string, price: ReviewedPrice, now = Date.now()): Promise<{ microUsd: number; cli: string }> {
@@ -107,6 +122,11 @@ export class BudgetStore {
       if (![initial, spent, session.requests, session.reservedMicroUsd].every(v => Number.isSafeInteger(v) && v >= 0)) throw Error("Corrupt budget counters");
       if (session.requests >= session.maxRequests || session.reservedMicroUsd + cost > session.maxMicroUsd || spent + cost > CEILING ||
           (session.phase === "initial" && initial + cost > CEILING)) throw Error("Budget exhausted; request not forwarded");
+      if (session.campaign === "issue27") {
+        const total = state.campaigns?.issue27;
+        if (!counter(total) || total + cost > ISSUE27_CEILING) throw Error("Issue #27 campaign budget exhausted; request not forwarded");
+        state.campaigns!.issue27 = total + cost;
+      }
       session.requests++; session.reservedMicroUsd += cost; monthly[session.cli] = spent + cost;
       if (session.phase === "initial") state.initial[session.cli] = initial + cost;
       return { microUsd: cost, cli: session.cli };

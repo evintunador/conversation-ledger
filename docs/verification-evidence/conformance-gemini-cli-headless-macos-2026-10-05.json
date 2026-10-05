@@ -24,11 +24,11 @@
     },
     "userImageEntry": {
       "status": "pass",
-      "detail": "Native prompt argument @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+      "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes"
     },
     "noUnrecognized": {
       "status": "pass",
-      "detail": "Unknown native records across initial and resumed turns stay explicit"
+      "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
     },
     "resume": {
       "status": "pass",
@@ -42,7 +42,7 @@
   "requests": 7,
   "events": 50,
   "fullyCertified": false,
-  "started": "2026-10-05T21:42:56.621Z",
+  "started": "2026-10-05T22:39:25.431Z",
   "inputMethod": "native prompt argument",
   "exclusions": [
     "live provider/model behavior",
@@ -56,7 +56,19 @@
   ],
   "version": "0.61.0",
   "automaticEventsBeforeBackfill": 50,
-  "completed": "2026-10-05T21:43:02.121Z",
+  "inputObservation": {
+    "providerImage": true,
+    "references": 8,
+    "embeddedBinary": false
+  },
+  "backfillObservation": {
+    "automatic": 50,
+    "first": 50,
+    "second": 50,
+    "firstAdded": [],
+    "secondAdded": []
+  },
+  "completed": "2026-10-05T22:39:32.523Z",
   "nativeTools": [
     "update_topic",
     "list_directory",

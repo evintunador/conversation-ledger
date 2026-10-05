@@ -2,7 +2,7 @@
 import { createServer } from "node:http";
 import { join } from "node:path";
 export type CoreCli = "claude-code" | "codex" | "opencode";
-export type ConformanceCli = CoreCli | "gemini-cli" | "qwen-code" | "pi" | "kilo" | "copilot" | "kimi" | "open-interpreter" | "continue" | "cline" | "goose" | "openhands" | "droid" | "mistral-vibe" | "crush";
+export type ConformanceCli = CoreCli | "gemini-cli" | "qwen-code" | "pi" | "kilo" | "copilot" | "kimi" | "open-interpreter" | "continue" | "cline" | "goose" | "openhands" | "droid" | "mistral-vibe" | "crush" | "aider";
 export async function startConformanceProvider(cli: ConformanceCli, repository?: string) {
   const state = { requests: 0, typedInputs: [] as string[], inputImage: false, imageToolResult: false, toolError: false, nativeTools: [] as string[] };
   let calls = 0;

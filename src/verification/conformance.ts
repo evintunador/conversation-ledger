@@ -1,4 +1,5 @@
 /** Installed core TUI data-entry/lifecycle scenarios. No model inference. */
+import { verifyAiderConformance } from "./conformance-aider.js";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, realpath, mkdir, writeFile, readFile, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,15 +10,34 @@ import { findRepo } from "annals";
 import { readEvents } from "../store.js";
 import { hasUnrecognizedEvidence } from "./drift.js";
 import { isolatedEnvironment, runProcess } from "./process.js";
-import { runPty, terminalTail } from "./pty.js";
+import { runPty, terminalTail, type PtyAction } from "./pty.js";
 import { startConformanceProvider, type ConformanceCli } from "./conformance-provider.js";
 import { ADDITIONAL_CONFORMANCE_DRIVERS, WRAPPED_CONFORMANCE_DRIVERS, prepareAdditionalNative, additionalNativeArgs } from "./conformance-native.js";
 export const CONFORMANCE_CASES = ["multilineUnicode", "textRead", "toolError", "imageReference", "userImageEntry", "noUnrecognized", "resume", "backfill"] as const;
-export const CONFORMANCE_DRIVERS: readonly ConformanceCli[] = ["claude-code", "codex", "opencode", "gemini-cli", "qwen-code", "pi", "kilo", "copilot", "kimi", "open-interpreter", ...ADDITIONAL_CONFORMANCE_DRIVERS];
+export const CONFORMANCE_DRIVERS: readonly ConformanceCli[] = ["claude-code", "codex", "opencode", "gemini-cli", "qwen-code", "pi", "kilo", "copilot", "kimi", "open-interpreter", ...ADDITIONAL_CONFORMANCE_DRIVERS, "aider"];
 // Synthetic valid 32x32 RGB PNG, generated from PNG chunks with CRCs (no user image).
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGP4EFBBU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULAF2O4Fut+99pAAAAAElFTkSuQmCC";
 const textOf = (e: EvidenceEvent) => JSON.stringify(e.content);
 const blocks = (e: EvidenceEvent) => (e.content as { blocks?: Record<string, unknown>[] }).blocks ?? [];
+/** Gemini can leave an unhooked, unused bootstrap transcript while resuming.
+ * Never excuse missing human/assistant/tool evidence as this limitation. */
+export function geminiBootstrapOnlyBackfill(before: EvidenceEvent[], after: EvidenceEvent[]): boolean {
+  const known = new Set(before.map(e => e.id)), knownStreams = new Set(before.map(e => e.stream?.id));
+  const added = after.filter(e => !known.has(e.id));
+  if (!added.length || added.some(e => e.producer.source !== "gemini-cli" || e.actor.type !== "system" || !e.stream?.id || knownStreams.has(e.stream.id))) return false;
+  const groups = new Map<string, EvidenceEvent[]>();
+  for (const e of added) groups.set(e.stream!.id, [...(groups.get(e.stream!.id) ?? []), e]);
+  return [...groups.values()].every(group => {
+    if (group.length !== 3) return false;
+    const metadata = group.filter(e => e.kind === "session_state" && (e.content as Record<string, unknown>).state_type === "metadata");
+    const initial = metadata.find(e => (e.content as Record<string, unknown>).sessionId === e.producer.session_id)?.content as Record<string, unknown> | undefined;
+    if (metadata.length !== 2 || !initial || typeof initial.startTime !== "string" || !Number.isFinite(Date.parse(initial.startTime)) || initial.lastUpdated !== initial.startTime || initial.kind !== "main") return false;
+    const patch = metadata.find(e => e.content !== initial)?.content as Record<string, unknown> | undefined;
+    if (!patch || patch.lastUpdated !== initial.startTime || Object.keys(patch).some(k => !["state_type", "lastUpdated"].includes(k))) return false;
+    return group.filter(e => e.kind === "conversation_turn" && blocks(e).length === 1 && blocks(e)[0]?.type === "text" &&
+      String(blocks(e)[0]?.text).startsWith("<session_context>\nThis is the Gemini CLI.")).length === 1;
+  });
+}
 export function attachmentEvidence(value: unknown): { references: number; embeddedBinary: boolean } {
   let references = 0, embeddedBinary = false;
   function walk(item: unknown) {
@@ -48,11 +68,13 @@ export interface ConformanceReport {
   requests: number; events: number; fullyCertified: false; exclusions: string[]; reason?: string; fileSearchBackend?: string;
   started?: string; completed?: string; inputMethod?: string; automaticEventsBeforeBackfill?: number;
   nativeTools?: string[];
+  inputObservation?: { providerImage: boolean; references: number; embeddedBinary: boolean; humanEntries?: unknown[] };
   backfillObservation?: { automatic: number; first: number; second: number; firstAdded: unknown[]; secondAdded: unknown[] };
 }
 export async function verifyCoreConformance(cli: ConformanceCli, options: { binary?: string; retain?: boolean; timeoutMs?: number; fileSearchBackend?: "ripgrep"; mode?: "headless" | "interactive" } = {}): Promise<ConformanceReport> {
   if (!CONFORMANCE_DRIVERS.includes(cli)) throw Error(`No installed conformance driver for ${cli}`);
   const mode = options.mode ?? "interactive";
+  if (cli === "aider") return verifyAiderConformance({ ...options, mode });
   const report: ConformanceReport = { schema: "cledger-conformance/1", cli, platform: process.platform + "/" + process.arch,
     mode, inference: "scripted", status: "blocked", cases: Object.fromEntries(CONFORMANCE_CASES.map(name => [name, { status: "not-run" as const, detail: "Installed scenario has not reached this gate" }])), requests: 0, events: 0, fullyCertified: false,
     started: new Date().toISOString(), inputMethod: mode === "interactive" ? "native editor bracketed paste" : "native prompt argument",
@@ -152,9 +174,10 @@ max_attempts_per_step = 1
     } else {
       await writeFile(join(root, "config", cli, "tui.json"), JSON.stringify({ theme: "opencode" }));
       await writeFile(join(root, "config", cli, cli + ".json"), JSON.stringify({ enabled_providers: ["verification"], model: "verification/fixture", small_model: "verification/fixture",
-        share: "disabled", permission: { "*": "deny", read: "allow" }, provider: { verification: { npm: "@ai-sdk/openai-compatible", options: { baseURL: provider.endpoint + "/v1", apiKey: "TESTONLY-fixture" },
+        share: "disabled", ...(cli === "kilo" ? { snapshot: false } : {}), permission: { "*": "deny", read: "allow" }, provider: { verification: { npm: "@ai-sdk/openai-compatible", options: { baseURL: provider.endpoint + "/v1", apiKey: "TESTONLY-fixture" },
           models: { fixture: { name: "fixture", limit: { context: 32768, output: 1024 }, modalities: { input: ["text", "image"], output: ["text"] } } } } } }));
     }
+    if (cli === "kilo") report.exclusions.push("Kilo native Git snapshot/rewind (snapshot=false in isolated profile; Linux initialization stalled)");
     if (!WRAPPED_CONFORMANCE_DRIVERS.has(cli)) await checked(process.execPath, [sourceCli, "install", cli]);
     const prompt = "TESTONLY_CONFORMANCE\nUnicode café 日本語 🦉\nReference evidence.txt; check missing-TESTONLY.txt, then read evidence.txt and image-TESTONLY.png.";
     if (cli === "continue" && mode === "interactive") report.inputMethod = "native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture";
@@ -171,6 +194,7 @@ max_attempts_per_step = 1
     };
     let resumeLimitation: string | undefined;
     async function terminalRound(resume: boolean) {
+      const roundReadiness = resume && cli === "cline" ? "TESTONLY_CONFORMANCE_DONE" : readiness;
       const complete = join(root, resume ? "resume-complete" : "first-complete");
       const priorAnswers = (await exported()).filter(e => e.actor.type === "agent" && textOf(e).includes("TESTONLY_CONFORMANCE_DONE")).length;
       let stopped = false;
@@ -187,7 +211,7 @@ max_attempts_per_step = 1
       })();
       let nativeArgs = args;
       if (resume) nativeArgs = cli === "claude-code" ? [...args, "--continue"] : ["codex", "open-interpreter"].includes(cli) ? ["resume", "--last", "--dangerously-bypass-hook-trust", "--no-alt-screen"] : cli === "gemini-cli" ? ["--resume", "latest"] : [...args, "--continue"];
-      const sent = resume ? "TESTONLY_CONFORMANCE_RESUME\nUnicode déjà vu 日本語 🦉" + (["codex", "open-interpreter", "pi"].includes(cli) ? "" : " @image-TESTONLY.png") : prompt + (cli === "cline" && mode === "headless" ? " @image-TESTONLY.png" : "");
+      const sent = resume ? "TESTONLY_CONFORMANCE_RESUME\nUnicode déjà vu 日本語 🦉" + (["codex", "open-interpreter", "pi"].includes(cli) || cli === "cline" && mode === "interactive" ? "" : " @image-TESTONLY.png") : prompt + (cli === "cline" && mode === "headless" ? " @image-TESTONLY.png" : "");
       const additional = ADDITIONAL_CONFORMANCE_DRIVERS.includes(cli as typeof ADDITIONAL_CONFORMANCE_DRIVERS[number]);
       const session = (await exported()).find(e => e.actor.type === "human" && blocks(e).some(b => b.type === "text" && String(b.text).includes("TESTONLY_CONFORMANCE")))?.producer.session_id;
       const invocation = (native: string[]) => WRAPPED_CONFORMANCE_DRIVERS.has(cli)
@@ -221,11 +245,16 @@ max_attempts_per_step = 1
           throw Error("Automatic headless prompt/answer capture incomplete before backfill");
         }
         if (cli === "open-interpreter" && !resume) nativeArgs = [...nativeArgs, prompt];
-        const actions = cli === "crush" && resume ? [
-          { waitFor: readiness, send: "\x1b[200~" + join(repo, "image-TESTONLY.png") + "\x1b[201~", delayMs: 500 },
+        const actions: PtyAction[] = cli === "crush" && resume ? [
+          { waitFor: roundReadiness, send: "\x1b[200~" + join(repo, "image-TESTONLY.png") + "\x1b[201~", delayMs: 500 },
           { waitFor: "image-TESTONLY\\.png", send: "\x1b[200~TESTONLY_CONFORMANCE_RESUME\nUnicode déjà vu 日本語 🦉\x1b[201~", delayMs: 500 },
           { waitFor: "Unicode", send: "\r", delayMs: 1000 },
           { waitFor: "^", waitForPath: complete, send: "/exit\r", delayMs: 500 },
+        ] : cli === "cline" && resume ? [
+          { waitFor: roundReadiness, send: "\x1b[200~" + join(repo, "image-TESTONLY.png") + "\x1b[201~", delayMs: 500 },
+          { waitFor: "\\[Image 1\\]", send: "\x1b[200~" + sent + "\x1b[201~", delayMs: 500 },
+          { waitFor: "Unicode", send: "\r", delayMs: 1000 },
+          { waitFor: "^", waitForPath: complete, send: "/exit\r", delayMs: 1000 },
         ] : cli === "open-interpreter" && !resume ? [
           { waitFor: "^", waitForPath: complete, send: "/exit\r", delayMs: 1000 },
         ] : cli === "continue" ? [
@@ -238,7 +267,7 @@ max_attempts_per_step = 1
           // Bulk-pasting @filename leaves OpenCode 1.18.33's autocomplete
           // query empty and Enter chooses @explore. Exercise actual keyboard
           // entry: paste body, open @ menu, type filename, select, submit.
-          { waitFor: readiness, send: "\x1b[200~" + "TESTONLY_CONFORMANCE_RESUME\nUnicode déjà vu 日本語 🦉" + "\x1b[201~", delayMs: 500 },
+          { waitFor: roundReadiness, send: "\x1b[200~" + "TESTONLY_CONFORMANCE_RESUME\nUnicode déjà vu 日本語 🦉" + "\x1b[201~", delayMs: 500 },
           { waitFor: "TESTONLY_CONFORMANCE_RESUME|Unicode", send: " @", delayMs: 500 },
           { waitFor: "@explore|@general", send: "image-TESTONLY.png", delayMs: 500 },
           { waitFor: "image-TESTONLY\\.png", waitForRaw: "\\x1b\\[48;5;216mimage-TESTONLY\\.png", send: "\r", delayMs: 1000 },
@@ -250,13 +279,13 @@ max_attempts_per_step = 1
           ...(!resume && cli === "cline" ? [{ waitFor: "any other key to close", send: "\x1b", delayMs: 500 }] : []),
           ...(!resume && cli === "crush" ? [{ waitFor: "Would you like to initialize", send: "n", delayMs: 500 }] : []),
           ...(cli === "kimi" && resume ? [
-            { waitFor: readiness, send: "\x16", delayMs: 1000 },
+            { waitFor: roundReadiness, send: "\x16", delayMs: 1000 },
             { waitFor: "image #|image:", send: sent + "\r", paste: true, delayMs: 500 },
           ] : ["gemini-cli", "openhands"].includes(cli) ? [
-            { waitFor: readiness, send: "\x1b[200~" + sent + "\x1b[201~", delayMs: 500 },
+            { waitFor: roundReadiness, send: "\x1b[200~" + sent + "\x1b[201~", delayMs: 500 },
             { waitFor: "Unicode", send: cli === "openhands" ? "\x0a" : "\r", delayMs: 1000 },
             ...(resume && cli === "gemini-cli" ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
-          ] : [{ waitFor: readiness, send: sent + "\r", paste: true, delayMs: 500 }]),
+          ] : [{ waitFor: roundReadiness, send: sent + "\r", paste: true, delayMs: 500 }]),
           ...(resume && ["claude-code", "copilot", "cline", "mistral-vibe"].includes(cli) ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
           ...(resume && cli === "cline" ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
           ...(["gemini-cli", "qwen-code", "copilot", "kimi"].includes(cli) ? [
@@ -264,6 +293,11 @@ max_attempts_per_step = 1
             { waitFor: cli === "gemini-cli" ? "Exit the cli" : cli === "kimi" ? "/exit" : "/quit", send: "\r", delayMs: 1000 },
           ] : [{ waitFor: "^", waitForPath: complete, send: cli === "pi" ? "/quit\r" : cli === "openhands" ? "\x11" : "/exit\r", delayMs: 1000 }]),
         ];
+        if (cli === "cline" && resume) report.inputMethod = "native editor multiline paste; resumed separate image-file path paste";
+        if (cli === "open-interpreter") {
+          actions.splice(actions.length - 1, 1,
+            { waitFor: "^", waitForPath: complete, quietMs: 1000, send: "/exit\r", delayMs: 250 });
+        }
         if (cli === "crush") {
           actions.splice(actions.length - 1, 1,
             { waitFor: "^", waitForPath: complete, send: "\x03", delayMs: 500 },
@@ -329,7 +363,7 @@ max_attempts_per_step = 1
       resumed.filter(e => e.stream?.id === human.stream?.id && e.actor.type === "agent" && textOf(e).includes("TESTONLY_CONFORMANCE_DONE")).length >
       first.filter(e => e.stream?.id === human.stream?.id && e.actor.type === "agent" && textOf(e).includes("TESTONLY_CONFORMANCE_DONE")).length ? "pass" : "fail", detail: "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream" };
     if (resumeLimitation) report.cases.resume = { status: "limitation", detail: resumeLimitation };
-    const entryRecords = resumed.filter(e => e.actor.type === "human" || e.kind === "context_injection" && JSON.stringify(e.content).includes('"filename"') && JSON.stringify(e.content).includes("image-TESTONLY.png"));
+    const entryRecords = resumed.filter(e => e.actor.type === "human" || cli === "claude-code" && e.kind === "context_injection" && (e.content as Record<string, unknown>).injection_type === "attachment/file" && JSON.stringify(e.content).includes("image-TESTONLY.png"));
     if (!["codex", "open-interpreter", "pi"].includes(cli)) report.cases.userImageEntry = { status: provider.state.inputImage && attachmentEvidence(entryRecords).references > 0 ? "pass" : "fail", detail: `Native input method: ${report.inputMethod}; provider image input and persisted human/context reference required, without embedded binary bytes` };
     if (cli === "kimi" && mode === "headless" && !provider.state.inputImage && resumedText.includes("@image-TESTONLY.png")) {
       report.cases.userImageEntry = { status: "limitation", detail: "Kimi 2.1.1 --prompt accepts text only: its installed help exposes no attachment flag, and @image remained literal in the native human record/provider request. TUI clipboard media and ACP media are separate interfaces, not headless prompt evidence. Native ReadMediaFile is checked separately." };
@@ -346,6 +380,9 @@ max_attempts_per_step = 1
       status: "limitation", detail: "Crush 0.97.1 run accepts prompt text and has no image attachment flag. Installed @image remained literal in the native human prompt/provider input. Its TUI parses a separately pasted file path as an attachment; that interface is checked separately." };
     if (cli === "openhands" && !provider.state.inputImage && resumedText.includes("@image-TESTONLY.png")) report.cases.userImageEntry = {
       status: "limitation", detail: "OpenHands CLI 1.16.0 headless --task and native TUI conversation_runner submit TextContent(text=user_input). Installed @image remained text in both the native human record and provider request. ACP supports ImageContent through another interface; ACP evidence cannot certify native CLI/TUI image entry." };
+    const entryImage = attachmentEvidence(entryRecords);
+    report.inputObservation = { providerImage: provider.state.inputImage, ...entryImage,
+      ...(report.cases.userImageEntry.status === "fail" && !entryImage.embeddedBinary ? { humanEntries: entryRecords.map(e => ({ kind: e.kind, content: e.content })) } : {}) };
     if (attachmentEvidence(resumed).embeddedBinary) report.cases.imageReference = { status: "fail", detail: "Embedded binary survived in initial or resumed native content/raw; retention repair required" };
     let captureArgs = ["--all"];
     if (["codex", "open-interpreter"].includes(cli)) {
@@ -366,6 +403,8 @@ max_attempts_per_step = 1
     report.backfillObservation = { automatic: resumed.length, first: backfilled.length, second: repeated.length,
       firstAdded: added(resumed, backfilled), secondAdded: added(backfilled, repeated) };
     report.cases.backfill = { status: ids(resumed) === ids(backfilled) && ids(backfilled) === ids(repeated) ? "pass" : "fail", detail: "Both manual imports compared against automatic complete native ledger" };
+    if (cli === "gemini-cli" && ids(backfilled) === ids(repeated) && geminiBootstrapOnlyBackfill(resumed, backfilled)) report.cases.backfill = {
+      status: "limitation", detail: "Gemini 0.61.0 resume left an unused bootstrap transcript with two metadata records and one system session_context, but no prompt, answer or tool activity. Native hooks target the resumed session and omit that bootstrap. First backfill added only those records in separate streams; the second added nothing. Actual conversation/tool/lifecycle omissions still fail." };
     report.status = Object.values(report.cases).every(c => c.status === "pass" || c.status === "limitation") ? "pass" : "partial";
   } catch (error) {
     report.reason = error instanceof Error ? error.message : String(error);

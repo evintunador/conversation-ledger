@@ -1,5 +1,5 @@
 /** Execute installed cases; absent drivers stay visible rather than skipped passes. */
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TARGET_CLIS } from "./roster.js";
@@ -7,10 +7,17 @@ import { PINNED_NPM_RUNTIMES, runtimeBinary } from "./runtimes.js";
 import { CONFORMANCE_CASES, CONFORMANCE_DRIVERS, verifyCoreConformance } from "./conformance.js";
 import type { ConformanceCli } from "./conformance-provider.js";
 
-export async function runConformanceCampaign(options: { runtimeDirectory?: string; outputDirectory: string; selected?: string[]; modes?: ("headless" | "interactive")[] }) {
+export async function runConformanceCampaign(options: { runtimeDirectory?: string; nativeRuntimeDirectory?: string; outputDirectory: string; selected?: string[]; modes?: ("headless" | "interactive")[] }) {
   const selected = options.selected ?? TARGET_CLIS.map(c => c.id);
   if (!selected.length || selected.some(id => !TARGET_CLIS.some(c => c.id === id))) throw Error("Select known nonempty CLI IDs");
   const modes = options.modes ?? ["headless", "interactive"];
+  let native: { cli: string; path: string }[] = [];
+  if (options.nativeRuntimeDirectory) {
+    const manifest = JSON.parse(await readFile(join(options.nativeRuntimeDirectory, "native-runtimes.json"), "utf8"));
+    if (manifest.schema !== "cledger-native-runtimes/1" || manifest.platform !== `${process.platform}/${process.arch}` ||
+        !Array.isArray(manifest.runtimes) || manifest.runtimes.some((r: any) => typeof r.cli !== "string" || typeof r.path !== "string")) throw Error("Native runtime manifest does not match this platform");
+    native = manifest.runtimes;
+  }
   await mkdir(options.outputDirectory, { recursive: true });
   const results = [];
   for (const id of selected) for (const mode of modes) {
@@ -24,7 +31,7 @@ export async function runConformanceCampaign(options: { runtimeDirectory?: strin
     }
     const recipe = PINNED_NPM_RUNTIMES.find(r => r.cli === id);
     const binary = process.env[`CLEDGER_CONFORMANCE_${id.replaceAll("-", "_").toUpperCase()}_BINARY`] ??
-      (options.runtimeDirectory && recipe ? runtimeBinary(options.runtimeDirectory, id, recipe.binary) : undefined);
+      (options.runtimeDirectory && recipe ? runtimeBinary(options.runtimeDirectory, id, recipe.binary) : native.find(r => r.cli === id)?.path);
     process.stderr.write(`Conformance ${id} ${mode}\n`);
     const report = await verifyCoreConformance(id as ConformanceCli, { mode, ...(binary ? { binary } : {}) });
     results.push(report);
@@ -36,13 +43,14 @@ export async function runConformanceCampaign(options: { runtimeDirectory?: strin
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2), values: Record<string, string> = {};
   for (let i = 0; i < args.length; i += 2) {
-    if (!["--runtime-dir", "--output-dir", "--only", "--mode"].includes(args[i]!) || !args[i + 1] || args[i + 1]!.startsWith("--")) throw Error("Usage: conformance-campaign.js --output-dir PATH [--runtime-dir PATH] [--only CLI_IDS] [--mode headless|interactive]");
+    if (!["--runtime-dir", "--native-runtime-dir", "--output-dir", "--only", "--mode"].includes(args[i]!) || !args[i + 1] || args[i + 1]!.startsWith("--")) throw Error("Usage: conformance-campaign.js --output-dir PATH [--runtime-dir PATH] [--native-runtime-dir PATH] [--only CLI_IDS] [--mode headless|interactive]");
     if (values[args[i]!]) throw Error("Duplicate argument");
     values[args[i]!] = args[i + 1]!;
   }
   if (!values["--output-dir"] || values["--mode"] && !["headless", "interactive"].includes(values["--mode"]!)) throw Error("Require --output-dir and a valid mode");
   const reports = await runConformanceCampaign({ outputDirectory: resolve(values["--output-dir"]!),
     ...(values["--runtime-dir"] ? { runtimeDirectory: values["--runtime-dir"] } : {}),
+    ...(values["--native-runtime-dir"] ? { nativeRuntimeDirectory: values["--native-runtime-dir"] } : {}),
     ...(values["--only"] ? { selected: values["--only"].split(",") } : {}),
     ...(values["--mode"] ? { modes: [values["--mode"] as "headless" | "interactive"] } : {}),
   });

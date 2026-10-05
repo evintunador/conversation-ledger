@@ -26,7 +26,7 @@ const object = (value: unknown): Record<string, any> | undefined => value && typ
 function pin(cli: string): string | undefined {
   return PINNED_NPM_RUNTIMES.find(r => r.cli === cli)?.version ??
     (NATIVE_ASSETS as Record<string, { version: string }>)[cli]?.version ??
-    ({ "mistral-vibe": "2.25.8", aider: "0.86.2", openhands: "1.16.0", cursor: "2026.10.01-e373342", kiro: "2.27.0" } as Record<string, string>)[cli];
+    ({ "mistral-vibe": "2.25.8", aider: "0.86.2", openhands: "1.16.0", cursor: "2026.10.01-e373342", kiro: "2.27.1" } as Record<string, string>)[cli];
 }
 function matchesVersion(version: unknown, expected: string | undefined): version is string {
   return typeof version === "string" && !!expected && (expected.includes("-") ? version.includes(expected) : version.match(/\d+\.\d+\.\d+/)?.[0] === expected);
@@ -80,7 +80,9 @@ export function buildSupportMatrix(documents: EvidenceDocument[]): { schema: "cl
         cell.cases[name] = { status, detail: status === "blocked" ? `Initial observation exists, but the installed scenario is incomplete: ${data.reason}` : result.detail, evidence: document.path, version: data.version };
       }
     } else if (data.schema === "cledger-canary/1" && ["local", "usual-provider"].includes(data.inference) && validStatus(data.status)) {
-      const verified = CANARY_GATES.every(g => data.gates?.[g] === true);
+      const verified = Number.isInteger(data.requests) && data.requests > 0 &&
+        [data.provider, data.model].every(value => typeof value === "string" && value.trim().length > 0) &&
+        CANARY_GATES.every(g => data.gates?.[g] === true);
       const result: Observation = { status: data.status === "pass" && !verified ? "fail" : data.status,
         detail: verified ? `${data.provider}/${data.model}: native canary gates passed` : data.reason ?? "Canary evidence incomplete", evidence: document.path, version: data.version, ...(typeof data.reasonCode === "string" ? { reasonCode: data.reasonCode } : {}) };
       if (data.inference === "local") cell.local = result; else cell.usualProvider = result;
@@ -108,7 +110,7 @@ export function renderSupportMatrix(matrix: ReturnType<typeof buildSupportMatrix
     }
   }
   lines.push("", "## Scope and reproduction", "", "Generate this file and its companion JSON with `npm run verify:matrix`. The JSON contains case details, exact versions, evidence paths, smoke observations, and historical evidence. Historical live reports lack parts of the agreed canary gate and remain historical rather than being promoted to passes.", "",
-    "Run installed scenarios with `npm run verify:conformance -- --runtime-dir /tmp/cledger-runtimes --output-dir /tmp/cledger-conformance`. CI runs scripted cases on macOS and Linux. Local/provider canaries are separately gated; local inference is deferred until the machine is plugged in with cooling ready, and paid checks share a $20 campaign budget. No paid inference is enabled by generating this matrix.", "",
+    "Run installed scenarios with `npm run verify:conformance -- --runtime-dir /tmp/cledger-runtimes --native-runtime-dir /tmp/cledger-native-runtimes --output-dir /tmp/cledger-conformance`. CI runs scripted cases on macOS and Linux. Local/provider canaries are separately gated; local inference is deferred until the machine is plugged in with cooling ready, and paid checks share a $20 campaign budget. No paid inference is enabled by generating this matrix.", "",
     "Additional attachment entry methods, document/archive inputs, invalid/oversized text, and fork/compaction/rewind/subagent lifecycle are separate follow-up issues. Normal exit/resume remains in this issue.", "");
   return lines.join("\n");
 }

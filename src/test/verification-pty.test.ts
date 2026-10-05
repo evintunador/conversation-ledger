@@ -4,6 +4,21 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runPty } from "../verification/pty.js";
+test("PTY waits for native rendering to settle before sending an idle-gated action", async () => {
+  const result = await runPty("python3", ["-c", String.raw`
+import sys,select,time
+print('READY',flush=True)
+for i in range(5):
+ assert not select.select([sys.stdin],[],[],.1)[0], 'input arrived during rendering'
+ print('RENDERING',flush=True)
+print('IDLE',flush=True)
+print('GOT:'+input(),flush=True)
+`], { cwd: process.cwd(), env: { PATH: process.env.PATH }, timeoutMs: 3000,
+    actions: [{ waitFor: "READY", quietMs: 200, send: "TESTONLY-idle\r" }] });
+  assert.equal(result.code, 0, result.output);
+  assert.equal(result.actionsCompleted, 1);
+  assert.match(result.output, /GOT:TESTONLY-idle/);
+});
 
 async function waitForTrace(path: string, pattern: RegExp): Promise<string> {
   const deadline = Date.now() + 3000;
