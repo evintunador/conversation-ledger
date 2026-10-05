@@ -26,7 +26,11 @@ export async function startConformanceProvider(cli: ConformanceCli, repository?:
       }
       const humanParts = rows.filter(r => r.role === "user").flatMap(r => {
         const parts = Array.isArray(r.content) ? r.content : Array.isArray(r.parts) ? r.parts : [];
-        return !JSON.stringify(parts).includes("TESTONLY_CONFORMANCE") || parts.some(b => b.type === "tool_result" || b.functionResponse) ? [] : parts;
+        // Responses and Pi accept image-only human messages. Pi explicitly
+        // labels images projected from tool output; those cannot prove entry.
+        const separateHumanImage = ["codex", "open-interpreter", "pi"].includes(cli);
+        const toolProjection = cli === "pi" && parts.some(b => b.type === "text" && b.text === "Attached image(s) from tool result:");
+        return (!separateHumanImage && !JSON.stringify(parts).includes("TESTONLY_CONFORMANCE")) || toolProjection || parts.some(b => b.type === "tool_result" || b.functionResponse) ? [] : parts;
       });
       state.inputImage ||= humanParts.some(b => ["input_image", "image", "image_url"].includes(b.type) || b.inlineData?.mimeType?.startsWith("image/"));
       const results = cli === "claude-code" ? flat.filter(b => b.type === "tool_result")
@@ -52,6 +56,7 @@ export async function startConformanceProvider(cli: ConformanceCli, repository?:
       if (cli === "continue") { name = "Read"; input = { filepath: target }; }
       if (cli === "cline") { name = "read_files"; input = { files: [{ path: target }] }; }
       if (cli === "goose") { name = "shell"; input = { command: "/bin/cat " + target }; }
+      if (cli === "goose" && filename === "image-TESTONLY.png") { name = "read_image"; input = { source: target }; }
       if (cli === "openhands") { name = "file_editor"; input = { command: "view", path: target, security_risk: "LOW" }; }
       if (cli === "droid" || cli === "mistral-vibe") { name = cli === "droid" ? "Read" : "read_file"; input = { file_path: target }; }
       if (cli === "crush") { name = "view"; input = { file_path: target }; }

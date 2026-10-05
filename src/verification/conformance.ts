@@ -92,6 +92,11 @@ export async function verifyCoreConformance(cli: ConformanceCli, options: { bina
       report.inputMethod = "native editor bracketed paste; resumed Ctrl-V with isolated OS file-clipboard lookup fixture";
       report.exclusions.push("real OS clipboard integration (lookup fixture only)");
     }
+    if (cli === "continue" && mode === "interactive") {
+      const script = `#!${process.execPath}\nimport { writeFileSync } from "node:fs";\nconst args = process.argv.slice(2).join(" "); const bytes = Buffer.from(${JSON.stringify(PNG)}, "base64");\nif (args.includes("clipboard info")) process.stdout.write("«class PNGf»\\n");\nelse if (process.argv[1].endsWith("xclip")) process.stdout.write(bytes);\nelse { const path = args.match(/open for access "([^"]+)"/); if (!path || !path[1].startsWith(${JSON.stringify(join(root, "tmp"))} + "/continue-clipboard-")) process.exit(1); writeFileSync(path[1], bytes); }\n`;
+      for (const name of ["osascript", "xclip"]) await writeFile(join(bin, name), script, { mode: 0o755 });
+      report.exclusions.push("real OS clipboard integration (lookup fixture only)");
+    }
     provider = await startConformanceProvider(cli, repo);
     if (cli === "claude-code") {
       Object.assign(env, { CLAUDE_CONFIG_DIR: home, ANTHROPIC_API_KEY: "FAKE_TESTONLY_LOCAL", ANTHROPIC_BASE_URL: provider.endpoint,
@@ -146,13 +151,14 @@ max_attempts_per_step = 1
     }
     if (!WRAPPED_CONFORMANCE_DRIVERS.has(cli)) await checked(process.execPath, [sourceCli, "install", cli]);
     const prompt = "TESTONLY_CONFORMANCE\nUnicode café 日本語 🦉\nReference evidence.txt; check missing-TESTONLY.txt, then read evidence.txt and image-TESTONLY.png.";
+    if (cli === "continue" && mode === "interactive") report.inputMethod = "native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture";
     const args = cli === "claude-code" ? ["--model", "claude-sonnet-4-6", "--tools", "Read", "--allowedTools", "Read", "--strict-mcp-config"]
       : ["codex", "open-interpreter"].includes(cli) ? ["--dangerously-bypass-hook-trust", "--sandbox", "read-only", "--no-alt-screen", "--image", join(repo, "image-TESTONLY.png")]
         : cli === "copilot" ? ["--allow-tool", "view", "--disable-builtin-mcps", "--no-auto-update", "--no-custom-instructions", "--no-ask-user", "--no-remote-export"]
         : cli === "kimi" ? ["--model", "fixture", "--auto"]
         : cli === "pi" ? ["--offline", "--no-skills", "--no-prompt-templates", "--no-context-files", "--no-themes", "--tools", "read", "--thinking", "off", "--provider", "verification", "--model", "fixture", "@" + join(repo, "image-TESTONLY.png")]
         : [];
-    const readiness = ["codex", "open-interpreter"].includes(cli) ? "Ask Codex to do anything|Ask.*Interpreter|›" : cli === "claude-code" ? "❯|for shortcuts" : cli === "kilo" ? "Code[\\s\\S]*fixture|tab agents" : cli === "pi" ? "fixture|context" : cli === "kimi" ? "No session yet[\\s\\S]*context:|context:" : cli === "copilot" ? "← open sidebar|/ commands" : cli === "continue" ? "Ask anything" : cli === "cline" ? "What would you like|Type.*message|Enter.*prompt|Ask anything" : cli === "goose" ? "Enter to send" : cli === "openhands" ? "Type.*message|Enter.*message|Send a message" : cli === "mistral-vibe" ? "Enter.*message|What would|❯|> " : cli === "crush" ? "Ready[!.?]|Ready for instructions" : ["gemini-cli", "qwen-code"].includes(cli) ? "Type your message|Type a message|> " : "Ask anything|Ask a question|Build";
+    const readiness = cli === "open-interpreter" ? "ledger-test default" : cli === "codex" ? "Ask Codex to do anything|Ask.*Interpreter|›" : cli === "claude-code" ? "❯|for shortcuts" : cli === "kilo" ? "Code[\\s\\S]*fixture|tab agents" : cli === "pi" ? "fixture|context" : cli === "kimi" ? "No session yet[\\s\\S]*context:|context:" : cli === "copilot" ? "← open sidebar|/ commands" : cli === "continue" ? "Ask anything" : cli === "cline" ? "What can I do for you|What would you like|Type.*message|Enter.*prompt|Ask anything" : cli === "goose" ? "Enter to send" : cli === "openhands" ? "Loaded:.*skills,.*hooks" : cli === "mistral-vibe" ? "Enter.*message|What would|❯|> " : cli === "crush" ? "Ready[!.?]|Ready for instructions" : ["gemini-cli", "qwen-code"].includes(cli) ? "Type your message|Type a message|> " : "Ask anything|Ask a question|Build";
     const exported = async () => {
       const ledger = await findRepo(repo);
       return ledger ? (await readEvents(ledger, { reachableFrom: null })).filter(e => e.producer.source === cli) : [];
@@ -199,7 +205,16 @@ max_attempts_per_step = 1
           }
           throw Error("Automatic headless prompt/answer capture incomplete before backfill");
         }
-        const actions = resume && ["opencode", "kilo"].includes(cli) ? [
+        if (cli === "open-interpreter" && !resume) nativeArgs = [...nativeArgs, prompt];
+        const actions = cli === "open-interpreter" && !resume ? [
+          { waitFor: "^", waitForPath: complete, send: "/exit\r", delayMs: 1000 },
+        ] : cli === "continue" ? [
+          ...(resume ? [{ waitFor: "Press Ctrl\\+V to paste image", send: "\x16", delayMs: 1000 }, { waitFor: "Image #1", send: "", delayMs: 500 }] : []),
+          { waitFor: readiness, send: sent, delayMs: 500 },
+          { waitFor: "Unicode", send: "\r", delayMs: 1000 },
+          { waitFor: "^", waitForPath: complete, send: "/exit", delayMs: 1000 },
+          { waitFor: "/exit", send: "\r", delayMs: 500 },
+        ] : resume && ["opencode", "kilo"].includes(cli) ? [
           // Bulk-pasting @filename leaves OpenCode 1.18.33's autocomplete
           // query empty and Enter chooses @explore. Exercise actual keyboard
           // entry: paste body, open @ menu, type filename, select, submit.
@@ -213,23 +228,30 @@ max_attempts_per_step = 1
           ...(resume && ["gemini-cli", "copilot"].includes(cli) ? [{ waitFor: "Resuming.*session", send: "" }] : []),
           ...(!resume && cli === "kimi" ? [{ waitFor: "Trust this folder", send: "\r" }] : []),
           ...(!resume && cli === "cline" ? [{ waitFor: "any other key to close", send: "\x1b", delayMs: 500 }] : []),
+          ...(!resume && cli === "crush" ? [{ waitFor: "Would you like to initialize", send: "n", delayMs: 500 }] : []),
           ...(cli === "kimi" && resume ? [
             { waitFor: readiness, send: "\x16", delayMs: 1000 },
             { waitFor: "image #|image:", send: sent + "\r", paste: true, delayMs: 500 },
-          ] : cli === "gemini-cli" ? [
+          ] : ["gemini-cli", "openhands"].includes(cli) ? [
             { waitFor: readiness, send: "\x1b[200~" + sent + "\x1b[201~", delayMs: 500 },
-            { waitFor: "Unicode", send: "\r", delayMs: 1000 },
-            ...(resume ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
+            { waitFor: "Unicode", send: cli === "openhands" ? "\x0a" : "\r", delayMs: 1000 },
+            ...(resume && cli === "gemini-cli" ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
           ] : [{ waitFor: readiness, send: sent + "\r", paste: true, delayMs: 500 }]),
-          ...(resume && ["claude-code", "copilot"].includes(cli) ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
+          ...(resume && ["claude-code", "copilot", "cline", "mistral-vibe"].includes(cli) ? [{ waitFor: "image-TESTONLY\\.png", send: "\r", delayMs: 1000 }] : []),
           ...(["gemini-cli", "qwen-code", "copilot", "kimi"].includes(cli) ? [
             { waitFor: "^", waitForPath: complete, send: cli === "kimi" ? "/exit" : "/quit", delayMs: 1000 },
             { waitFor: cli === "gemini-cli" ? "Exit the cli" : cli === "kimi" ? "/exit" : "/quit", send: "\r", delayMs: 1000 },
-          ] : [{ waitFor: "^", waitForPath: complete, send: cli === "pi" ? "/quit\r" : "/exit\r", delayMs: 1000 }]),
+          ] : [{ waitFor: "^", waitForPath: complete, send: cli === "pi" ? "/quit\r" : cli === "openhands" ? "\x11" : "/exit\r", delayMs: 1000 }]),
         ];
+        if (cli === "crush") {
+          actions.splice(actions.length - 1, 1,
+            { waitFor: "^", waitForPath: complete, send: "\x03", delayMs: 500 },
+            { waitFor: "Are you sure you want to quit", send: "y", delayMs: 500 });
+        }
         if (additional) nativeArgs = additionalNativeArgs(cli, { root, repo, mode, resume, prompt: sent, ...(session ? { session } : {}) });
+        if (cli === "open-interpreter" && mode === "interactive") report.inputMethod = "native TUI initial prompt/--image arguments; resumed editor bracketed paste";
         const command = invocation(nativeArgs);
-        const terminal = await runPty(command.command, command.args, { cwd: repo, env, answerTerminalQueries: cli !== "opencode", timeoutMs: options.timeoutMs ?? 120000,
+        const terminal = await runPty(command.command, command.args, { cwd: repo, env, answerTerminalQueries: !["opencode", "crush"].includes(cli), timeoutMs: options.timeoutMs ?? 120000,
           transcriptPath: join(root, resume ? "resume-terminal.log" : "first-terminal.log"), actions });
         if (terminal.timedOut || terminal.code || terminal.actionsCompleted !== actions.length) throw Error(`Observed ${resume ? "resume" : "initial"} TUI incomplete: ${terminalTail(terminal.output)}`);
         return terminal;
@@ -282,7 +304,7 @@ max_attempts_per_step = 1
       resumed.filter(e => e.stream?.id === human.stream?.id && e.actor.type === "agent" && textOf(e).includes("TESTONLY_CONFORMANCE_DONE")).length >
       first.filter(e => e.stream?.id === human.stream?.id && e.actor.type === "agent" && textOf(e).includes("TESTONLY_CONFORMANCE_DONE")).length ? "pass" : "fail", detail: "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream" };
     const entryRecords = resumed.filter(e => e.actor.type === "human" || e.kind === "context_injection" && JSON.stringify(e.content).includes('"filename"') && JSON.stringify(e.content).includes("image-TESTONLY.png"));
-    if (!["codex", "open-interpreter", "pi"].includes(cli)) report.cases.userImageEntry = { status: provider.state.inputImage && attachmentEvidence(entryRecords).references > 0 ? "pass" : "fail", detail: `Native ${mode === "interactive" ? "editor" : "prompt argument"} @image entry and provider input observed; human/context attachment retains a reference, not bytes` };
+    if (!["codex", "open-interpreter", "pi"].includes(cli)) report.cases.userImageEntry = { status: provider.state.inputImage && attachmentEvidence(entryRecords).references > 0 ? "pass" : "fail", detail: `Native input method: ${report.inputMethod}; provider image input and persisted human/context reference required, without embedded binary bytes` };
     if (cli === "kimi" && mode === "headless" && !provider.state.inputImage && resumedText.includes("@image-TESTONLY.png")) {
       report.cases.userImageEntry = { status: "limitation", detail: "Kimi 2.1.1 --prompt accepts text only: its installed help exposes no attachment flag, and @image remained literal in the native human record/provider request. TUI clipboard media and ACP media are separate interfaces, not headless prompt evidence. Native ReadMediaFile is checked separately." };
     }
