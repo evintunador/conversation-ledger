@@ -169,11 +169,11 @@ worst-case charges and are never refunded from usage estimates. Existing
 per-CLI ceilings also apply. A missing campaign counter with existing campaign
 sessions fails closed instead of recreating an allocation.
 
-The initial registered canary consumer is OpenCode in either native headless or
-TUI mode. Set the existing explicit authority/provider/model/session variables
+The registered canary consumers are OpenCode and Pi in either native headless
+or TUI mode. Set `CLEDGER_LIVE_CLI` to `opencode` or `pi`. Set the existing explicit authority/provider/model/session variables
 and use `budget-client authorize-canary`; this issues up to eight requests with
 `campaign: issue27`. The client requires the authority to confirm that scope.
-Run `budget-client run-canary SESSION OUTPUT OPENCODE_BINARY headless` (or
+Run `budget-client run-canary SESSION OUTPUT NATIVE_BINARY headless` (or
 `interactive`). An ordinary legacy authorization cannot launch this canary.
 
 The canary uses two fresh random text file values, normal exit and native
@@ -207,3 +207,11 @@ CLI/tool dialect pass. Choose the cheapest available compatible model per CLI
 and record the actual selected model in its canary evidence. Shared $20
 reservations remain mandatory even for these low-cost routes. No model or
 account call was made to prepare this shortlist.
+
+
+Pi's configured canary uses its installed extension and explicit custom-provider
+configuration. Local runs use `node dist/verification/canary.js --local pi` with
+an explicit endpoint/model after the power/cooling prerequisite is met. Paid
+runs use the same campaign-scoped external authority as OpenCode. Both native
+modes have passed driver tests with scripted replies, including a fresh linked
+read after native `--continue`; this does not claim a real-model pass.

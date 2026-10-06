@@ -247,7 +247,7 @@ the ledger records `native_binary_body_unavailable` without fabricating the
 empty-file digest or a zero-byte binary size. Known empty text files retain
 their actual empty text. The tested editor `@filename` entry remains literal
 text with no selected image in the native request; other image-entry methods
-remain unverified. Linux TUI proof remains pending. The official Cursor archive
+remain unverified. The [focused CLI/TUI CI run](https://github.com/evintunador/conversation-ledger/actions/runs/37394952231) passes both modes on macOS and Linux with the same observed limitations. The official Cursor archive
 is pinned and hash-checked for macOS arm64 and Linux x64; other architectures
 have no new provisioning claim.
 
@@ -303,3 +303,12 @@ Linux Cline headless remains the sole failed executed scenario; Cursor TUI,
 Kiro and isolated Droid prerequisites were not covered by that run. All reports,
 including the failure, are retained in the support matrix. This is scripted
 native proof, not real-model certification.
+
+
+Pi now has an explicit configured-model canary driver, reusing its installed
+native extension and custom-provider interface. Both headless and editor-input
+TUI driver tests pass with scripted replies, including fresh random file reads
+after native `--continue`, automatic linked results/answers and unchanged
+backfills. Paid canaries require the shared campaign-scoped external authority;
+local canaries still require the user's power/cooling readiness. No real-model
+matrix cell is closed by these driver tests.

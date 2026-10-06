@@ -1197,49 +1197,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "Native submitted prompt and persisted checkpoint retain Unicode and newlines",
-              "evidence": "verification-evidence/conformance-cursor-headless-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual native Read result linked by supplied tool call ID retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-cursor-headless-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "toolError": {
               "status": "pass",
               "detail": "Real native missing-file Read failure retains its linked result",
-              "evidence": "verification-evidence/conformance-cursor-headless-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Native PNG Read bytes become references with the exact size/digest in normalized and raw evidence",
-              "evidence": "verification-evidence/conformance-cursor-headless-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "userImageEntry": {
               "status": "limitation",
               "detail": "Headless @image path is literal prompt text with no native selected-image carrier",
-              "evidence": "verification-evidence/conformance-cursor-headless-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "No unknown records after both native runs",
-              "evidence": "verification-evidence/conformance-cursor-headless-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "resume": {
               "status": "pass",
               "detail": "Native --resume reloads prior checkpoint pointers, reads a fresh value, captures automatically and exits normally",
-              "evidence": "verification-evidence/conformance-cursor-headless-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "backfill": {
               "status": "pass",
               "detail": "Two native transcript backfills preserve automatic evidence IDs (21 / 21 / 21)",
-              "evidence": "verification-evidence/conformance-cursor-headless-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             }
           },
@@ -1254,7 +1254,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-cursor-headless-macos-tui-followup-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-cursor-headless-macos-ci-tui-2026-10-05.json",
             "version": "2026.10.01-e373342"
           }
         },
@@ -1267,49 +1267,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "Native submitted prompt and persisted checkpoint retain Unicode and newlines",
-              "evidence": "verification-evidence/conformance-cursor-interactive-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-interactive-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual native Read result linked by supplied tool call ID retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-cursor-interactive-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-interactive-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "toolError": {
               "status": "pass",
               "detail": "Real native missing-file Read failure retains its linked result",
-              "evidence": "verification-evidence/conformance-cursor-interactive-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-interactive-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "imageReference": {
               "status": "limitation",
               "detail": "Native TUI Read returns PNG bytes, but hooks expose empty text and no binary body. Preserve the path reference without inventing a file size/digest.",
-              "evidence": "verification-evidence/conformance-cursor-interactive-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-interactive-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "userImageEntry": {
               "status": "limitation",
               "detail": "Native editor @filename entry with two separate Enter actions persists as literal text; the native request has zero selected images and the human record has no image carrier. Other native image-entry methods remain unverified.",
-              "evidence": "verification-evidence/conformance-cursor-interactive-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-interactive-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "No unknown records after both native runs",
-              "evidence": "verification-evidence/conformance-cursor-interactive-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-interactive-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "resume": {
               "status": "pass",
               "detail": "Native --resume reloads prior checkpoint pointers, reads a fresh value, captures automatically and exits normally",
-              "evidence": "verification-evidence/conformance-cursor-interactive-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-interactive-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "backfill": {
               "status": "pass",
               "detail": "Two native transcript backfills preserve automatic evidence IDs (17 / 17 / 17)",
-              "evidence": "verification-evidence/conformance-cursor-interactive-macos-tui-followup-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-interactive-macos-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             }
           },
@@ -1324,7 +1324,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-cursor-interactive-macos-tui-followup-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-cursor-interactive-macos-ci-tui-2026-10-05.json",
             "version": "2026.10.01-e373342"
           }
         },
@@ -1336,50 +1336,50 @@
           "cases": {
             "multilineUnicode": {
               "status": "pass",
-              "detail": "Native multiline prompt argument and persisted checkpoint retain Unicode and newlines",
-              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-latest-2026-10-05.json",
+              "detail": "Native submitted prompt and persisted checkpoint retain Unicode and newlines",
+              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual native Read result linked by supplied tool call ID retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-latest-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "toolError": {
               "status": "pass",
               "detail": "Real native missing-file Read failure retains its linked result",
-              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-latest-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "imageReference": {
               "status": "pass",
-              "detail": "Native PNG Read bytes become references in normalized and raw evidence",
-              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-latest-2026-10-05.json",
+              "detail": "Native PNG Read bytes become references with the exact size/digest in normalized and raw evidence",
+              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "userImageEntry": {
               "status": "limitation",
-              "detail": "Headless @image path is persisted as literal prompt text with no native human image carrier; this does not certify TUI image attachment",
-              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-latest-2026-10-05.json",
+              "detail": "Headless @image path is literal prompt text with no native selected-image carrier",
+              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "No unknown records after both native runs",
-              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-latest-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "resume": {
               "status": "pass",
               "detail": "Native --resume reloads prior checkpoint pointers, reads a fresh value, captures automatically and exits normally",
-              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-latest-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             },
             "backfill": {
               "status": "pass",
               "detail": "Two native transcript backfills preserve automatic evidence IDs (21 / 21 / 21)",
-              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-latest-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-tui-2026-10-05.json",
               "version": "2026.10.01-e373342"
             }
           },
@@ -1394,7 +1394,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-latest-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-cursor-headless-linux-ci-tui-2026-10-05.json",
             "version": "2026.10.01-e373342"
           }
         },
@@ -1405,36 +1405,52 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native submitted prompt and persisted checkpoint retain Unicode and newlines",
+              "evidence": "verification-evidence/conformance-cursor-interactive-linux-ci-tui-2026-10-05.json",
+              "version": "2026.10.01-e373342"
             },
             "textRead": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Actual native Read result linked by supplied tool call ID retains known UTF-8 text",
+              "evidence": "verification-evidence/conformance-cursor-interactive-linux-ci-tui-2026-10-05.json",
+              "version": "2026.10.01-e373342"
             },
             "toolError": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Real native missing-file Read failure retains its linked result",
+              "evidence": "verification-evidence/conformance-cursor-interactive-linux-ci-tui-2026-10-05.json",
+              "version": "2026.10.01-e373342"
             },
             "imageReference": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "limitation",
+              "detail": "Native TUI Read returns PNG bytes, but hooks expose empty text and no binary body. Preserve the path reference without inventing a file size/digest.",
+              "evidence": "verification-evidence/conformance-cursor-interactive-linux-ci-tui-2026-10-05.json",
+              "version": "2026.10.01-e373342"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "limitation",
+              "detail": "Native editor @filename entry with two separate Enter actions persists as literal text; the native request has zero selected images and the human record has no image carrier. Other native image-entry methods remain unverified.",
+              "evidence": "verification-evidence/conformance-cursor-interactive-linux-ci-tui-2026-10-05.json",
+              "version": "2026.10.01-e373342"
             },
             "noUnrecognized": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "No unknown records after both native runs",
+              "evidence": "verification-evidence/conformance-cursor-interactive-linux-ci-tui-2026-10-05.json",
+              "version": "2026.10.01-e373342"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Native --resume reloads prior checkpoint pointers, reads a fresh value, captures automatically and exits normally",
+              "evidence": "verification-evidence/conformance-cursor-interactive-linux-ci-tui-2026-10-05.json",
+              "version": "2026.10.01-e373342"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed conformance case pending"
+              "status": "pass",
+              "detail": "Two native transcript backfills preserve automatic evidence IDs (17 / 17 / 17)",
+              "evidence": "verification-evidence/conformance-cursor-interactive-linux-ci-tui-2026-10-05.json",
+              "version": "2026.10.01-e373342"
             }
           },
           "local": {
@@ -1444,6 +1460,12 @@
           "usualProvider": {
             "status": "not-run",
             "detail": "Usual-provider canary pending; API route or contributor account required"
+          },
+          "scenario": {
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-cursor-interactive-linux-ci-tui-2026-10-05.json",
+            "version": "2026.10.01-e373342"
           }
         }
       }
