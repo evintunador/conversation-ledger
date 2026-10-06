@@ -6,9 +6,17 @@ import { createServer } from "node:http";
 import { createServer as createHttp2Server } from "node:http2";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 
 type Fields = Map<number, Array<Buffer | bigint>>;
 const MAX_MESSAGE = 2_000_000;
+/** Connect's gzip flag is used by the installed TUI, with bounded inflation. */
+export function cursorConnectPayload(flags: number, bytes: Buffer, encoding?: string): Buffer {
+  if (bytes.length > MAX_MESSAGE) throw Error("Cursor Connect payload too large");
+  if (flags === 0) return bytes;
+  if (flags !== 1 || encoding !== "gzip") throw Error("Unsupported Cursor Connect compression");
+  return gunzipSync(bytes, { maxOutputLength: MAX_MESSAGE });
+}
 function integer(value: bigint): Buffer {
   if (value < 0n) throw Error("Negative protobuf integer");
   const bytes: number[] = [];
@@ -64,10 +72,10 @@ function frame(bytes: Buffer, flags = 0) {
 }
 
 export async function startCursorProtocolFixture(repo: string): Promise<{
-  state: { requests: number; reads: number; resumedPointers: number; session: string; prompts: string[]; toolError: boolean; textResult: string; imageResult: boolean; blocked: string };
+  state: { requests: number; reads: number; turnsCompleted: number; resumedPointers: number; session: string; prompts: string[]; selectedFiles: string[]; selectedImages: number; toolError: boolean; textResult: string; imageResult: boolean; blocked: string };
   endpoint: string; agentEndpoint: string; signal: AbortSignal; close(): Promise<void>;
 }> {
-  const state = { requests: 0, reads: 0, resumedPointers: 0, session: "", prompts: [] as string[], toolError: false, textResult: "", imageResult: false, blocked: "" };
+  const state = { requests: 0, reads: 0, turnsCompleted: 0, resumedPointers: 0, session: "", prompts: [] as string[], selectedFiles: [] as string[], selectedImages: 0, toolError: false, textResult: "", imageResult: false, blocked: "" };
   const sockets = new Set<import("node:http2").ServerHttp2Session>();
   const controller = new AbortController();
   const api = createServer(async (req, res) => {
@@ -82,6 +90,10 @@ export async function startCursorProtocolFixture(repo: string): Promise<{
       res.end(JSON.stringify({ accessToken: "TESTONLY." + Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600, sub: "TESTONLY" })).toString("base64url") + ".TESTONLY", refreshToken: "TESTONLY" })); return;
     }
     res.writeHead(200, { "content-type": "application/proto" });
+    if (req.url?.endsWith("/GetMe")) {
+      res.end(pack(cursorField(1, "TESTONLY"), cursorField(2, 1), cursorField(3, "verification@example.invalid"), cursorField(4, "TESTONLY"))); return;
+    }
+    if (req.url?.endsWith("/GetUserPrivacyMode")) { res.end(cursorField(1, 1)); return; }
     const model = cursorField(1, "fixture");
     if (/GetUsableModels|GetDefaultModelForCli/.test(req.url ?? "")) res.end(cursorField(1, model));
     else if (/AvailableModels/.test(req.url ?? "")) res.end(cursorField(2, pack(model, cursorField(5, 1), cursorField(10, 1))));
@@ -118,6 +130,12 @@ export async function startCursorProtocolFixture(repo: string): Promise<{
       if (fields.has(1)) {
         const run = message(fields, 1), user = message(message(message(run, 2), 1), 1);
         state.session = text(run, 5); prompt = text(user, 1); state.prompts.push(prompt);
+        const selected = message(user, 3);
+        state.selectedImages += selected.get(1)?.length ?? 0;
+        for (const value of selected.get(4) ?? []) if (Buffer.isBuffer(value)) {
+          const file = cursorFields(value), path = text(file, 2) || text(file, 3);
+          if (path && state.selectedFiles.length < 16) state.selectedFiles.push(path);
+        }
         if (!state.session || !prompt.includes("TESTONLY_CONFORMANCE")) throw Error("Missing native Cursor session/prompt");
         for (const value of message(run, 1).get(1) ?? []) if (Buffer.isBuffer(value)) pointers.push(value);
         state.resumedPointers = pointers.length;
@@ -144,6 +162,7 @@ export async function startCursorProtocolFixture(repo: string): Promise<{
       } else if (fields.has(3)) {
         const kv = message(fields, 3);
         if (kv.has(3) && ++blobAcks === 2) {
+          state.turnsCompleted++;
           send(cursorField(3, pack(...pointers.map(key => cursorField(1, key)))));
           interaction(14, Buffer.alloc(0));
           stream.end(frame(Buffer.from("{}"), 2));
@@ -156,9 +175,11 @@ export async function startCursorProtocolFixture(repo: string): Promise<{
         if (pending.length > MAX_MESSAGE + 5) throw Error("Cursor Connect buffer too large");
         while (pending.length >= 5) {
           const length = pending.readUInt32BE(1);
-          if (length > MAX_MESSAGE || pending[0] !== 0) throw Error("Unsupported Cursor Connect frame");
+          if (length > MAX_MESSAGE) throw Error("Unsupported Cursor Connect frame");
           if (pending.length < 5 + length) break;
-          const bytes = pending.subarray(5, 5 + length); pending = pending.subarray(5 + length); consume(bytes);
+          const encoding = headers["connect-content-encoding"];
+          const bytes = cursorConnectPayload(pending[0]!, pending.subarray(5, 5 + length), typeof encoding === "string" ? encoding : undefined);
+          pending = pending.subarray(5 + length); consume(bytes);
         }
       } catch (error) { state.blocked = error instanceof Error ? error.message : String(error); controller.abort(); stream.close(); }
     });

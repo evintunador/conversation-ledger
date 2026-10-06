@@ -25,13 +25,7 @@ test("image proof finds nested native result references and refuses embedded bin
   assert.deepEqual(attachmentEvidence({ imageUrl: { url: "kimi-file://f_762e3407-ba87-4622-a100-101e0554feb9" } }), { references: 1, embeddedBinary: false });
   assert.deepEqual(attachmentEvidence({ imageUrl: { url: "https://example.invalid/image.png" } }), { references: 0, embeddedBinary: false });
 });
-test("Cursor's pending native TUI cannot inherit headless certification", async () => {
-  const report = await verifyCoreConformance("cursor", { mode: "interactive" });
-  assert.equal(report.status, "blocked");
-  assert.equal(report.requests, 0);
-  assert.ok(Object.values(report.cases).every(result => result.status === "not-run"));
-});
-for (const cli of CONFORMANCE_DRIVERS) for (const mode of (cli === "cursor" ? ["headless"] as const : ["headless", "interactive"] as const)) {
+for (const cli of CONFORMANCE_DRIVERS) for (const mode of ["headless", "interactive"] as const) {
   const variable = "CLEDGER_CONFORMANCE_" + cli.replaceAll("-", "_").toUpperCase() + "_BINARY";
   test(`${cli} installed ${mode} exercises multiline Unicode, linked read failure, text/image retention and resume`, { skip: !process.env[variable], timeout: 300000 }, async () => {
     const report = await verifyCoreConformance(cli, { binary: process.env[variable]!, mode,
@@ -45,8 +39,8 @@ for (const cli of CONFORMANCE_DRIVERS) for (const mode of (cli === "cursor" ? ["
         assert.ok(["pass", "limitation"].includes(report.cases[name]?.status ?? ""), JSON.stringify(report));
         continue;
       }
-      const limitation = name === "imageReference" && ["continue", "mistral-vibe"].includes(cli) ||
-        name === "userImageEntry" && (["goose", "openhands"].includes(cli) || mode === "headless" && ["kimi", "continue", "mistral-vibe", "cline", "crush", "cursor"].includes(cli)) ||
+      const limitation = name === "imageReference" && (["continue", "mistral-vibe"].includes(cli) || cli === "cursor" && mode === "interactive") ||
+        name === "userImageEntry" && (["goose", "openhands", "cursor"].includes(cli) || mode === "headless" && ["kimi", "continue", "mistral-vibe", "cline", "crush"].includes(cli)) ||
         (cli === "aider" || cli === "cline" && mode === "headless") && name === "resume";
       assert.equal(report.cases[name]?.status, limitation ? "limitation" : "pass", JSON.stringify(report));
     }

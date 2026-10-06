@@ -129,6 +129,28 @@ test("Cursor confirmed native reads retain exact text and IDs with stable transc
   } finally { await cleanupRepo(repo); }
 });
 
+test("Cursor empty binary hook text cannot invent file identity; empty known text is retained", async () => {
+  const repo = await makeTempRepo("cledger-cursor-empty-body-");
+  try {
+    await makeCommit(repo);
+    for (const path of ["image-TESTONLY.png", "empty-TESTONLY.txt"]) {
+      const id = "TESTONLY-" + path;
+      await captureCursorToolHook(nativeHook(repo.root, "preToolUse", id, path), repo.root);
+      await captureCursorToolHook(nativeHook(repo.root, "beforeReadFile", undefined, path, { file_path: join(repo.root, path), content: "" }), repo.root);
+      await captureCursorToolHook(nativeHook(repo.root, "postToolUse", id, path, { tool_output: JSON.stringify({ file_path: join(repo.root, path), content_length: 0 }) }), repo.root);
+    }
+    const events = await readEvents(repo), results = events.flatMap(event => (event.content as any).blocks ?? []).filter((block: any) => block.type === "tool_result");
+    const image = results.find((block: any) => block.tool_use_id === "TESTONLY-image-TESTONLY.png").content.file;
+    assert.equal(image.availability, "native_binary_body_unavailable");
+    assert.equal(image.sha256, undefined); assert.equal(image.size, undefined);
+    const raw = events.find(event => (event.content as any).activity_type === "beforeReadFile" && (event.content as any).file_path.endsWith(".png"))!.raw!.data as any;
+    assert.equal(raw.content.availability, "native_binary_body_unavailable");
+    assert.equal(raw.content.sha256, undefined); assert.equal(raw.content.size, undefined);
+    const text = results.find((block: any) => block.tool_use_id === "TESTONLY-empty-TESTONLY.txt").content.file.file_data;
+    assert.equal(text.type, "attachment_text"); assert.equal(text.text, ""); assert.equal(text.size, 0);
+  } finally { await cleanupRepo(repo); }
+});
+
 test("Cursor later generations never change IDs of previously captured same-file transcript rows", async () => {
   const repo = await makeTempRepo("cledger-cursor-stable-generations-");
   try {

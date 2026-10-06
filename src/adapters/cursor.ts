@@ -15,7 +15,7 @@ import { packageVersion } from "./common.js";
 import { countUnrecognized, unrecognizedDraft, warnUnrecognized, type CaptureResult } from "./drift.js";
 import { recordDraft, activityDraft, type RecordContext } from "./records.js";
 import type { EventDraft } from "../schema.js";
-import { applyAttachmentPolicy } from "../attachments.js";
+import { applyAttachmentPolicy, isKnownTextFilename } from "../attachments.js";
 
 const FORMAT = "cursor-agent-transcript-jsonl/1";
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -159,16 +159,22 @@ export async function captureCursorToolHook(payload: Record<string, unknown>, cw
       return p.hook_event_name === "preToolUse" && p.generation_id === generation && p.tool_name === "Read" &&
         typeof input.file_path === "string" && resolve(cwd, input.file_path) === path && !completed.has(p.tool_use_id);
     });
-    const metadata = { session, generation, file_path: path, content_length: payload.content.length, sha256: digest(payload.content), native_timestamp_missing: true };
+    // Native PNG reads expose empty hook text even when the binary result is
+    // nonempty. That text cannot establish the file's byte length or digest.
+    const unavailableBinary = payload.content === "" && !isKnownTextFilename(path);
+    const sha256 = unavailableBinary ? undefined : digest(payload.content);
+    const unavailable = { type: "attachment_reference", path, availability: "native_binary_body_unavailable", native_reported_text_length: 0 };
+    const metadata = { session, generation, file_path: path, content_length: payload.content.length,
+      ...(unavailableBinary ? { native_binary_body_unavailable: true } : { sha256 }), native_timestamp_missing: true };
     const unique = active.length === 1 ? str(fields(active[0]!.raw?.data).tool_use_id) : undefined;
     if (unique) {
       const body = { type: "input_file", filename: path, file_data: Buffer.from(payload.content).toString("base64") };
       const policy = applyAttachmentPolicy(recordDraft(ctx, "activity", "system", { body }, { body }));
       const previous = await readFile(stagePath(unique), "utf8").then(s => JSON.parse(s)).catch(() => undefined);
       const ttl = Number.isFinite(timing.ttlMs) ? Math.min(60_000, Math.max(1, timing.ttlMs!)) : 60_000;
-      const candidate = previous && (previous.ambiguous || previous.sha256 !== metadata.sha256)
+      const candidate = previous && (previous.ambiguous || previous.sha256 !== sha256)
         ? { ...metadata, ambiguous: true, expires_at: Date.now() + ttl }
-        : { ...metadata, tool_use_id: unique, body: fields(policy.content).body, expires_at: Date.now() + ttl };
+        : { ...metadata, tool_use_id: unique, body: unavailableBinary ? unavailable : fields(policy.content).body, expires_at: Date.now() + ttl };
       const temporary = stagePath(unique) + `.${process.pid}.tmp`, reservation = stagePath(unique) + ".0.tmp";
       // Establish the bounded owner before any bytes are written. The
       // metadata-only reservation keeps it alive through the atomic rename.
@@ -189,7 +195,7 @@ export async function captureCursorToolHook(payload: Record<string, unknown>, cw
     await appendEvents(repo, [activityDraft(ctx, event, {
       ...metadata, ...(unique ? { tool_use_id: unique } : {}),
       body_capture: unique ? "staged_pending_success" : "ambiguous_or_missing_call",
-    }, { ...raw, content: { type: "attachment_reference", path, sha256: metadata.sha256,
+    }, { ...raw, content: unavailableBinary ? unavailable : { type: "attachment_reference", path, sha256,
       size: Buffer.byteLength(payload.content), availability: "pending_permission_not_retained" } })]);
   } else if (["postToolUse", "postToolUseFailure"].includes(event ?? "") && callId) {
     if (own.some(e => fields(e.raw?.data).hook_event_name === event && fields(e.raw?.data).tool_use_id === callId &&

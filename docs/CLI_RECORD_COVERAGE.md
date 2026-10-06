@@ -33,6 +33,11 @@ but no body. A uniquely active same-session/generation/file read stages known
 text privately, then publishes it only after matching success. Denied, expired
 or ambiguous same-file reads keep references, never an invented body binding.
 Binary/unknown-format content remains a reference in normalized and raw records.
+The pinned synthetic TUI PNG Read returns real bytes to Cursor but emits empty
+hook content. That omission is represented by a path reference with
+`availability: native_binary_body_unavailable`, without a fabricated empty-file
+hash or zero-byte binary size. A genuinely empty known text file still retains
+its empty text and actual zero-byte identity.
 A bounded detached worker expires private candidates after at most 60 seconds;
 a hard reboot can postpone physical cleanup until the next hook, which removes
 stale files and never replays expired bytes.

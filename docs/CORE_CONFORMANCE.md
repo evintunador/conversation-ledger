@@ -237,10 +237,17 @@ explicit transcript backfills each retained exactly those 21 records. The
 initial run exercised a real missing-file error, UTF-8 Read, and PNG Read; the
 resumed run read a fresh value. Binary bytes became attachment references in
 normalized and raw evidence. The reproducible `conformance-cursor` headless driver now checks these native
-records and all eight finite gates. Its macOS run passes seven cases and records
-headless `@image` text-only entry as a limitation. Cursor TUI startup still
-stalls against the scripted protocol fixture; no headless evidence closes that
-item. Linux headless proof is pending its CI run. The official Cursor archive
+records and all eight finite gates. The [focused Cursor run](https://github.com/evintunador/conversation-ledger/actions/runs/37391972742)
+passes seven headless cases on both OSes and records literal `@image` text entry
+as a limitation. The native TUI driver uses bounded gzip Connect decoding,
+actual editor input, checkpoint acknowledgements and normal `/exit`. Its macOS
+run retains 17 automatic records across both unchanged backfills. PNG Read
+returns bytes to the native process, but the TUI hooks expose only empty text;
+the ledger records `native_binary_body_unavailable` without fabricating the
+empty-file digest or a zero-byte binary size. Known empty text files retain
+their actual empty text. The tested editor `@filename` entry remains literal
+text with no selected image in the native request; other image-entry methods
+remain unverified. Linux TUI proof remains pending. The official Cursor archive
 is pinned and hash-checked for macOS arm64 and Linux x64; other architectures
 have no new provisioning claim.
 
@@ -288,3 +295,11 @@ idle regression now waits for a final rendering marker and checks the observed
 quiet interval, without assuming child scheduling gaps stay short on loaded
 runners. Cursor anonymous transcript calls are linked only by unique inputs;
 identical repeated reads remain ambiguous and preserve native stream IDs.
+
+
+The [latest full gate](https://github.com/evintunador/conversation-ledger/actions/runs/37391922081)
+passes 35/35 macOS and 34/35 Linux native scenarios, including Cursor headless.
+Linux Cline headless remains the sole failed executed scenario; Cursor TUI,
+Kiro and isolated Droid prerequisites were not covered by that run. All reports,
+including the failure, are retained in the support matrix. This is scripted
+native proof, not real-model certification.
