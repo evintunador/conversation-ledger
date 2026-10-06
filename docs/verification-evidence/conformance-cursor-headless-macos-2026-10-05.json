@@ -11,7 +11,7 @@
     "requests": 2,
     "events": 21,
     "fullyCertified": false,
-    "started": "2026-10-05T23:49:44.361Z",
+    "started": "2026-10-06T00:01:52.732Z",
     "inputMethod": "native prompt argument through explicit stream recorder",
     "exclusions": [
       "real provider/model behavior",
@@ -56,6 +56,6 @@
     },
     "version": "2026.10.01-e373342",
     "automaticEventsBeforeBackfill": 21,
-    "completed": "2026-10-05T23:49:52.609Z"
+    "completed": "2026-10-06T00:02:00.698Z"
   }
 }

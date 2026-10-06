@@ -163,49 +163,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             }
           },
@@ -220,7 +220,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-claude-code-headless-linux-ci-followup-2026-10-05.json",
             "version": "2.1.284 (Claude Code)"
           }
         },
@@ -235,49 +235,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.284 (Claude Code)"
             }
           },
@@ -292,7 +292,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-claude-code-interactive-linux-ci-followup-2026-10-05.json",
             "version": "2.1.284 (Claude Code)"
           }
         }
@@ -458,49 +458,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Documented native --image initial attachment",
-              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-headless-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             }
           },
@@ -515,7 +515,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-codex-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-codex-headless-linux-ci-followup-2026-10-05.json",
             "version": "codex-cli 0.159.0"
           }
         },
@@ -530,49 +530,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Documented native --image initial attachment",
-              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-followup-2026-10-05.json",
               "version": "codex-cli 0.159.0"
             }
           },
@@ -587,7 +587,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-codex-interactive-linux-ci-followup-2026-10-05.json",
             "version": "codex-cli 0.159.0"
           }
         }
@@ -753,49 +753,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             }
           },
@@ -810,7 +810,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-gemini-cli-headless-linux-ci-followup-2026-10-05.json",
             "version": "0.61.0"
           }
         },
@@ -825,49 +825,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.61.0"
             }
           },
@@ -882,7 +882,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-gemini-cli-interactive-linux-ci-followup-2026-10-05.json",
             "version": "0.61.0"
           }
         }
@@ -1048,49 +1048,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             }
           },
@@ -1105,7 +1105,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-copilot-headless-linux-ci-followup-2026-10-05.json",
             "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
           }
         },
@@ -1120,49 +1120,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-followup-2026-10-05.json",
               "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
             }
           },
@@ -1177,7 +1177,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-copilot-interactive-linux-ci-followup-2026-10-05.json",
             "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates."
           }
         }
@@ -1564,49 +1564,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             }
           },
@@ -1621,7 +1621,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-qwen-code-headless-linux-ci-followup-2026-10-05.json",
             "version": "0.24.6"
           }
         },
@@ -1636,49 +1636,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.24.6"
             }
           },
@@ -1693,7 +1693,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-qwen-code-interactive-linux-ci-followup-2026-10-05.json",
             "version": "0.24.6"
           }
         }
@@ -1859,49 +1859,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "userImageEntry": {
               "status": "limitation",
               "detail": "Kimi 2.1.1 --prompt accepts text only: its installed help exposes no attachment flag, and @image remained literal in the native human record/provider request. TUI clipboard media and ACP media are separate interfaces, not headless prompt evidence. Native ReadMediaFile is checked separately.",
-              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             }
           },
@@ -1916,7 +1916,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-kimi-headless-linux-ci-followup-2026-10-05.json",
             "version": "2.1.1"
           }
         },
@@ -1931,49 +1931,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; resumed Ctrl-V with isolated OS file-clipboard lookup fixture; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native editor bracketed paste; resumed Ctrl-V with isolated OS file-clipboard lookup fixture; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "2.1.1"
             }
           },
@@ -1988,7 +1988,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-kimi-interactive-linux-ci-followup-2026-10-05.json",
             "version": "2.1.1"
           }
         }
@@ -2154,49 +2154,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "imageReference": {
               "status": "limitation",
               "detail": "Vibe 2.25.8 legacy read_file decodes this PNG into numbered text via read_lines_safe_async, with replacement characters. The linked native result omits the original binary carrier; its lossy text is preserved without inventing original bytes, size or digest. User image entry is checked separately.",
-              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "userImageEntry": {
               "status": "limitation",
               "detail": "Vibe 2.25.8 legacy programmatic --prompt submits a string without the TUI's image-token expansion. Installed @image remained literal in the human prompt/provider request despite supports_images=true. TUI @image entry retains its native copied-file locator and is checked separately.",
-              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             }
           },
@@ -2211,7 +2211,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-mistral-vibe-headless-linux-ci-followup-2026-10-05.json",
             "version": "vibe 2.25.8"
           }
         },
@@ -2224,51 +2224,51 @@
           },
           "cases": {
             "multilineUnicode": {
-              "status": "fail",
+              "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "textRead": {
-              "status": "fail",
+              "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "toolError": {
-              "status": "fail",
+              "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "imageReference": {
               "status": "limitation",
               "detail": "Vibe 2.25.8 legacy read_file decodes this PNG into numbered text via read_lines_safe_async, with replacement characters. The linked native result omits the original binary carrier; its lossy text is preserved without inventing original bytes, size or digest. User image entry is checked separately.",
-              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "userImageEntry": {
-              "status": "not-run",
-              "detail": "Native @image reference attempted on resumed turn; tool-returned image alone is not proof",
-              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-full-2026-10-05.json",
+              "status": "pass",
+              "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
+              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "noUnrecognized": {
-              "status": "fail",
-              "detail": "Unknown native record evidence stays explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-full-2026-10-05.json",
+              "status": "pass",
+              "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
+              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "resume": {
-              "status": "not-run",
-              "detail": "Installed scenario has not reached this gate",
-              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-full-2026-10-05.json",
+              "status": "pass",
+              "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
+              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             },
             "backfill": {
-              "status": "not-run",
-              "detail": "Installed scenario has not reached this gate",
-              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-full-2026-10-05.json",
+              "status": "pass",
+              "detail": "Both manual imports compared against automatic complete native ledger",
+              "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-followup-2026-10-05.json",
               "version": "vibe 2.25.8"
             }
           },
@@ -2281,9 +2281,9 @@
             "detail": "Usual-provider canary pending; API route or contributor account required"
           },
           "scenario": {
-            "status": "fail",
-            "detail": "Observed resume TUI incomplete:                                                                          Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                   ⡠⣒⠄  ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡠⣀⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                   ⡠⣒⠄  ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡢⣂⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆   ⡠⣒⠄  ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡢⣂⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡢⣂⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆ ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠈⡀⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇   ⡠⣒⠄  ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇  ⢠⢢    ⡠⡀⡠⡀\n⢸⢸⣀⡔⢉⢑⠇⠨⡠⢇\n⠈⠒⠒⠣⠤⠵⠭⠭⠯⠇ ⢔⡢⡀    ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 ⢔⡢⡀    ⡠⡀⡠⡀\n⢸⠸⣀⡔⢉⢑⠇⠨⡠⢇\n⠉⠒⠣⠤⠵⠭⠭⠯⠇ ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ ⢔⡢⡀    ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡐⣔⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡐⣔⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡢⣂⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆  ⢠⢢    ⡔⢄⠔⡄\n⢸⢸⣀⡔⢉⠱⣃⡢⣂⡣\n⠈⠒⠒⠣⠤⠵⠤⠬⠮⠆   ⡠⣒⠄  ⡔⢄⠔⡄\n⢸⠸⣀⡔⢉⠱⣃⡢⣂⡣\n⠉⠒⠣⠤⠵⠤⠬⠮⠆ Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png                                                                                                                 Unicode déjà vu 日本語 🦉 @image-TESTONLY.png",
-            "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-full-2026-10-05.json",
+            "status": "pass",
+            "detail": "Installed scenario: pass",
+            "evidence": "verification-evidence/conformance-mistral-vibe-interactive-linux-ci-followup-2026-10-05.json",
             "version": "vibe 2.25.8"
           }
         }
@@ -2883,49 +2883,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             }
           },
@@ -2940,7 +2940,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-opencode-headless-linux-ci-followup-2026-10-05.json",
             "version": "1.18.33"
           }
         },
@@ -2955,49 +2955,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.18.33"
             }
           },
@@ -3012,7 +3012,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-opencode-interactive-linux-ci-followup-2026-10-05.json",
             "version": "1.18.33"
           }
         }
@@ -3178,49 +3178,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Documented native @image initial argument; provider image input and retained reference checked",
-              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             }
           },
@@ -3235,7 +3235,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-pi-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-pi-headless-linux-ci-followup-2026-10-05.json",
             "version": "0.87.1"
           }
         },
@@ -3250,49 +3250,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Documented native @image initial argument; provider image input and retained reference checked",
-              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.87.1"
             }
           },
@@ -3307,7 +3307,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-pi-interactive-linux-ci-followup-2026-10-05.json",
             "version": "0.87.1"
           }
         }
@@ -3473,49 +3473,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "userImageEntry": {
               "status": "limitation",
               "detail": "OpenHands CLI 1.16.0 headless --task and native TUI conversation_runner submit TextContent(text=user_input). Installed @image remained text in both the native human record and provider request. ACP supports ImageContent through another interface; ACP evidence cannot certify native CLI/TUI image entry.",
-              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             }
           },
@@ -3530,7 +3530,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-openhands-headless-linux-ci-followup-2026-10-05.json",
             "version": "OpenHands CLI 1.16.0"
           }
         },
@@ -3545,49 +3545,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "userImageEntry": {
               "status": "limitation",
               "detail": "OpenHands CLI 1.16.0 headless --task and native TUI conversation_runner submit TextContent(text=user_input). Installed @image remained text in both the native human record and provider request. ACP supports ImageContent through another interface; ACP evidence cannot certify native CLI/TUI image entry.",
-              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-followup-2026-10-05.json",
               "version": "OpenHands CLI 1.16.0"
             }
           },
@@ -3602,7 +3602,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-openhands-interactive-linux-ci-followup-2026-10-05.json",
             "version": "OpenHands CLI 1.16.0"
           }
         }
@@ -3768,49 +3768,49 @@
             "multilineUnicode": {
               "status": "not-run",
               "detail": "Latest installed scenario has not proved this case",
-              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "textRead": {
               "status": "not-run",
               "detail": "Latest installed scenario has not proved this case",
-              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "toolError": {
               "status": "not-run",
               "detail": "Latest installed scenario has not proved this case",
-              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "imageReference": {
               "status": "not-run",
               "detail": "Latest installed scenario has not proved this case",
-              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "userImageEntry": {
               "status": "not-run",
               "detail": "Latest installed scenario has not proved this case",
-              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "noUnrecognized": {
               "status": "not-run",
               "detail": "Latest installed scenario has not proved this case",
-              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "resume": {
               "status": "not-run",
               "detail": "Latest installed scenario has not proved this case",
-              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "backfill": {
               "status": "not-run",
               "detail": "Latest installed scenario has not proved this case",
-              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-headless-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             }
           },
@@ -3824,8 +3824,8 @@
           },
           "scenario": {
             "status": "fail",
-            "detail": "Automatic headless prompt/answer capture incomplete before backfill",
-            "evidence": "verification-evidence/conformance-cline-headless-linux-ci-full-2026-10-05.json",
+            "detail": "Automatic headless prompt/answer capture incomplete before backfill; native output: ",
+            "evidence": "verification-evidence/conformance-cline-headless-linux-ci-followup-2026-10-05.json",
             "version": "3.0.65"
           }
         },
@@ -3840,49 +3840,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native editor multiline paste; resumed separate image-file path paste; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-followup-2026-10-05.json",
               "version": "3.0.65"
             }
           },
@@ -3897,7 +3897,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-cline-interactive-linux-ci-followup-2026-10-05.json",
             "version": "3.0.65"
           }
         }
@@ -4063,49 +4063,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Documented native --image initial attachment",
-              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             }
           },
@@ -4120,7 +4120,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-open-interpreter-headless-linux-ci-followup-2026-10-05.json",
             "version": "interpreter 0.0.45"
           }
         },
@@ -4135,49 +4135,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native TUI initial prompt/--image arguments; resumed editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Documented native --image initial attachment",
-              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-followup-2026-10-05.json",
               "version": "interpreter 0.0.45"
             }
           },
@@ -4192,7 +4192,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-open-interpreter-interactive-linux-ci-followup-2026-10-05.json",
             "version": "interpreter 0.0.45"
           }
         }
@@ -4358,49 +4358,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "userImageEntry": {
               "status": "limitation",
               "detail": "Goose 1.52.0 CLI run --text and session InputResult::Message accept strings, with no native image attachment input. The installed @image remained literal in the human record and provider request. Its real developer read_image tool result retains image references separately; a tool image is not user entry.",
-              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             }
           },
@@ -4415,7 +4415,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-goose-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-goose-headless-linux-ci-followup-2026-10-05.json",
             "version": "1.52.0"
           }
         },
@@ -4430,49 +4430,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "userImageEntry": {
               "status": "limitation",
               "detail": "Goose 1.52.0 CLI run --text and session InputResult::Message accept strings, with no native image attachment input. The installed @image remained literal in the human record and provider request. Its real developer read_image tool result retains image references separately; a tool image is not user entry.",
-              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.52.0"
             }
           },
@@ -4487,7 +4487,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-goose-interactive-linux-ci-followup-2026-10-05.json",
             "version": "1.52.0"
           }
         }
@@ -4653,49 +4653,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native --message argument; image filename argument",
-              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual native read_text operation/result call_id retains UTF-8 text",
-              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual invalid UTF-8 read returns None with a linked file operation/result and native error diagnostic",
-              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Native image read body retained as a reference in its linked file result",
-              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native filename argument adds image to user model context; explicit recorder retains reference",
-              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Initial and restored native records contain no unknown evidence",
-              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "resume": {
               "status": "limitation",
               "detail": "Native --restore-chat-history reloads prior prompt/answer, verified in the resumed model request. Aider has no native stable session ID; separate explicit launches produce separate recorder streams rather than fabricated continuity.",
-              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "backfill": {
               "status": "pass",
               "detail": "Two manual backfills compared against automatic recorder capture after both normal exits",
-              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-headless-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             }
           },
@@ -4710,7 +4710,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-aider-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-aider-headless-linux-ci-followup-2026-10-05.json",
             "version": "0.86.2"
           }
         },
@@ -4725,49 +4725,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native brace-delimited multiline terminal input; image filename argument",
-              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual native read_text operation/result call_id retains UTF-8 text",
-              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual invalid UTF-8 read returns None with a linked file operation/result and native error diagnostic",
-              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Native image read body retained as a reference in its linked file result",
-              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native filename argument adds image to user model context; explicit recorder retains reference",
-              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Initial and restored native records contain no unknown evidence",
-              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "resume": {
               "status": "limitation",
               "detail": "Native --restore-chat-history reloads prior prompt/answer, verified in the resumed model request. Aider has no native stable session ID; separate explicit launches produce separate recorder streams rather than fabricated continuity.",
-              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             },
             "backfill": {
               "status": "pass",
               "detail": "Two manual backfills compared against automatic recorder capture after both normal exits",
-              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-followup-2026-10-05.json",
               "version": "0.86.2"
             }
           },
@@ -4782,7 +4782,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-aider-interactive-linux-ci-followup-2026-10-05.json",
             "version": "0.86.2"
           }
         }
@@ -4948,49 +4948,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "imageReference": {
               "status": "limitation",
               "detail": "Continue 1.5.47 Read returns fs.readFileSync(path, 'utf-8') text even for this PNG; its actual linked result exposes no image carrier or original byte body. The lossy upstream text is preserved without inventing binary evidence. Native TUI user image retention is proved separately.",
-              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "userImageEntry": {
               "status": "limitation",
               "detail": "Continue 1.5.47 --print accepts text and exposes no attachment flag. Native @image remained literal in the resumed human prompt and provider request. Its TUI Ctrl-V media path is a separate verified interface.",
-              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-headless-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             }
           },
@@ -5005,7 +5005,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-continue-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-continue-headless-linux-ci-followup-2026-10-05.json",
             "version": "1.5.47"
           }
         },
@@ -5020,49 +5020,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "imageReference": {
               "status": "limitation",
               "detail": "Continue 1.5.47 Read returns fs.readFileSync(path, 'utf-8') text even for this PNG; its actual linked result exposes no image carrier or original byte body. The lossy upstream text is preserved without inventing binary evidence. Native TUI user image retention is proved separately.",
-              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-followup-2026-10-05.json",
               "version": "1.5.47"
             }
           },
@@ -5077,7 +5077,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-continue-interactive-linux-ci-followup-2026-10-05.json",
             "version": "1.5.47"
           }
         }
@@ -5243,49 +5243,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "userImageEntry": {
               "status": "limitation",
               "detail": "Crush 0.97.1 run accepts prompt text and has no image attachment flag. Installed @image remained literal in the native human prompt/provider input. Its TUI parses a separately pasted file path as an attachment; that interface is checked separately.",
-              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-headless-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             }
           },
@@ -5300,7 +5300,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-crush-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-crush-headless-linux-ci-followup-2026-10-05.json",
             "version": "crush version v0.97.1"
           }
         },
@@ -5315,49 +5315,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-followup-2026-10-05.json",
               "version": "crush version v0.97.1"
             }
           },
@@ -5372,7 +5372,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-crush-interactive-linux-ci-followup-2026-10-05.json",
             "version": "crush version v0.97.1"
           }
         }
@@ -5538,49 +5538,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native prompt argument; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             }
           },
@@ -5595,7 +5595,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-kilo-headless-linux-ci-followup-2026-10-05.json",
             "version": "7.8.1"
           }
         },
@@ -5610,49 +5610,49 @@
             "multilineUnicode": {
               "status": "pass",
               "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal",
-              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "textRead": {
               "status": "pass",
               "detail": "Actual file tool result retains known UTF-8 text",
-              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "toolError": {
               "status": "pass",
               "detail": "Actual failed native read and linked result; scripted provider observed native error response",
-              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "imageReference": {
               "status": "pass",
               "detail": "Actual native image tool result retains a reference in its linked result",
-              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "userImageEntry": {
               "status": "pass",
               "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes",
-              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "noUnrecognized": {
               "status": "pass",
               "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers",
-              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "resume": {
               "status": "pass",
               "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream",
-              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             },
             "backfill": {
               "status": "pass",
               "detail": "Both manual imports compared against automatic complete native ledger",
-              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-full-2026-10-05.json",
+              "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-followup-2026-10-05.json",
               "version": "7.8.1"
             }
           },
@@ -5667,7 +5667,7 @@
           "scenario": {
             "status": "pass",
             "detail": "Installed scenario: pass",
-            "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-full-2026-10-05.json",
+            "evidence": "verification-evidence/conformance-kilo-interactive-linux-ci-followup-2026-10-05.json",
             "version": "7.8.1"
           }
         }

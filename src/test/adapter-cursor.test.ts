@@ -3,10 +3,31 @@ import assert from "node:assert/strict";
 import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureCursorToolHook, captureCursorTranscript, runCursor } from "../adapters/cursor.js";
+import { captureCursorToolHook, captureCursorTranscript, runCursor, cursorTranscriptResultLinks } from "../adapters/cursor.js";
 import { installCursor } from "../install.js";
 import { readEvents } from "../store.js";
 import { cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
+
+test("Cursor anonymous transcript linkage follows unique inputs rather than Read order", () => {
+  const calls = ["second.txt", "first.txt"].map((path, i) => ({ id: `transcript-${i}`, name: "Read", native_id_missing: true, input: { path } }));
+  const starts = ["first.txt", "second.txt"].map((path, i) => ({ callId: `native-${i}`, tool: "read", input: { path } }));
+  assert.deepEqual([...cursorTranscriptResultLinks(calls, starts)], [["native-0", "transcript-1"], ["native-1", "transcript-0"]]);
+});
+
+test("Cursor identical repeated reads and missing inputs remain ambiguous", () => {
+  const calls = [0, 1].map(i => ({ id: `transcript-${i}`, name: "Read", native_id_missing: true, input: { path: "same.txt" } }));
+  const starts = [0, 1].map(i => ({ callId: `native-${i}`, tool: "read", input: { path: "same.txt" } }));
+  assert.equal(cursorTranscriptResultLinks(calls, starts).size, 0);
+  assert.equal(cursorTranscriptResultLinks(calls.slice(0, 1), [{ callId: "native-0", tool: "read" }]).size, 0);
+  assert.equal(cursorTranscriptResultLinks(calls.slice(0, 1), starts).size, 0);
+});
+
+test("Cursor supplied transcript IDs are never replaced and input key ordering is harmless", () => {
+  const calls = [{ id: "native-transcript", name: "Read", input: { path: "same.txt", limit: 10 } }];
+  const starts = [{ callId: "native-0", tool: "read", input: { limit: 10, path: "same.txt" } }];
+  assert.equal(cursorTranscriptResultLinks(calls, starts).size, 0);
+  assert.equal(cursorTranscriptResultLinks([{ ...calls[0], native_id_missing: true }], starts).get("native-0"), "native-transcript");
+});
 
 test("Cursor native transcript retains prompt, tool use, answer, binary reference and torn-tail recovery", async () => {
   const repo = await makeTempRepo("cledger-cursor-test-");

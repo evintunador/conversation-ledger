@@ -278,3 +278,13 @@ It provisions pinned binaries and runs installed cases on both OSes, skipping
 the broad smoke campaign for that focused dispatch. The normal PR/default
 workflow retains the full smoke and conformance gate. Focused dispatch is not
 a substitute for the full gate.
+
+The [next full gate](https://github.com/evintunador/conversation-ledger/actions/runs/37389965803)
+recorded 33/34 Linux native scenario passes: Vibe TUI resume now passes with
+separate paste/Enter actions, while Cline headless still exits with zero model
+requests and zero evidence. macOS stopped at the PTY idle unit regression
+before installing/running its CLIs; it provides no new macOS native proof. The
+idle regression now waits for a final rendering marker and checks the observed
+quiet interval, without assuming child scheduling gaps stay short on loaded
+runners. Cursor anonymous transcript calls are linked only by unique inputs;
+identical repeated reads remain ambiguous and preserve native stream IDs.

@@ -325,6 +325,24 @@ export function prepareCursorStreamRow(row: Record<string, unknown>): Record<str
     success: { ...success, data: carrier } } } } };
 }
 
+/** Anonymous transcript starts may be linked only by unique native inputs.
+ * Repeated identical reads remain ambiguous even if tool names/order agree. */
+export function cursorTranscriptResultLinks(calls: Record<string, unknown>[], starts: { callId: string; tool: string; input?: unknown }[]): Map<string, string> {
+  const links = new Map<string, string>();
+  if (calls.length !== starts.length) return links;
+  const key = (name: unknown, input: unknown) => typeof name === "string" && name !== "unknown" && object(input)
+    ? JSON.stringify([name.toLowerCase(), Object.fromEntries(Object.entries(input).sort(([a], [b]) => a.localeCompare(b)))]) : undefined;
+  const candidateKeys = calls.map(call => call.native_id_missing === true ? key(call.name, call.input) : undefined);
+  const startKeys = starts.map(start => key(start.tool, start.input));
+  for (let index = 0; index < starts.length; index++) {
+    const match = startKeys[index];
+    if (!match || startKeys.filter(value => value === match).length !== 1 || candidateKeys.filter(value => value === match).length !== 1) continue;
+    const candidate = calls[candidateKeys.indexOf(match)]!;
+    if (typeof candidate.id === "string") links.set(starts[index]!.callId, candidate.id);
+  }
+  return links;
+}
+
 /** Native hooks run from the workspace root for project settings and from
  * ~/.cursor for global settings; use the payload's explicit workspace root. */
 export async function runCursorHook(stdinJson: string): Promise<void> {
@@ -362,7 +380,7 @@ export async function runCursor(args: string[], binary = "cursor-agent"): Promis
     cwd: process.cwd(), stdio: ["inherit", "pipe", "inherit"],
   });
   const rows: { row: Record<string, unknown>; index: number }[] = [];
-  const starts: { sessionId: string; callId: string; tool: string }[] = [];
+  const starts: { sessionId: string; callId: string; tool: string; input?: unknown }[] = [];
   let pending = "", lineIndex = 0;
   const collect = (line: string) => {
     const index = lineIndex++;
@@ -376,7 +394,7 @@ export async function runCursor(args: string[], binary = "cursor-agent"): Promis
         const native = Object.entries(row.tool_call).find(([key, value]) => key.endsWith("ToolCall") && object(value));
         const tool = native?.[0]?.replace(/ToolCall$/, "") ?? "unknown";
         if (row.subtype === "started" && typeof row.session_id === "string" && typeof row.call_id === "string")
-          starts.push({ sessionId: row.session_id, callId: row.call_id, tool });
+          starts.push({ sessionId: row.session_id, callId: row.call_id, tool, input: fields(native?.[1]).args });
         if (row.subtype === "completed") rows.push({ row, index });
       }
     } catch { /* Forward native diagnostics unchanged; no invented result. */ }
@@ -417,13 +435,7 @@ export async function runCursor(args: string[], binary = "cursor-agent"): Promis
           .flatMap(event => (object(event.content) && Array.isArray(event.content.blocks) ? event.content.blocks : []))
           .filter(block => object(block) && block.type === "tool_use" && block.native_id_missing === true);
         const sessionStarts = starts.filter(start => start.sessionId === sessionId);
-        // Cursor's transcript has tool starts in model order but no native
-        // call IDs. Link only if the complete sequence matches by tool name;
-        // otherwise preserve the original call ID rather than guess.
-        if (calls.length === sessionStarts.length && calls.every((block, index) =>
-          String((block as Record<string, unknown>).name).toLowerCase() === sessionStarts[index]!.tool.toLowerCase())) {
-          for (let i = 0; i < calls.length; i++) links.set(sessionStarts[i]!.callId, String((calls[i] as Record<string, unknown>).id));
-        }
+        for (const [native, transcript] of cursorTranscriptResultLinks(calls as Record<string, unknown>[], sessionStarts)) links.set(native, transcript);
       }
       const drafts: EventDraft[] = [];
       for (const { row: nativeRow, index } of rows) {

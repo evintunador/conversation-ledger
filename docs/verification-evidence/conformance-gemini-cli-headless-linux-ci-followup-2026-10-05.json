@@ -1,0 +1,88 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37389965803",
+  "commit": "1823bb3eb1641b505431ffd861a669dbbaa58b14",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "gemini-cli",
+    "platform": "linux/x64",
+    "mode": "headless",
+    "inference": "scripted",
+    "status": "pass",
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "native prompt argument; compared normalized human text, not echoed terminal"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual file tool result retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+      },
+      "imageReference": {
+        "status": "pass",
+        "detail": "Actual native image tool result retains a reference in its linked result"
+      },
+      "userImageEntry": {
+        "status": "pass",
+        "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes"
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Both manual imports compared against automatic complete native ledger"
+      }
+    },
+    "requests": 7,
+    "events": 50,
+    "fullyCertified": false,
+    "started": "2026-10-05T23:52:37.555Z",
+    "inputMethod": "native prompt argument",
+    "exclusions": [
+      "live provider/model behavior",
+      "interactive mode",
+      "clipboard/drag-and-drop image entry",
+      "text-file editor attachment (native UTF-8 tool read is covered)",
+      "PDF/archive/oversized or invalid text input",
+      "compaction/fork/subagent lifecycle",
+      "complete record-type coverage",
+      "other operating systems"
+    ],
+    "version": "0.61.0",
+    "automaticEventsBeforeBackfill": 50,
+    "inputObservation": {
+      "providerImage": true,
+      "references": 8,
+      "embeddedBinary": false
+    },
+    "backfillObservation": {
+      "automatic": 50,
+      "first": 50,
+      "second": 50,
+      "firstAdded": [],
+      "secondAdded": []
+    },
+    "completed": "2026-10-05T23:52:45.640Z",
+    "rejectedRequests": [],
+    "nativeTools": [
+      "update_topic",
+      "list_directory",
+      "read_file",
+      "grep_search",
+      "glob",
+      "google_web_search",
+      "enter_plan_mode",
+      "invoke_agent"
+    ]
+  }
+}
