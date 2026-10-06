@@ -153,13 +153,14 @@ macOS/Linux rerun exercises the stricter assertions against those pins.
 
 ## Issue #27 expansion (2026-10-05)
 
-The installed macOS campaign resolves the eight cases (passes or observed upstream
+The initial installed macOS campaign resolved the eight cases (passes or observed upstream
 limitations) in both modes for seventeen CLIs: Claude, Codex, OpenCode, Gemini,
 Qwen, Pi, Kilo, Copilot, Kimi, Continue, Cline, Goose, Open Interpreter,
 OpenHands, Crush, Mistral Vibe and Aider. Aider reloads native chat history but
 has no stable native session ID, recorded as a resume limitation. Droid is blocked on isolated resume authentication;
-Cursor and Kiro still need conformance proof. The initial nine-CLI CI run
-passed all macOS scenarios; Linux Gemini TUI backfill remains a recorded failure. See the matrix
+Cursor and Kiro initially lacked conformance proof; later Cursor evidence is
+recorded below. The initial nine-CLI CI run passed all macOS scenarios and
+recorded a Linux Gemini TUI backfill failure. See the matrix
 for the latest per-case result; partial runs do not certify a CLI.
 
 Qwen 0.24.6 persists image tool responses in `functionResponse.parts`, alongside
@@ -198,7 +199,7 @@ and [subagents (#34)](https://github.com/evintunador/conversation-ledger/issues/
 
 ### Real-model canary runner
 
-`npm run verify:canary -- --local` currently implements OpenCode, using the
+`npm run verify:canary -- --local [opencode|pi]` implements OpenCode and Pi, using the
 explicit `CLEDGER_VERIFY_ENDPOINT`, `CLEDGER_VERIFY_MODEL`,
 `CLEDGER_VERIFY_BINARY` and optional `CLEDGER_VERIFY_INTERACTIVE=1`. Run this
 only after local power and cooling are ready. No model endpoint is selected
