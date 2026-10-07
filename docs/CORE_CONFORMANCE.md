@@ -332,3 +332,17 @@ same-named files. Exit waits for verified normalized answer evidence rather
 than terminal wrapping of the random value. The corrected fresh canary passes.
 Linux and usual-provider canaries remain pending. These checks spent no paid
 API credits and do not certify the additional attachment/lifecycle cases.
+
+
+### Droid contributor prerequisite (2026-10-06)
+
+The user reported that isolated Factory enrollment requires a subscription and
+elected to freeze further Droid verification. Its existing adapter and
+historical local BYOK observations remain recorded. New installed conformance
+and local/usual-provider canary work is contributor-blocked pending authorized
+account access; no subscription will be purchased for issue #27.
+The [published individual plans](https://docs.factory.ai/pricing/individuals)
+start at Pro and describe BYOK allowances within paid plans. This does not
+assert that every enterprise deployment or historical CLI version has the same
+prerequisite. Usual-provider prerequisite records cover both OSes/modes without
+claiming unperformed installed or model runs.

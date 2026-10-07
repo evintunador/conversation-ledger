@@ -2422,8 +2422,11 @@
             "detail": "Local DeepSeek canary pending"
           },
           "usualProvider": {
-            "status": "not-run",
-            "detail": "Usual-provider canary pending; API route or contributor account required"
+            "status": "blocked",
+            "detail": "User reported the isolated Factory enrollment requires a subscription and elected to freeze further Droid verification. Current published individual plans start at Pro; BYOK allowances are described within paid plans. A contributor with existing authorized account access must supply proof. No subscription purchase or model request was made; this prerequisite record does not assert an installed scenario on this OS.",
+            "evidence": "verification-evidence/canary-droid-headless-darwin-subscription-blocked-2026-10-06.json",
+            "version": "0.229.0",
+            "reasonCode": "subscription-only"
           },
           "scenario": {
             "status": "blocked",
@@ -2478,8 +2481,11 @@
             "detail": "Local DeepSeek canary pending"
           },
           "usualProvider": {
-            "status": "not-run",
-            "detail": "Usual-provider canary pending; API route or contributor account required"
+            "status": "blocked",
+            "detail": "User reported the isolated Factory enrollment requires a subscription and elected to freeze further Droid verification. Current published individual plans start at Pro; BYOK allowances are described within paid plans. A contributor with existing authorized account access must supply proof. No subscription purchase or model request was made; this prerequisite record does not assert an installed scenario on this OS.",
+            "evidence": "verification-evidence/canary-droid-interactive-darwin-subscription-blocked-2026-10-06.json",
+            "version": "0.229.0",
+            "reasonCode": "subscription-only"
           }
         },
         "linux/headless": {
@@ -2528,8 +2534,11 @@
             "detail": "Local DeepSeek canary pending"
           },
           "usualProvider": {
-            "status": "not-run",
-            "detail": "Usual-provider canary pending; API route or contributor account required"
+            "status": "blocked",
+            "detail": "User reported the isolated Factory enrollment requires a subscription and elected to freeze further Droid verification. Current published individual plans start at Pro; BYOK allowances are described within paid plans. A contributor with existing authorized account access must supply proof. No subscription purchase or model request was made; this prerequisite record does not assert an installed scenario on this OS.",
+            "evidence": "verification-evidence/canary-droid-headless-linux-subscription-blocked-2026-10-06.json",
+            "version": "0.229.0",
+            "reasonCode": "subscription-only"
           }
         },
         "linux/interactive": {
@@ -2578,8 +2587,11 @@
             "detail": "Local DeepSeek canary pending"
           },
           "usualProvider": {
-            "status": "not-run",
-            "detail": "Usual-provider canary pending; API route or contributor account required"
+            "status": "blocked",
+            "detail": "User reported the isolated Factory enrollment requires a subscription and elected to freeze further Droid verification. Current published individual plans start at Pro; BYOK allowances are described within paid plans. A contributor with existing authorized account access must supply proof. No subscription purchase or model request was made; this prerequisite record does not assert an installed scenario on this OS.",
+            "evidence": "verification-evidence/canary-droid-interactive-linux-subscription-blocked-2026-10-06.json",
+            "version": "0.229.0",
+            "reasonCode": "subscription-only"
           }
         }
       }

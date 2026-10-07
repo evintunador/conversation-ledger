@@ -16,7 +16,7 @@ Closing gate: **open**. `not-run` means missing proof; `blocked` means a recorde
 | Qwen Code (0.24.6) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
 | Kimi Code (2.1.1) | 7/8 pass, 1 limitations | 8/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
 | Mistral Vibe (2.25.8) | 6/8 pass, 2 limitations | 7/8 pass, 1 limitations | not-run / not-run | not-run / not-run |
-| Factory Droid (0.229.0) | 0/8 pass, 0 limitations; scenario [blocked](verification-evidence/conformance-droid-headless-macos-2026-10-05.json) | 0/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
+| Factory Droid (0.229.0) | 0/8 pass, 0 limitations; scenario [blocked](verification-evidence/conformance-droid-headless-macos-2026-10-05.json) | 0/8 pass, 0 limitations | not-run / [blocked](verification-evidence/canary-droid-headless-darwin-subscription-blocked-2026-10-06.json) | not-run / [blocked](verification-evidence/canary-droid-interactive-darwin-subscription-blocked-2026-10-06.json) |
 | Kiro CLI (2.27.1) | 0/8 pass, 0 limitations | 0/8 pass, 0 limitations | not-run / [blocked](verification-evidence/canary-kiro-headless-darwin-subscription-blocked-2026-10-05.json) | not-run / not-run |
 | OpenCode (1.18.33) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | [pass](verification-evidence/canary-opencode-headless-darwin-local-2026-10-06.json) / not-run | [pass](verification-evidence/canary-opencode-interactive-darwin-local-2026-10-06.json) / not-run |
 | Pi (0.87.1) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | [pass](verification-evidence/canary-pi-headless-darwin-local-2026-10-06.json) / not-run | [pass](verification-evidence/canary-pi-interactive-darwin-local-2026-10-06.json) / not-run |
@@ -90,7 +90,7 @@ Closing gate: **open**. `not-run` means missing proof; `blocked` means a recorde
 | Qwen Code (0.24.6) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
 | Kimi Code (2.1.1) | 7/8 pass, 1 limitations | 8/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
 | Mistral Vibe (2.25.8) | 6/8 pass, 2 limitations | 7/8 pass, 1 limitations | not-run / not-run | not-run / not-run |
-| Factory Droid (0.229.0) | 0/8 pass, 0 limitations | 0/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
+| Factory Droid (0.229.0) | 0/8 pass, 0 limitations | 0/8 pass, 0 limitations | not-run / [blocked](verification-evidence/canary-droid-headless-linux-subscription-blocked-2026-10-06.json) | not-run / [blocked](verification-evidence/canary-droid-interactive-linux-subscription-blocked-2026-10-06.json) |
 | Kiro CLI (2.27.1) | 0/8 pass, 0 limitations | 0/8 pass, 0 limitations | not-run / [blocked](verification-evidence/canary-kiro-headless-linux-subscription-blocked-2026-10-05.json) | not-run / not-run |
 | OpenCode (1.18.33) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
 | Pi (0.87.1) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
