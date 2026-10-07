@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { piEvidenceGates, verifyScriptedPi } from "../verification/pi.js";
+import { piEvidenceGates, verifyScriptedPi, verifyConfiguredPi } from "../verification/pi.js";
 import { event } from "./helpers.js";
 import type { EvidenceEvent } from "../schema.js";
 
@@ -37,6 +37,40 @@ test("Pi native certification rejects raw-only evidence, prompt echoes, and othe
   assert.equal(piEvidenceGates(echo, "marker", "secret").hookAnswer, false);
   const wrongSource = evidence().map((item) => ({ ...item, producer: { ...item.producer, source: "other" } }));
   assert.ok(Object.values(piEvidenceGates(wrongSource, "marker", "secret")).every((value) => !value));
+});
+
+test("Pi fresh resumed read must match its own linked successful result", () => {
+  const valid = evidence();
+  valid.push({ ...valid[1]!, content: { blocks: [{ type: "tool_use", id: "tool-2", name: "read", input: { path: "evidence.txt" } }] } },
+    { ...valid[2]!, content: { blocks: [{ type: "tool_result", tool_use_id: "tool-2", content: "fresh" }] } },
+    { ...valid[3]!, content: { blocks: [{ type: "text", text: "fresh" }] } });
+  assert.equal(piEvidenceGates(valid, "marker", "fresh").hookToolResult, true);
+  (valid.at(-2)!.content as any).blocks[0].tool_use_id = "unlinked";
+  assert.equal(piEvidenceGates(valid, "marker", "fresh").hookToolResult, false);
+  (valid.at(-2)!.content as any).blocks[0].tool_use_id = "tool-2";
+  (valid.at(-2)!.content as any).blocks[0].is_error = true;
+  assert.equal(piEvidenceGates(valid, "marker", "fresh").hookToolResult, false);
+});
+
+test("Pi canary accepts the exact absolute synthetic file and refuses other same-named files", () => {
+  const valid = evidence();
+  const input = (valid[1]!.content as any).blocks[0].input;
+  input.path = "/tmp/TESTONLY-repo/evidence.txt";
+  assert.equal(piEvidenceGates(valid, "marker", "secret", "/tmp/TESTONLY-repo/evidence.txt").hookToolResult, true);
+  input.path = "./evidence.txt";
+  assert.equal(piEvidenceGates(valid, "marker", "secret", "/tmp/TESTONLY-repo/evidence.txt").hookToolResult, true);
+  input.path = "/tmp/TESTONLY-other/evidence.txt";
+  assert.equal(piEvidenceGates(valid, "marker", "secret", "/tmp/TESTONLY-repo/evidence.txt").hookToolUse, false);
+});
+
+test("Pi configured inference rejects missing and non-loopback endpoints before launch", async () => {
+  for (const endpoint of ["", "https://example.invalid/v1", "http://127.0.0.1/v1?credential=TESTONLY"]) {
+    const report = await verifyConfiguredPi({ endpoint, model: "TESTONLY" });
+    assert.equal(report.status, "blocked");
+    assert.equal(report.requests, undefined);
+    assert.deepEqual(report.gates, {});
+    assert.equal(report.inference, "configured-loopback");
+  }
 });
 
 test("Pi verification reports unavailable executable as blocked without starting inference", async () => {

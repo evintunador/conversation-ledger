@@ -1,0 +1,80 @@
+{
+  "schema": "cledger-conformance/1",
+  "cli": "copilot",
+  "platform": "darwin/arm64",
+  "mode": "interactive",
+  "inference": "scripted",
+  "status": "pass",
+  "cases": {
+    "multilineUnicode": {
+      "status": "pass",
+      "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal"
+    },
+    "textRead": {
+      "status": "pass",
+      "detail": "Actual file tool result retains known UTF-8 text"
+    },
+    "toolError": {
+      "status": "pass",
+      "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+    },
+    "imageReference": {
+      "status": "pass",
+      "detail": "Actual native image tool result retains a reference in its linked result"
+    },
+    "userImageEntry": {
+      "status": "pass",
+      "detail": "Native editor @image entry and provider input observed; human/context attachment retains a reference, not bytes"
+    },
+    "noUnrecognized": {
+      "status": "pass",
+      "detail": "Unknown native records across initial and resumed turns stay explicit"
+    },
+    "resume": {
+      "status": "pass",
+      "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+    },
+    "backfill": {
+      "status": "pass",
+      "detail": "Both manual imports compared against automatic complete native ledger"
+    }
+  },
+  "requests": 5,
+  "events": 38,
+  "fullyCertified": false,
+  "started": "2026-10-05T21:45:06.783Z",
+  "inputMethod": "native editor bracketed paste",
+  "exclusions": [
+    "live provider/model behavior",
+    "headless mode",
+    "clipboard/drag-and-drop image entry",
+    "text-file editor attachment (native UTF-8 tool read is covered)",
+    "PDF/archive/oversized or invalid text input",
+    "compaction/fork/subagent lifecycle",
+    "complete record-type coverage",
+    "other operating systems"
+  ],
+  "version": "GitHub Copilot CLI 1.0.89.\nRun 'copilot update' to check for updates.",
+  "automaticEventsBeforeBackfill": 38,
+  "completed": "2026-10-05T21:45:19.784Z",
+  "nativeTools": [
+    "bash",
+    "read_bash",
+    "stop_bash",
+    "list_bash",
+    "view",
+    "create",
+    "edit",
+    "web_fetch",
+    "fetch_copilot_cli_documentation",
+    "skill",
+    "sql",
+    "session_store_sql",
+    "read_agent",
+    "list_agents",
+    "write_agent",
+    "grep",
+    "glob",
+    "task"
+  ]
+}

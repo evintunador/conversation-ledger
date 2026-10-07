@@ -1,0 +1,84 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37384796882",
+  "commit": "04e5ab0d4b5c60625b8fc7e9968288fc48eee3d2",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "goose",
+    "platform": "linux/x64",
+    "mode": "headless",
+    "inference": "scripted",
+    "status": "pass",
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "native prompt argument; compared normalized human text, not echoed terminal"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual file tool result retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+      },
+      "imageReference": {
+        "status": "pass",
+        "detail": "Actual native image tool result retains a reference in its linked result"
+      },
+      "userImageEntry": {
+        "status": "limitation",
+        "detail": "Goose 1.52.0 CLI run --text and session InputResult::Message accept strings, with no native image attachment input. The installed @image remained literal in the human record and provider request. Its real developer read_image tool result retains image references separately; a tool image is not user entry."
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Both manual imports compared against automatic complete native ledger"
+      }
+    },
+    "requests": 5,
+    "events": 14,
+    "fullyCertified": false,
+    "started": "2026-10-05T23:04:01.101Z",
+    "inputMethod": "native prompt argument",
+    "exclusions": [
+      "live provider/model behavior",
+      "interactive mode",
+      "clipboard/drag-and-drop image entry",
+      "text-file editor attachment (native UTF-8 tool read is covered)",
+      "PDF/archive/oversized or invalid text input",
+      "compaction/fork/subagent lifecycle",
+      "complete record-type coverage",
+      "other operating systems"
+    ],
+    "version": "1.52.0",
+    "automaticEventsBeforeBackfill": 14,
+    "inputObservation": {
+      "providerImage": false,
+      "references": 0,
+      "embeddedBinary": false
+    },
+    "backfillObservation": {
+      "automatic": 14,
+      "first": 14,
+      "second": 14,
+      "firstAdded": [],
+      "secondAdded": []
+    },
+    "completed": "2026-10-05T23:04:03.174Z",
+    "nativeTools": [
+      "edit",
+      "read_image",
+      "shell",
+      "tree",
+      "write"
+    ]
+  }
+}

@@ -34,3 +34,9 @@ test("GenAI current SDK media, executable code, metadata and provider signatures
   assert.deepEqual(partIssues(parts), []);
   assert.equal(convertParts(parts).length, parts.length);
 });
+
+test("native functionResponse media siblings remain linked to their tool result", () => {
+  const parts = [{ inlineData: { mimeType: "image/jpeg", data: { type: "attachment_reference", sha256: "TESTONLY-digest", size: 281 } } }];
+  const converted = convertParts([{ functionResponse: { id: "TESTONLY_call", name: "read_file", response: { output: "Image overview: 32x32" }, parts } }]);
+  assert.deepEqual(converted, [{ type: "tool_result", tool_use_id: "TESTONLY_call", name: "read_file", content: { output: "Image overview: 32x32" }, parts }]);
+});

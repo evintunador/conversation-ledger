@@ -3,10 +3,31 @@ import assert from "node:assert/strict";
 import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureCursorToolHook, captureCursorTranscript, runCursor } from "../adapters/cursor.js";
+import { captureCursorToolHook, captureCursorTranscript, runCursor, cursorTranscriptResultLinks } from "../adapters/cursor.js";
 import { installCursor } from "../install.js";
 import { readEvents } from "../store.js";
 import { cleanupRepo, makeCommit, makeTempRepo } from "./helpers.js";
+
+test("Cursor anonymous transcript linkage follows unique inputs rather than Read order", () => {
+  const calls = ["second.txt", "first.txt"].map((path, i) => ({ id: `transcript-${i}`, name: "Read", native_id_missing: true, input: { path } }));
+  const starts = ["first.txt", "second.txt"].map((path, i) => ({ callId: `native-${i}`, tool: "read", input: { path } }));
+  assert.deepEqual([...cursorTranscriptResultLinks(calls, starts)], [["native-0", "transcript-1"], ["native-1", "transcript-0"]]);
+});
+
+test("Cursor identical repeated reads and missing inputs remain ambiguous", () => {
+  const calls = [0, 1].map(i => ({ id: `transcript-${i}`, name: "Read", native_id_missing: true, input: { path: "same.txt" } }));
+  const starts = [0, 1].map(i => ({ callId: `native-${i}`, tool: "read", input: { path: "same.txt" } }));
+  assert.equal(cursorTranscriptResultLinks(calls, starts).size, 0);
+  assert.equal(cursorTranscriptResultLinks(calls.slice(0, 1), [{ callId: "native-0", tool: "read" }]).size, 0);
+  assert.equal(cursorTranscriptResultLinks(calls.slice(0, 1), starts).size, 0);
+});
+
+test("Cursor supplied transcript IDs are never replaced and input key ordering is harmless", () => {
+  const calls = [{ id: "native-transcript", name: "Read", input: { path: "same.txt", limit: 10 } }];
+  const starts = [{ callId: "native-0", tool: "read", input: { limit: 10, path: "same.txt" } }];
+  assert.equal(cursorTranscriptResultLinks(calls, starts).size, 0);
+  assert.equal(cursorTranscriptResultLinks([{ ...calls[0], native_id_missing: true }], starts).get("native-0"), "native-transcript");
+});
 
 test("Cursor native transcript retains prompt, tool use, answer, binary reference and torn-tail recovery", async () => {
   const repo = await makeTempRepo("cledger-cursor-test-");
@@ -105,6 +126,28 @@ test("Cursor confirmed native reads retain exact text and IDs with stable transc
     assert.equal(transcriptCalls.length, 2);
     assert.ok(transcriptCalls.every((b: any) => b.native_id_missing === true && b.id.startsWith("transcript-")));
     assert.equal((await captureCursorTranscript(transcript, repo.root, "TESTONLY-native")).appended, 0);
+  } finally { await cleanupRepo(repo); }
+});
+
+test("Cursor empty binary hook text cannot invent file identity; empty known text is retained", async () => {
+  const repo = await makeTempRepo("cledger-cursor-empty-body-");
+  try {
+    await makeCommit(repo);
+    for (const path of ["image-TESTONLY.png", "empty-TESTONLY.txt"]) {
+      const id = "TESTONLY-" + path;
+      await captureCursorToolHook(nativeHook(repo.root, "preToolUse", id, path), repo.root);
+      await captureCursorToolHook(nativeHook(repo.root, "beforeReadFile", undefined, path, { file_path: join(repo.root, path), content: "" }), repo.root);
+      await captureCursorToolHook(nativeHook(repo.root, "postToolUse", id, path, { tool_output: JSON.stringify({ file_path: join(repo.root, path), content_length: 0 }) }), repo.root);
+    }
+    const events = await readEvents(repo), results = events.flatMap(event => (event.content as any).blocks ?? []).filter((block: any) => block.type === "tool_result");
+    const image = results.find((block: any) => block.tool_use_id === "TESTONLY-image-TESTONLY.png").content.file;
+    assert.equal(image.availability, "native_binary_body_unavailable");
+    assert.equal(image.sha256, undefined); assert.equal(image.size, undefined);
+    const raw = events.find(event => (event.content as any).activity_type === "beforeReadFile" && (event.content as any).file_path.endsWith(".png"))!.raw!.data as any;
+    assert.equal(raw.content.availability, "native_binary_body_unavailable");
+    assert.equal(raw.content.sha256, undefined); assert.equal(raw.content.size, undefined);
+    const text = results.find((block: any) => block.tool_use_id === "TESTONLY-empty-TESTONLY.txt").content.file.file_data;
+    assert.equal(text.type, "attachment_text"); assert.equal(text.text, ""); assert.equal(text.size, 0);
   } finally { await cleanupRepo(repo); }
 });
 
@@ -263,5 +306,41 @@ test("Cursor stream wrapper links result body to the one native transcript tool 
     assert.equal(results[0].content.success.content, "TESTONLY-content");
     assert.equal(await runCursor(["synthetic"], binary), 0);
     assert.equal((await readEvents(repo)).length, events.length);
+  } finally { process.chdir(prior); await rm(dir, { recursive: true, force: true }); await cleanupRepo(repo); }
+});
+
+test("Cursor stream keeps actual hook call IDs and references native Read binary bytes in raw and normalized evidence", async () => {
+  const repo = await makeTempRepo("cledger-cursor-native-stream-test-");
+  const dir = await mkdtemp(join(tmpdir(), "cledger-cursor-native-stream-"));
+  const prior = process.cwd();
+  try {
+    await makeCommit(repo);
+    for (const id of ["native-text", "native-image"]) await captureCursorToolHook({ session_id: "TESTONLY-native",
+      generation_id: "TESTONLY-generation", hook_event_name: "preToolUse", tool_use_id: id,
+      tool_name: "Read", tool_input: { file_path: id === "native-image" ? "image.png" : "text.txt" } }, repo.root);
+    const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 255]), encoded = bytes.toString("base64");
+    const rows = ["native-image", "native-text"].flatMap(id => {
+      const args = { path: id === "native-image" ? "image.png" : "text.txt" };
+      const start = { type: "tool_call", subtype: "started", session_id: "TESTONLY-native", call_id: id,
+        tool_call: { readToolCall: { args } } };
+      return [start, { ...start, subtype: "completed", timestamp_ms: 1000,
+        tool_call: { readToolCall: { args, result: { success: id === "native-image" ? { data: encoded } : { content: "café 日本語 🦉" } } } } }];
+    });
+    const binary = join(dir, "agent");
+    await writeFile(binary, `#!${process.execPath}\n` + rows.map(row => `console.log(${JSON.stringify(JSON.stringify(row))});`).join("\n"), { mode: 0o755 });
+    process.chdir(repo.root);
+    assert.equal(await runCursor(["synthetic"], binary), 0);
+    const events = await readEvents(repo);
+    const stream = events.filter(e => e.raw?.format.startsWith("cursor-agent-stream-json/1"));
+    assert.equal(stream.length, 2);
+    for (const e of stream) assert.equal((e.content as any).blocks[0].tool_use_id, (e.content as any).source_call_id);
+    const image = stream.find(e => (e.content as any).source_call_id === "native-image")!;
+    const reference = (image.content as any).blocks[0].content.success.data.file_data;
+    assert.equal(reference.type, "attachment_reference");
+    assert.equal(reference.size, bytes.length);
+    assert.equal(reference.media_type, "application/octet-stream");
+    assert.ok(JSON.stringify(image.raw).includes(reference.sha256));
+    assert.ok(!JSON.stringify(events).includes(encoded));
+    assert.ok(JSON.stringify(stream).includes("café 日本語 🦉"));
   } finally { process.chdir(prior); await rm(dir, { recursive: true, force: true }); await cleanupRepo(repo); }
 });

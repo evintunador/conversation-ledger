@@ -1,31 +1,41 @@
-# Installed core TUI conformance
+# Installed CLI and TUI conformance
 
-`src/verification/conformance.ts` drives installed Claude Code, Codex and OpenCode
-in disposable native homes/configs and synthetic Git repositories. A bounded
-loopback model substitute requests real native tools; it does not write native
-transcript fixtures or make real model requests. This supplements the ordinary
-read smoke scenario with actual editor input and lifecycle/data cases. It is
-explicitly an interactive scenario; no headless result qualifies as a TUI pass.
-No user transcript, normal configuration or account credential is inspected.
+The [support matrix](SUPPORT_MATRIX.md) tracks all 20 supported CLIs, both
+headless and interactive modes, on macOS and Linux, at pinned versions. It is
+the closure ledger for [issue #27](https://github.com/evintunador/conversation-ledger/issues/27).
+A native smoke pass or fixture regression cannot close an installed input or
+lifecycle case. Historical evidence at other versions remains visible.
 
-After building, select installed binaries and run:
+`src/verification/conformance.ts` launches real installed binaries in disposable
+native homes/configs and synthetic Git repositories. A bounded loopback provider
+requests real native tools; it never writes native transcript fixtures or makes
+real model requests. Interactive scenarios drive the actual terminal editor;
+headless scenarios use the documented native prompt interface. Reports record
+the input method and compare actual persisted automatic ledger events before
+any manual repair. No user transcript or account credential is inspected.
 
 ```sh
-CLEDGER_CONFORMANCE_CLAUDE_CODE_BINARY=/absolute/path/to/claude \
-CLEDGER_CONFORMANCE_CODEX_BINARY=/absolute/path/to/codex \
-CLEDGER_CONFORMANCE_OPENCODE_BINARY=/absolute/path/to/opencode \
-CLEDGER_CONFORMANCE_REPORT_DIRECTORY=/tmp/cledger-core-conformance-reports \
-node --test dist/test/verification-conformance.test.js
+npm run verify:conformance -- --runtime-dir /tmp/cledger-runtimes \
+  --output-dir /tmp/cledger-conformance \
+  --only claude-code,codex,opencode,gemini-cli,qwen-code,pi,kilo,copilot,kimi
+# Add --mode headless or --mode interactive to select one interface.
 ```
 
-Unset binary variables explicitly skip that installed test. The attachment-proof
-checker still runs as an ordinary regression. A sandbox must permit native
-processes and loopback sockets. Select a single TUI directly with
-`CLEDGER_VERIFY_BINARY=/absolute/path/to/codex node dist/verification/conformance.js codex`;
-CLI IDs are `claude-code`, `codex`, and `opencode`. The runner rejects unsupported
-arguments, including a headless mode. `--retain` keeps its synthetic diagnostic
-home/terminal traces for debugging; ordinary runs clean them up. Do not commit
-raw traces or native fixture homes.
+Provision npm runtimes with `node dist/verification/runtimes.js /tmp/cledger-runtimes`.
+For other runtimes, select an absolute path with
+`CLEDGER_CONFORMANCE_<CLI_ID_IN_UPPERCASE_WITH_UNDERSCORES>_BINARY`.
+The opt-in `dist/test/verification-conformance.test.js` runs both modes for each
+selected binary. Unset variables skip installed tests explicitly; this is not a
+support claim. The campaign lists absent drivers as `not-run` and exits nonzero
+for unresolved cases. Missing runtimes never become silent passes.
+
+A sandbox must permit native processes and loopback sockets. For one installed
+scenario, use `CLEDGER_VERIFY_BINARY=/absolute/path/to/gemini node
+dist/verification/conformance.js gemini-cli --mode interactive --retain`.
+`--retain` keeps only the synthetic diagnostic home, ledger and terminal traces
+for local debugging; normal runs remove them. Do not commit raw terminal traces
+or native configuration homes. Commit summarized conformance reports and retain
+reproducible CI artifacts instead.
 
 Each implemented scenario:
 
@@ -65,7 +75,7 @@ actual installed TUI is rerun after the fix. Existing captured data is not purge
 by this forward policy.
 
 A passing report covers these observed cases only. It does not certify every
-record type, live-provider behavior, headless behavior, clipboard/drop entry,
+record type, live-provider behavior, untested headless behavior, clipboard/drop entry,
 text-file editor attachment, arbitrary document/oversized/invalid input,
 compaction/forks/subagents, or an untested operating system. Each report marks
 `fullyCertified: false` and lists these gaps. Extend this registry only after an
@@ -140,3 +150,199 @@ The stricter installed macOS rerun passed all eight cases without skips:
 
 These locally installed versions do not change the separate CI pins. The hosted
 macOS/Linux rerun exercises the stricter assertions against those pins.
+
+## Issue #27 expansion (2026-10-05)
+
+The initial installed macOS campaign resolved the eight cases (passes or observed upstream
+limitations) in both modes for seventeen CLIs: Claude, Codex, OpenCode, Gemini,
+Qwen, Pi, Kilo, Copilot, Kimi, Continue, Cline, Goose, Open Interpreter,
+OpenHands, Crush, Mistral Vibe and Aider. Aider reloads native chat history but
+has no stable native session ID, recorded as a resume limitation. Droid is blocked on isolated resume authentication;
+Cursor and Kiro initially lacked conformance proof; later Cursor evidence is
+recorded below. The initial nine-CLI CI run passed all macOS scenarios and
+recorded a Linux Gemini TUI backfill failure. See the matrix
+for the latest per-case result; partial runs do not certify a CLI.
+
+Qwen 0.24.6 persists image tool responses in `functionResponse.parts`, alongside
+`response`. The shared Google-parts conversion previously discarded that native
+field from normalized tool results. It now retains the sibling fields and the
+linked image reference. A regression and both installed interfaces pass after
+the repair. Raw and normalized evidence retain references rather than bytes.
+
+Kimi 2.1.1 headless `--prompt` leaves `@image` literal and exposes no attachment
+flag. This observed limitation is recorded separately from the successful TUI
+Ctrl-V path. The TUI uses an isolated OS file-clipboard lookup fixture pointing
+at our synthetic PNG; it does not access the user's clipboard. The native
+`kimi-file://f_…` locator has no digest/size in this persisted API and remains an
+opaque locator. Real OS clipboard/drop integration is tracked in #29.
+
+Local DeepSeek and usual-provider checks use a smaller canary: a random value
+absent from the prompt must come from a linked real read/result and appear in
+the final answer, with normal exit/resume, automatic capture before repair, no
+unrecognized records, and two idempotent backfills. A `cledger-canary/1` report
+must explicitly prove all eight gates. Older live reports are retained as
+historical evidence rather than being promoted to this new contract.
+
+Local inference waits for the user's machine to be plugged in with cooling
+ready. Paid checks share a $20 total API budget, prefer API-key routes and the
+cheapest suitable models, and do not purchase subscriptions. Subscription-only
+usual-provider checks may remain blocked with a recorded contributor-account
+prerequisite; other missing evidence keeps the issue open.
+
+Follow-up issues cover [text-file attachment entry (#28)](https://github.com/evintunador/conversation-ledger/issues/28),
+[clipboard/drop (#29)](https://github.com/evintunador/conversation-ledger/issues/29),
+[documents/archives (#30)](https://github.com/evintunador/conversation-ledger/issues/30),
+[oversized/invalid text (#31)](https://github.com/evintunador/conversation-ledger/issues/31),
+[fork/branch (#32)](https://github.com/evintunador/conversation-ledger/issues/32),
+[compaction/rewind (#33)](https://github.com/evintunador/conversation-ledger/issues/33),
+and [subagents (#34)](https://github.com/evintunador/conversation-ledger/issues/34).
+
+### Real-model canary runner
+
+`npm run verify:canary -- --local [opencode|pi]` implements OpenCode and Pi, using the
+explicit `CLEDGER_VERIFY_ENDPOINT`, `CLEDGER_VERIFY_MODEL`,
+`CLEDGER_VERIFY_BINARY` and optional `CLEDGER_VERIFY_INTERACTIVE=1`. Run this
+only after local power and cooling are ready. No model endpoint is selected
+implicitly. Other CLI canary drivers remain pending.
+
+The runner performs an initial read/answer, normal exit, native session resume,
+and a second read of a newly randomized file value. Neither value appears in
+the prompt. It requires automatic linked evidence before both manual backfills.
+CI verifies this driver with scripted model substitutes; those reports are
+explicitly scripted and cannot satisfy real-model matrix cells. Paid canaries use `budget-client authorize-canary` and
+`budget-client run-canary SESSION OUTPUT OPENCODE_BINARY headless|interactive`.
+The durable authority now enforces a shared $20 `issue27` campaign ceiling
+in addition to per-CLI limits. No paid execution has been activated; selected
+funded API routes and current reviewed prices are still required.
+
+### Remaining prerequisites
+
+Kiro's freshly probed installed version is 2.27.1; historical 2.27.0 proof is
+not promoted to that pin. Its [official authentication contract](https://kiro.dev/docs/getting-started/authentication/)
+restricts API-key creation to paid accounts, and
+[headless mode](https://kiro.dev/docs/cli/headless/) requires that key. Usual-provider
+headless canaries are blocked pending a subscription-owning contributor on both
+OSes. This prerequisite record does not assert an installed Linux run. Browser
+sign-in/free-account TUI verification is a separate pending path.
+
+Cursor 2026.10.01-e373342's installed help exposes `--endpoint`; a synthetic
+loopback probe reached native authentication exchange, protobuf model discovery,
+prompt persistence and the native HTTP/2 `AgentService/Run` stream. Its agent uses a distinct bidirectional RPC protocol;
+an OpenAI-compatible model endpoint is insufficient. A subsequent headless exploratory probe completed an actual native Read,
+linked automatic tool evidence, native checkpoint persistence of the submitted
+prompt and scripted answer, normal exit, and `--resume` of the saved session.
+The resumed run received the two saved native prompt-message pointers and read
+a fresh file value. After repairing binary Read stream retention and preserving real native tool
+call IDs during result matching, automatic capture contained 21 records; two
+explicit transcript backfills each retained exactly those 21 records. The
+initial run exercised a real missing-file error, UTF-8 Read, and PNG Read; the
+resumed run read a fresh value. Binary bytes became attachment references in
+normalized and raw evidence. The reproducible `conformance-cursor` headless driver now checks these native
+records and all eight finite gates. The [focused Cursor run](https://github.com/evintunador/conversation-ledger/actions/runs/37391972742)
+passes seven headless cases on both OSes and records literal `@image` text entry
+as a limitation. The native TUI driver uses bounded gzip Connect decoding,
+actual editor input, checkpoint acknowledgements and normal `/exit`. Its macOS
+run retains 17 automatic records across both unchanged backfills. PNG Read
+returns bytes to the native process, but the TUI hooks expose only empty text;
+the ledger records `native_binary_body_unavailable` without fabricating the
+empty-file digest or a zero-byte binary size. Known empty text files retain
+their actual empty text. The tested editor `@filename` entry remains literal
+text with no selected image in the native request; other image-entry methods
+remain unverified. The [focused CLI/TUI CI run](https://github.com/evintunador/conversation-ledger/actions/runs/37394952231) passes both modes on macOS and Linux with the same observed limitations. The official Cursor archive
+is pinned and hash-checked for macOS arm64 and Linux x64; other architectures
+have no new provisioning claim.
+
+### CI reproduction and native boundaries
+
+The expanded sixteen-CLI CI run recorded 29/32 Linux scenario passes and
+29/32 macOS passes. Failures remain in the matrix until newer installed evidence
+supersedes them. The [focused six-CLI rerun](https://github.com/evintunador/conversation-ledger/actions/runs/37384076086) passed all 12 scenarios on each OS, including Aider and all previously failing cases. The [full seventeen-CLI rerun](https://github.com/evintunador/conversation-ledger/actions/runs/37384796882) passed 34/34 macOS scenarios and 32/34 Linux scenarios; Cline headless automatic capture and Vibe TUI resume remain failures in that run. A later green full gate remains required. Kilo's isolated profile now uses its
+[documented `snapshot: false` setting](https://kilo.ai/docs/code-with-ai/features/checkpoints)
+because native snapshot initialization stalled on resume; snapshot/rewind proof
+is excluded. Cline's native single-file path paste creates an image attachment;
+`@image` selects a generic text-file context and may reject a PNG as binary.
+Open Interpreter exits only after automatic capture and a bounded idle terminal
+interval, so a busy native Stop hook cannot consume the exit command.
+
+Gemini may leave a separate unused bootstrap transcript during resume, without
+a hook for it. If first backfill adds only two unchanged creation-metadata rows
+and one system `session_context` in a new stream, and the second adds nothing,
+this is an observed backfill limitation. Missing human, assistant, tool, active
+stream or additional lifecycle records remain failures.
+
+Cline headless sometimes exits with code 0, no stdout, no model requests and
+no automatic records. The full Linux run and later macOS probes retain this
+failure; an earlier short-profile pass did not establish a reliable path-based
+fix. Cline auto-update and startup marketing notices are disabled in isolated
+profiles to preserve the pin and make TUI startup reproducible. The headless
+failure's cause remains under investigation; fresh native probes reproduce it
+without ledger configuration or hooks, so installation is not an established
+cause. Vibe now receives bracketed
+paste and Enter as separate native input actions.
+
+A manual `native-verification.yml` dispatch can set `focus` to comma-separated
+CLI IDs (for example `kilo,cline,gemini-cli,open-interpreter,aider,opencode`).
+It provisions pinned binaries and runs installed cases on both OSes, skipping
+the broad smoke campaign for that focused dispatch. The normal PR/default
+workflow retains the full smoke and conformance gate. Focused dispatch is not
+a substitute for the full gate.
+
+The [next full gate](https://github.com/evintunador/conversation-ledger/actions/runs/37389965803)
+recorded 33/34 Linux native scenario passes: Vibe TUI resume now passes with
+separate paste/Enter actions, while Cline headless still exits with zero model
+requests and zero evidence. macOS stopped at the PTY idle unit regression
+before installing/running its CLIs; it provides no new macOS native proof. The
+idle regression now waits for a final rendering marker and checks the observed
+quiet interval, without assuming child scheduling gaps stay short on loaded
+runners. Cursor anonymous transcript calls are linked only by unique inputs;
+identical repeated reads remain ambiguous and preserve native stream IDs.
+
+
+The [latest full gate](https://github.com/evintunador/conversation-ledger/actions/runs/37391922081)
+passes 35/35 macOS and 34/35 Linux native scenarios, including Cursor headless.
+Linux Cline headless remains the sole failed executed scenario; Cursor TUI,
+Kiro and isolated Droid prerequisites were not covered by that run. All reports,
+including the failure, are retained in the support matrix. This is scripted
+native proof, not real-model certification.
+
+
+Pi now has an explicit configured-model canary driver, reusing its installed
+native extension and custom-provider interface. Both headless and editor-input
+TUI driver tests pass with scripted replies, including fresh random file reads
+after native `--continue`, automatic linked results/answers and unchanged
+backfills. Paid canaries require the shared campaign-scoped external authority;
+local canaries still require the user's power/cooling readiness. No real-model
+matrix cell is closed by these driver tests.
+
+
+### Real local canaries (2026-10-06)
+
+The user confirmed desk power and cooling readiness. OpenCode 1.18.33 and
+Pi 0.87.1 each passed real DeepSeek V4 Flash canaries on macOS arm64 in
+headless and native TUI modes: initial read/answer, normal exit, native resume
+with a fresh randomized file value, automatic linked evidence, no unknown
+records and two unchanged backfills. OpenCode used five guarded requests in
+each mode; Pi used four. Reports are in `verification-evidence/canary-*-darwin-local-2026-10-06.json`.
+
+The first Pi TUI harness required literal relative `evidence.txt` input and
+rejected the model's successful absolute-path read. That interrupted run is
+retained as a failure. The corrected gate accepts only the exact synthetic
+repository file, including equivalent relative spelling, and rejects other
+same-named files. Exit waits for verified normalized answer evidence rather
+than terminal wrapping of the random value. The corrected fresh canary passes.
+Linux and usual-provider canaries remain pending. These checks spent no paid
+API credits and do not certify the additional attachment/lifecycle cases.
+
+
+### Droid contributor prerequisite (2026-10-06)
+
+The user reported that isolated Factory enrollment requires a subscription and
+elected to freeze further Droid verification. Its existing adapter and
+historical local BYOK observations remain recorded. New installed conformance
+and local/usual-provider canary work is contributor-blocked pending authorized
+account access; no subscription will be purchased for issue #27.
+The [published individual plans](https://docs.factory.ai/pricing/individuals)
+start at Pro and describe BYOK allowances within paid plans. This does not
+assert that every enterprise deployment or historical CLI version has the same
+prerequisite. Usual-provider prerequisite records cover both OSes/modes without
+claiming unperformed installed or model runs.

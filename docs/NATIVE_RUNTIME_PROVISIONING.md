@@ -1,7 +1,8 @@
 # Portable pinned runtime provisioning
 
 `node dist/verification/native-runtimes.js DIRECTORY [CLI_ID ...]` installs the
-six runtimes below into a fresh directory on macOS/Linux, arm64/x64. It does not
+seven runtimes below into a fresh directory. The six existing recipes support
+macOS/Linux, arm64/x64; Cursor is pinned for macOS arm64 and Linux x64. It does not
 install global software, configure a user CLI, enable scheduling, log in, or run
 inference. It requires Node 22, `uv`, `tar`, and access to public release/PyPI
 hosts. Python environments use the 3.12 series. SQLite is a separate runtime
@@ -15,6 +16,7 @@ prerequisite for Crush (`sqlite3` on Linux; upstream Homebrew SQLite on macOS).
 | Droid | 0.229.0 | official release `droid` |
 | Open Interpreter | Rust 0.0.45 | full standalone package `bin/interpreter` |
 | Crush | 0.97.1 | official release `crush` |
+| Cursor | 2026.10.01-e373342 | official full package `dist-package/cursor-agent` (macOS arm64 / Linux x64) |
 
 The program refuses an existing per-CLI destination, so use a new directory for
 another attempt. Completed entries are recorded incrementally in
@@ -33,7 +35,9 @@ binary paths directly to verification functions. Native and npm runtime
 provisioners can use distinct directories. `campaign.js --runtime-dir` handles
 the npm recipes; the emitted native overrides take precedence for these six.
 
-Run all six in the headless campaign and their supported interactive scenarios.
+Run the six existing smoke drivers in the headless campaign and their supported
+interactive scenarios. Cursor uses the separate conformance headless driver;
+its TUI proof remains pending.
 Cline's direct-provider TUI runs without browser onboarding. Droid's isolated
 TUI reports `blocked: login-required` when no dedicated test authentication is
 supplied; `--allow-login-required` warns without treating it as coverage.
@@ -47,6 +51,10 @@ credential. Its public BYOK headless startup needs no account login.
 [Crush releases](https://github.com/charmbracelet/crush/releases/tag/v0.97.1),
 [Open Interpreter releases](https://github.com/openinterpreter/openinterpreter/releases/tag/rust-v0.0.45),
 and [Factory's documented binary/checksum layout](https://docs.factory.ai/droid-cli/cli-reference).
+Cursor package URLs follow the [official installer](https://cursor.com/install).
+The macOS arm64 and Linux x64 archive SHA256 values were calculated from those
+official HTTPS downloads on 2026-10-05; they are project pins, not a claim of
+independently published checksums.
 Download bytes must match the checked-in digest before extraction or execution.
 Archive traversal paths are rejected. Open Interpreter installs the full package,
 including Linux sandbox resources, rather than only its main executable. Hashes

@@ -1,0 +1,26 @@
+{
+  "schema": "cledger-canary/1",
+  "cli": "pi",
+  "version": "0.87.1",
+  "platform": "darwin/arm64",
+  "mode": "interactive",
+  "inference": "local",
+  "provider": "ds4",
+  "model": "deepseek-v4-flash",
+  "status": "fail",
+  "gates": {
+    "prompt": false,
+    "linkedReadResult": false,
+    "answer": false,
+    "normalExit": false,
+    "resume": false,
+    "backfillTwice": false,
+    "automaticBeforeBackfill": false,
+    "noUnrecognized": false
+  },
+  "requests": 2,
+  "started": "2026-10-07T05:31:33.460Z",
+  "completed": "2026-10-07T05:36:57.696Z",
+  "reason": "Pi interactive terminal did not complete (0, timeout=false)",
+  "observation": "Stopped the synthetic TUI after diagnosing a harness-only relative-path assumption. The native model had made a successful absolute-path Read and answered correctly; this incomplete run is not a pass. A corrected fresh run is recorded separately."
+}

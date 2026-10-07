@@ -1,0 +1,81 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37391922081",
+  "commit": "d95eaaa132c74410e8084baad7a0ac989c502480",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "claude-code",
+    "platform": "darwin/arm64",
+    "mode": "interactive",
+    "inference": "scripted",
+    "status": "pass",
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual file tool result retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+      },
+      "imageReference": {
+        "status": "pass",
+        "detail": "Actual native image tool result retains a reference in its linked result"
+      },
+      "userImageEntry": {
+        "status": "pass",
+        "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes"
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Both manual imports compared against automatic complete native ledger"
+      }
+    },
+    "requests": 6,
+    "events": 46,
+    "fullyCertified": false,
+    "started": "2026-10-06T00:15:16.329Z",
+    "inputMethod": "native editor bracketed paste",
+    "exclusions": [
+      "live provider/model behavior",
+      "headless mode",
+      "clipboard/drag-and-drop image entry",
+      "text-file editor attachment (native UTF-8 tool read is covered)",
+      "PDF/archive/oversized or invalid text input",
+      "compaction/fork/subagent lifecycle",
+      "complete record-type coverage",
+      "other operating systems"
+    ],
+    "version": "2.1.284 (Claude Code)",
+    "automaticEventsBeforeBackfill": 46,
+    "inputObservation": {
+      "providerImage": true,
+      "references": 2,
+      "embeddedBinary": false
+    },
+    "backfillObservation": {
+      "automatic": 46,
+      "first": 46,
+      "second": 46,
+      "firstAdded": [],
+      "secondAdded": []
+    },
+    "completed": "2026-10-06T00:15:28.923Z",
+    "rejectedRequests": [],
+    "nativeTools": [
+      "Read"
+    ]
+  }
+}

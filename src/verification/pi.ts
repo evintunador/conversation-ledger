@@ -3,20 +3,21 @@ import { hasUnrecognizedEvidence } from "./drift.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { EvidenceEvent } from "../schema.js";
 import { startGuard } from "./guard.js";
 import { isolatedEnvironment, runProcess } from "./process.js";
 import { startScriptedProvider } from "./scripted.js";
 
-export interface PiVerificationOptions { binary?: string; timeoutMs?: number; interactive?: boolean }
+export interface PiVerificationOptions { binary?: string; timeoutMs?: number; interactive?: boolean; resume?: boolean }
+export interface PiConfiguredOptions extends PiVerificationOptions { endpoint: string; model: string; apiKey?: string }
 export interface PiVerificationReport {
   schema: "cledger-verification/1";
   cli: "pi";
   status: "pass" | "fail" | "blocked" | "not-run";
   certification: "native-smoke";
-  inference: "scripted";
+  inference: "scripted" | "configured-loopback";
   platform: string;
   mode?: "interactive" | "headless";
   version?: string;
@@ -29,7 +30,7 @@ export interface PiVerificationReport {
 }
 
 /** The secret is never in the prompt: only a real tool result can supply it. */
-export function piEvidenceGates(events: EvidenceEvent[], marker: string, secret: string): Record<string, boolean> {
+export function piEvidenceGates(events: EvidenceEvent[], marker: string, secret: string, expectedFile?: string): Record<string, boolean> {
   const blocks = (event: EvidenceEvent): Record<string, unknown>[] => {
     const value = event.content as { blocks?: Record<string, unknown>[] };
     return Array.isArray(value?.blocks) ? value.blocks : [];
@@ -39,14 +40,17 @@ export function piEvidenceGates(events: EvidenceEvent[], marker: string, secret:
     blocks(event).some((block) => block.type === "text" && String(block.text).includes(marker)));
   const session = prompt?.stream?.id;
   const turns = session ? own.filter((event) => event.stream?.id === session) : [];
-  const call = turns.flatMap(blocks).find((block) => block.type === "tool_use" && block.name === "read" &&
-    (block.input as { path?: string } | undefined)?.path === "evidence.txt");
+  const calls = new Set(turns.flatMap(blocks).filter((block) => {
+    const path = (block.input as { path?: unknown } | undefined)?.path;
+    return block.type === "tool_use" && block.name === "read" && typeof block.id === "string" && typeof path === "string" &&
+      (expectedFile ? resolve(dirname(expectedFile), path) === resolve(expectedFile) : path === "evidence.txt");
+  }).map(block => block.id));
   return {
     noUnrecognizedRecords: own.length > 0 && !hasUnrecognizedEvidence(events, "pi"),
     hookPrompt: !!prompt,
-    hookToolUse: !!call && typeof call.id === "string",
-    hookToolResult: !!call && turns.some((event) => event.actor.type === "system" && blocks(event).some((block) =>
-      block.type === "tool_result" && block.tool_use_id === call.id && JSON.stringify(block.content).includes(secret))),
+    hookToolUse: calls.size > 0,
+    hookToolResult: turns.some((event) => event.actor.type === "system" && blocks(event).some((block) =>
+      block.type === "tool_result" && calls.has(block.tool_use_id) && block.is_error !== true && JSON.stringify(block.content).includes(secret))),
     hookAnswer: turns.some((event) => event.actor.type === "agent" && blocks(event).some((block) =>
       block.type === "text" && String(block.text).includes(secret))),
     nativeSessionState: turns.some((event) => event.kind === "session_state" &&
@@ -59,14 +63,30 @@ export function piEvidenceGates(events: EvidenceEvent[], marker: string, secret:
  * loopback inference only. No authentication/subscription or gateway needed.
  * No manual import can repair the hook before the evidence gates pass.
  */
-export async function verifyScriptedPi(options: PiVerificationOptions = {}): Promise<PiVerificationReport> {
+export function verifyScriptedPi(options: PiVerificationOptions = {}): Promise<PiVerificationReport> {
+  return verifyPi(options);
+}
+
+/** Only an explicitly supplied loopback model or budget relay can run here. */
+export function verifyConfiguredPi(options: PiConfiguredOptions): Promise<PiVerificationReport> {
+  return verifyPi(options, true);
+}
+
+async function verifyPi(options: PiVerificationOptions & Partial<PiConfiguredOptions>, configured = false): Promise<PiVerificationReport> {
   const started = Date.now();
   const report: PiVerificationReport = {
     schema: "cledger-verification/1", cli: "pi", status: "not-run", certification: "native-smoke",
-    mode: options.interactive ? "interactive" : "headless", inference: "scripted", platform: `${process.platform}/${process.arch}`, gates: {},
+    mode: options.interactive ? "interactive" : "headless", inference: configured ? "configured-loopback" : "scripted", platform: `${process.platform}/${process.arch}`, gates: {},
     coverage: ["installed native extension", "headless CLI", "human prompt", "tool call/result linkage", "assistant answer", "session header", "backfill idempotency"],
     exclusions: ["real provider/model behavior", "interactive TUI", "attachments", "branching/forks", "compaction", "full record coverage", "ephemeral sessions"], durationMs: 0,
   };
+  if (configured || options.endpoint || options.model) {
+    if (!options.endpoint || !options.model) { report.status = "blocked"; report.reason = "Explicit endpoint and model are both required"; return report; }
+    try {
+      const url = new URL(options.endpoint);
+      if (url.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.username || url.password || url.search || url.hash) throw Error();
+    } catch { report.status = "blocked"; report.reason = "Only explicit HTTP loopback endpoints without URL credentials/query are supported"; return report; }
+  }
   if (!["darwin", "linux"].includes(process.platform)) {
     report.status = "blocked"; report.reason = "Native Pi verification currently supports macOS and Linux";
     return report;
@@ -113,39 +133,78 @@ export async function verifyScriptedPi(options: PiVerificationOptions = {}): Pro
     await writeFile(join(repo, "evidence.txt"), secret + "\n");
     await checked("git", ["add", "."]);
     await checked("git", ["commit", "--quiet", "-m", "isolated Pi verification"]);
-    provider = await startScriptedProvider({ toolName: "read", toolArguments: { path: "evidence.txt" } });
-    guard = await startGuard(provider.endpoint, 4, Math.min(options.timeoutMs ?? 30_000, 30_000));
+    if (!options.endpoint) provider = await startScriptedProvider({ toolName: "read", toolArguments: { path: "evidence.txt" } });
+    const model = options.model ?? "fixture";
+    guard = await startGuard(options.endpoint ?? provider!.endpoint, options.resume ? 8 : 4,
+      Math.min(options.timeoutMs ?? (options.endpoint ? 180_000 : 30_000), 600_000), options.apiKey, { maxOutputTokens: 1024 });
     // Official Pi models.json custom-provider configuration. No environment
     // credentials are inherited; startup catalog/network fetches are offline.
     await writeFile(join(agentDir, "models.json"), JSON.stringify({ providers: {
       verification: { baseUrl: guard.endpoint, api: "openai-completions", apiKey: "local-verification",
-        models: [{ id: "fixture", name: "Scripted verification", contextWindow: 32768, maxTokens: 1024,
+        models: [{ id: model, name: "Explicit verification model", contextWindow: 32768, maxTokens: 1024,
           input: ["text"], reasoning: false, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }] },
     } }));
-    await writeFile(join(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "verification", defaultModel: "fixture", retry: { enabled: false }, quietStartup: true }));
+    await writeFile(join(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "verification", defaultModel: model, retry: { enabled: false }, quietStartup: true }));
     await checked(process.execPath, [cli, "install", "pi"]);
     const extension = await readFile(join(agentDir, "extensions", "cledger.ts"), "utf8");
     report.gates.installedHook = extension.includes("session_shutdown") && extension.includes("getSessionFile");
-    const prompt = `${marker}. Read evidence.txt using the read tool and reply with its exact contents. Do not use any other tools.`;
     const nativeArgs = ["--offline", "--no-skills", "--no-prompt-templates", "--no-context-files", "--no-themes",
-      "--tools", "read", "--thinking", "off", "--provider", "verification", "--model", "fixture"];
-    if (options.interactive) {
-      const terminal = await runPty(binary, [...nativeArgs, prompt], { cwd: repo, env: { ...env, TERM: "xterm-256color" }, timeoutMs: options.timeoutMs ?? 60_000,
-        actions: [{ waitFor: secret, send: "/quit\r" }] });
-      report.gates.interactiveExit = !terminal.timedOut && terminal.code === 0 && terminal.actionsCompleted === 1;
-      report.coverage = report.coverage.map(value => value === "headless CLI" ? "interactive PTY session and exit" : value);
-      report.exclusions = report.exclusions.filter(value => value !== "interactive TUI");
-      if (!report.gates.interactiveExit) throw new Error(`Pi interactive terminal did not complete (${terminal.code}, timeout=${terminal.timedOut}): ${terminal.output.slice(-1600)}`);
-    } else await checked(binary, [...nativeArgs, "--mode", "json", "--print", prompt], options.timeoutMs ?? 60_000);
+      "--tools", "read", "--thinking", "off", "--provider", "verification", "--model", model];
     const read = async (): Promise<EvidenceEvent[]> => (await checked(process.execPath, [cli, "export", "--all"]))
       .split("\n").filter(Boolean).map((line) => JSON.parse(line) as EvidenceEvent);
-    const nativeEvents = await read();
-    Object.assign(report.gates, piEvidenceGates(nativeEvents, marker, secret));
-    report.gates.scriptedRequests = provider.state.requests > 0 && provider.state.requests <= 4;
-    report.gates.agentHeader = provider.state.headersValid;
-    if (!Object.values(report.gates).every(Boolean)) {
-      throw new Error("Pi native extension evidence incomplete; manual backfill was not attempted");
+    let nativeEvents: EvidenceEvent[] = [], session: string | undefined;
+    for (const resume of options.resume ? [false, true] : [false]) {
+      const turnMarker = resume ? `cledger-resume-${randomUUID()}` : marker;
+      const turnSecret = resume ? `file-value-${randomUUID()}` : secret;
+      if (resume) await writeFile(join(repo, "evidence.txt"), turnSecret + "\n");
+      const prompt = `${turnMarker}. Read evidence.txt now using the read tool and reply with its exact contents. Do not use any other tools.`;
+      const args = [...nativeArgs, ...(resume ? ["--continue"] : [])];
+      if (options.interactive) {
+        const complete = join(root, resume ? "resume-complete" : "initial-complete");
+        let observing = true, observationError: unknown;
+        const observer = (async () => {
+          while (observing) {
+            const events = await read();
+            if (Object.values(piEvidenceGates(events, turnMarker, turnSecret, join(repo, "evidence.txt"))).every(Boolean)) {
+              await writeFile(complete, "Automatic evidence present\n"); break;
+            }
+            await new Promise(done => setTimeout(done, 100));
+          }
+        })().catch(error => { observationError = error; });
+        let terminal;
+        try {
+          terminal = await runPty(binary, args, { cwd: repo, env: { ...env, TERM: "xterm-256color" }, timeoutMs: options.timeoutMs ?? 180_000,
+            actions: [{ waitFor: Array.from(model, character => "\\^$.*+?()[]{}|".includes(character) ? "\\" + character : character).join("") + "|context", send: prompt, paste: true },
+              { waitFor: turnMarker, send: "\r" },
+              { waitFor: "^", waitForPath: complete, quietMs: 500, send: "/quit\r" }] });
+        } finally { observing = false; await observer; }
+        if (observationError) throw observationError;
+        const exited = !terminal.timedOut && terminal.code === 0 && terminal.actionsCompleted === 3;
+        report.gates[resume ? "resumeInteractiveExit" : "interactiveExit"] = exited;
+        report.coverage = report.coverage.map(value => value === "headless CLI" ? "native editor input and exit" : value);
+        report.exclusions = report.exclusions.filter(value => value !== "interactive TUI");
+        if (!exited) throw new Error(`Pi interactive terminal did not complete (${terminal.code}, timeout=${terminal.timedOut})`);
+      } else await checked(binary, [...args, "--mode", "json", "--print", prompt], options.timeoutMs ?? 180_000);
+      report.gates[resume ? "resumeNormalExit" : "normalExit"] = true;
+      const deadline = Date.now() + 20_000;
+      let gates: Record<string, boolean>;
+      do {
+        nativeEvents = await read(); gates = piEvidenceGates(nativeEvents, turnMarker, turnSecret, join(repo, "evidence.txt"));
+        if (Object.values(gates).every(Boolean)) break;
+        await new Promise(done => setTimeout(done, 100));
+      } while (Date.now() < deadline);
+      if (!Object.values(gates).every(Boolean)) throw new Error("Pi native extension evidence incomplete; manual backfill was not attempted");
+      const human = nativeEvents.find(event => event.actor.type === "human" && JSON.stringify(event.content).includes(turnMarker));
+      if (!resume) { Object.assign(report.gates, gates); session = human?.stream?.id; }
+      else report.gates.resume = !!session && session === human?.stream?.id;
+      if (!session || resume && !report.gates.resume) throw Error("Pi continuation did not preserve the native session");
     }
+    if (provider) {
+      report.gates.scriptedRequests = provider.state.requests > 0 && provider.state.requests <= (options.resume ? 8 : 4);
+      report.gates.agentHeader = provider.state.headersValid;
+    }
+    report.gates.automaticBeforeBackfill = true;
+    if (!Object.values(report.gates).every(Boolean)) throw Error("Pi automatic evidence incomplete before backfill");
     await checked(process.execPath, [cli, "capture", "pi", "--all"]);
     const backfilled = await read();
     await checked(process.execPath, [cli, "capture", "pi", "--all"]);

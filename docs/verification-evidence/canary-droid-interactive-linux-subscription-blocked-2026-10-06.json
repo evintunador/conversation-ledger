@@ -1,0 +1,20 @@
+{
+  "schema": "cledger-canary/1",
+  "cli": "droid",
+  "version": "0.229.0",
+  "platform": "linux/x64",
+  "mode": "interactive",
+  "inference": "usual-provider",
+  "provider": "factory",
+  "model": "not-selected",
+  "status": "blocked",
+  "reasonCode": "subscription-only",
+  "reason": "User reported the isolated Factory enrollment requires a subscription and elected to freeze further Droid verification. Current published individual plans start at Pro; BYOK allowances are described within paid plans. A contributor with existing authorized account access must supply proof. No subscription purchase or model request was made; this prerequisite record does not assert an installed scenario on this OS.",
+  "requests": 0,
+  "gates": {},
+  "completed": "2026-10-07T05:43:48.590676+00:00",
+  "sources": [
+    "https://docs.factory.ai/pricing/individuals",
+    "https://factory.ai/pricing"
+  ]
+}

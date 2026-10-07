@@ -85,11 +85,12 @@ export async function startBudgetAuthority(options: {
       try {
         const route = options.routes.find(r => r.price.provider === input.provider && r.price.model === input.model);
         if (!route || !TARGET_CLIS.some(c => c.id === input.cli)) throw Error("Unreviewed CLI/provider/model selection");
+        if (input.campaign !== undefined && input.campaign !== "issue27") throw Error("Unknown campaign");
         reservationCost(route.price);
         const scoped = await options.store.createSession({ cli: String(input.cli), provider: route.price.provider, model: route.price.model,
           revision: route.price.revision, phase: input.phase as "initial" | "maintenance", expires: Date.now() + 900000,
-          maxRequests: Number(input.maxRequests), maxMicroUsd: Number(input.maxMicroUsd) });
-        res.writeHead(201, { "content-type": "application/json" }); res.end(JSON.stringify({ token: scoped, pricingRevision: route.price.revision, reservationMicroUsd: reservationCost(route.price) }));
+          maxRequests: Number(input.maxRequests), maxMicroUsd: Number(input.maxMicroUsd), ...(input.campaign === "issue27" ? { campaign: "issue27" } : {}) });
+        res.writeHead(201, { "content-type": "application/json" }); res.end(JSON.stringify({ token: scoped, pricingRevision: route.price.revision, reservationMicroUsd: reservationCost(route.price), ...(input.campaign ? { campaign: input.campaign } : {}) }));
       } catch { fail(403, "Run authorization denied; review selection, pricing and persistent budget authority"); }
       return;
     }

@@ -1,0 +1,91 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37384796882",
+  "commit": "04e5ab0d4b5c60625b8fc7e9968288fc48eee3d2",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "continue",
+    "platform": "darwin/arm64",
+    "mode": "interactive",
+    "inference": "scripted",
+    "status": "pass",
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture; compared normalized human text, not echoed terminal"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual file tool result retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+      },
+      "imageReference": {
+        "status": "limitation",
+        "detail": "Continue 1.5.47 Read returns fs.readFileSync(path, 'utf-8') text even for this PNG; its actual linked result exposes no image carrier or original byte body. The lossy upstream text is preserved without inventing binary evidence. Native TUI user image retention is proved separately."
+      },
+      "userImageEntry": {
+        "status": "pass",
+        "detail": "Native input method: native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture; provider image input and persisted human/context reference required, without embedded binary bytes"
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Both manual imports compared against automatic complete native ledger"
+      }
+    },
+    "requests": 6,
+    "events": 23,
+    "fullyCertified": false,
+    "started": "2026-10-05T23:06:03.330Z",
+    "inputMethod": "native editor raw multiline paste; resumed Ctrl-V with isolated OS image-clipboard lookup fixture",
+    "exclusions": [
+      "live provider/model behavior",
+      "headless mode",
+      "clipboard/drag-and-drop image entry",
+      "text-file editor attachment (native UTF-8 tool read is covered)",
+      "PDF/archive/oversized or invalid text input",
+      "compaction/fork/subagent lifecycle",
+      "complete record-type coverage",
+      "other operating systems",
+      "real OS clipboard integration (lookup fixture only)"
+    ],
+    "version": "1.5.47",
+    "automaticEventsBeforeBackfill": 23,
+    "inputObservation": {
+      "providerImage": true,
+      "references": 3,
+      "embeddedBinary": false
+    },
+    "backfillObservation": {
+      "automatic": 23,
+      "first": 23,
+      "second": 23,
+      "firstAdded": [],
+      "secondAdded": []
+    },
+    "completed": "2026-10-05T23:06:43.777Z",
+    "nativeTools": [
+      "Read",
+      "Write",
+      "List",
+      "Bash",
+      "Fetch",
+      "Checklist",
+      "CheckBackgroundJob",
+      "AskQuestion",
+      "Search",
+      "MultiEdit",
+      "Skills"
+    ]
+  }
+}
