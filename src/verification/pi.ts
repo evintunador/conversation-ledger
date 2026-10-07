@@ -3,7 +3,7 @@ import { hasUnrecognizedEvidence } from "./drift.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { EvidenceEvent } from "../schema.js";
 import { startGuard } from "./guard.js";
@@ -30,7 +30,7 @@ export interface PiVerificationReport {
 }
 
 /** The secret is never in the prompt: only a real tool result can supply it. */
-export function piEvidenceGates(events: EvidenceEvent[], marker: string, secret: string): Record<string, boolean> {
+export function piEvidenceGates(events: EvidenceEvent[], marker: string, secret: string, expectedFile?: string): Record<string, boolean> {
   const blocks = (event: EvidenceEvent): Record<string, unknown>[] => {
     const value = event.content as { blocks?: Record<string, unknown>[] };
     return Array.isArray(value?.blocks) ? value.blocks : [];
@@ -40,8 +40,11 @@ export function piEvidenceGates(events: EvidenceEvent[], marker: string, secret:
     blocks(event).some((block) => block.type === "text" && String(block.text).includes(marker)));
   const session = prompt?.stream?.id;
   const turns = session ? own.filter((event) => event.stream?.id === session) : [];
-  const calls = new Set(turns.flatMap(blocks).filter((block) => block.type === "tool_use" && block.name === "read" &&
-    typeof block.id === "string" && (block.input as { path?: string } | undefined)?.path === "evidence.txt").map(block => block.id));
+  const calls = new Set(turns.flatMap(blocks).filter((block) => {
+    const path = (block.input as { path?: unknown } | undefined)?.path;
+    return block.type === "tool_use" && block.name === "read" && typeof block.id === "string" && typeof path === "string" &&
+      (expectedFile ? resolve(dirname(expectedFile), path) === resolve(expectedFile) : path === "evidence.txt");
+  }).map(block => block.id));
   return {
     noUnrecognizedRecords: own.length > 0 && !hasUnrecognizedEvidence(events, "pi"),
     hookPrompt: !!prompt,
@@ -162,7 +165,7 @@ async function verifyPi(options: PiVerificationOptions & Partial<PiConfiguredOpt
         const observer = (async () => {
           while (observing) {
             const events = await read();
-            if (Object.values(piEvidenceGates(events, turnMarker, turnSecret)).every(Boolean)) {
+            if (Object.values(piEvidenceGates(events, turnMarker, turnSecret, join(repo, "evidence.txt"))).every(Boolean)) {
               await writeFile(complete, "Automatic evidence present\n"); break;
             }
             await new Promise(done => setTimeout(done, 100));
@@ -173,7 +176,7 @@ async function verifyPi(options: PiVerificationOptions & Partial<PiConfiguredOpt
           terminal = await runPty(binary, args, { cwd: repo, env: { ...env, TERM: "xterm-256color" }, timeoutMs: options.timeoutMs ?? 180_000,
             actions: [{ waitFor: Array.from(model, character => "\\^$.*+?()[]{}|".includes(character) ? "\\" + character : character).join("") + "|context", send: prompt, paste: true },
               { waitFor: turnMarker, send: "\r" },
-              { waitFor: turnSecret, waitForPath: complete, quietMs: 500, send: "/quit\r" }] });
+              { waitFor: "^", waitForPath: complete, quietMs: 500, send: "/quit\r" }] });
         } finally { observing = false; await observer; }
         if (observationError) throw observationError;
         const exited = !terminal.timedOut && terminal.code === 0 && terminal.actionsCompleted === 3;
@@ -186,7 +189,7 @@ async function verifyPi(options: PiVerificationOptions & Partial<PiConfiguredOpt
       const deadline = Date.now() + 20_000;
       let gates: Record<string, boolean>;
       do {
-        nativeEvents = await read(); gates = piEvidenceGates(nativeEvents, turnMarker, turnSecret);
+        nativeEvents = await read(); gates = piEvidenceGates(nativeEvents, turnMarker, turnSecret, join(repo, "evidence.txt"));
         if (Object.values(gates).every(Boolean)) break;
         await new Promise(done => setTimeout(done, 100));
       } while (Date.now() < deadline);

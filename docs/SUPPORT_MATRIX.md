@@ -18,8 +18,8 @@ Closing gate: **open**. `not-run` means missing proof; `blocked` means a recorde
 | Mistral Vibe (2.25.8) | 6/8 pass, 2 limitations | 7/8 pass, 1 limitations | not-run / not-run | not-run / not-run |
 | Factory Droid (0.229.0) | 0/8 pass, 0 limitations; scenario [blocked](verification-evidence/conformance-droid-headless-macos-2026-10-05.json) | 0/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
 | Kiro CLI (2.27.1) | 0/8 pass, 0 limitations | 0/8 pass, 0 limitations | not-run / [blocked](verification-evidence/canary-kiro-headless-darwin-subscription-blocked-2026-10-05.json) | not-run / not-run |
-| OpenCode (1.18.33) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
-| Pi (0.87.1) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
+| OpenCode (1.18.33) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | [pass](verification-evidence/canary-opencode-headless-darwin-local-2026-10-06.json) / not-run | [pass](verification-evidence/canary-opencode-interactive-darwin-local-2026-10-06.json) / not-run |
+| Pi (0.87.1) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | [pass](verification-evidence/canary-pi-headless-darwin-local-2026-10-06.json) / not-run | [pass](verification-evidence/canary-pi-interactive-darwin-local-2026-10-06.json) / not-run |
 | OpenHands CLI (1.16.0) | 7/8 pass, 1 limitations | 7/8 pass, 1 limitations | not-run / not-run | not-run / not-run |
 | Cline CLI (3.0.65) | 6/8 pass, 2 limitations | 8/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
 | Open Interpreter (0.0.45) | 8/8 pass, 0 limitations | 8/8 pass, 0 limitations | not-run / not-run | not-run / not-run |
@@ -157,6 +157,6 @@ Closing gate: **open**. `not-run` means missing proof; `blocked` means a recorde
 
 Generate this file and its companion JSON with `npm run verify:matrix`. The JSON contains case details, exact versions, evidence paths, smoke observations, and historical evidence. Historical live reports lack parts of the agreed canary gate and remain historical rather than being promoted to passes.
 
-Run installed scenarios with `npm run verify:conformance -- --runtime-dir /tmp/cledger-runtimes --native-runtime-dir /tmp/cledger-native-runtimes --output-dir /tmp/cledger-conformance`. CI runs scripted cases on macOS and Linux. Local/provider canaries are separately gated; local inference is deferred until the machine is plugged in with cooling ready, and paid checks share a $20 campaign budget. No paid inference is enabled by generating this matrix.
+Run installed scenarios with `npm run verify:conformance -- --runtime-dir /tmp/cledger-runtimes --native-runtime-dir /tmp/cledger-native-runtimes --output-dir /tmp/cledger-conformance`. CI runs scripted cases on macOS and Linux. Local/provider canaries are separately gated; local inference requires the machine to be plugged in with cooling ready, and paid checks share a $20 campaign budget. No paid inference is enabled by generating this matrix.
 
 Additional attachment entry methods, document/archive inputs, invalid/oversized text, and fork/compaction/rewind/subagent lifecycle are separate follow-up issues. Normal exit/resume remains in this issue.

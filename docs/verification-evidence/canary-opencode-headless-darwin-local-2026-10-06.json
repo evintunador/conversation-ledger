@@ -1,0 +1,24 @@
+{
+  "schema": "cledger-canary/1",
+  "cli": "opencode",
+  "version": "1.18.33",
+  "platform": "darwin/arm64",
+  "mode": "headless",
+  "inference": "local",
+  "provider": "ds4",
+  "model": "deepseek-v4-flash",
+  "status": "pass",
+  "gates": {
+    "prompt": true,
+    "linkedReadResult": true,
+    "answer": true,
+    "normalExit": true,
+    "resume": true,
+    "backfillTwice": true,
+    "automaticBeforeBackfill": true,
+    "noUnrecognized": true
+  },
+  "requests": 5,
+  "started": "2026-10-07T05:26:32.278Z",
+  "completed": "2026-10-07T05:27:51.769Z"
+}

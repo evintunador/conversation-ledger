@@ -313,3 +313,22 @@ after native `--continue`, automatic linked results/answers and unchanged
 backfills. Paid canaries require the shared campaign-scoped external authority;
 local canaries still require the user's power/cooling readiness. No real-model
 matrix cell is closed by these driver tests.
+
+
+### Real local canaries (2026-10-06)
+
+The user confirmed desk power and cooling readiness. OpenCode 1.18.33 and
+Pi 0.87.1 each passed real DeepSeek V4 Flash canaries on macOS arm64 in
+headless and native TUI modes: initial read/answer, normal exit, native resume
+with a fresh randomized file value, automatic linked evidence, no unknown
+records and two unchanged backfills. OpenCode used five guarded requests in
+each mode; Pi used four. Reports are in `verification-evidence/canary-*-darwin-local-2026-10-06.json`.
+
+The first Pi TUI harness required literal relative `evidence.txt` input and
+rejected the model's successful absolute-path read. That interrupted run is
+retained as a failure. The corrected gate accepts only the exact synthetic
+repository file, including equivalent relative spelling, and rejects other
+same-named files. Exit waits for verified normalized answer evidence rather
+than terminal wrapping of the random value. The corrected fresh canary passes.
+Linux and usual-provider canaries remain pending. These checks spent no paid
+API credits and do not certify the additional attachment/lifecycle cases.

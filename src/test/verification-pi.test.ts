@@ -52,6 +52,17 @@ test("Pi fresh resumed read must match its own linked successful result", () => 
   assert.equal(piEvidenceGates(valid, "marker", "fresh").hookToolResult, false);
 });
 
+test("Pi canary accepts the exact absolute synthetic file and refuses other same-named files", () => {
+  const valid = evidence();
+  const input = (valid[1]!.content as any).blocks[0].input;
+  input.path = "/tmp/TESTONLY-repo/evidence.txt";
+  assert.equal(piEvidenceGates(valid, "marker", "secret", "/tmp/TESTONLY-repo/evidence.txt").hookToolResult, true);
+  input.path = "./evidence.txt";
+  assert.equal(piEvidenceGates(valid, "marker", "secret", "/tmp/TESTONLY-repo/evidence.txt").hookToolResult, true);
+  input.path = "/tmp/TESTONLY-other/evidence.txt";
+  assert.equal(piEvidenceGates(valid, "marker", "secret", "/tmp/TESTONLY-repo/evidence.txt").hookToolUse, false);
+});
+
 test("Pi configured inference rejects missing and non-loopback endpoints before launch", async () => {
   for (const endpoint of ["", "https://example.invalid/v1", "http://127.0.0.1/v1?credential=TESTONLY"]) {
     const report = await verifyConfiguredPi({ endpoint, model: "TESTONLY" });

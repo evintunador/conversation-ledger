@@ -117,7 +117,7 @@ export function renderSupportMatrix(matrix: ReturnType<typeof buildSupportMatrix
     }
   }
   lines.push("", "## Scope and reproduction", "", "Generate this file and its companion JSON with `npm run verify:matrix`. The JSON contains case details, exact versions, evidence paths, smoke observations, and historical evidence. Historical live reports lack parts of the agreed canary gate and remain historical rather than being promoted to passes.", "",
-    "Run installed scenarios with `npm run verify:conformance -- --runtime-dir /tmp/cledger-runtimes --native-runtime-dir /tmp/cledger-native-runtimes --output-dir /tmp/cledger-conformance`. CI runs scripted cases on macOS and Linux. Local/provider canaries are separately gated; local inference is deferred until the machine is plugged in with cooling ready, and paid checks share a $20 campaign budget. No paid inference is enabled by generating this matrix.", "",
+    "Run installed scenarios with `npm run verify:conformance -- --runtime-dir /tmp/cledger-runtimes --native-runtime-dir /tmp/cledger-native-runtimes --output-dir /tmp/cledger-conformance`. CI runs scripted cases on macOS and Linux. Local/provider canaries are separately gated; local inference requires the machine to be plugged in with cooling ready, and paid checks share a $20 campaign budget. No paid inference is enabled by generating this matrix.", "",
     "Additional attachment entry methods, document/archive inputs, invalid/oversized text, and fork/compaction/rewind/subagent lifecycle are separate follow-up issues. Normal exit/resume remains in this issue.", "");
   return lines.join("\n");
 }

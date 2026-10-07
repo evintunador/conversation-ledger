@@ -2852,8 +2852,10 @@
             }
           },
           "local": {
-            "status": "not-run",
-            "detail": "Local DeepSeek canary pending"
+            "status": "pass",
+            "detail": "ds4/deepseek-v4-flash: native canary gates passed",
+            "evidence": "verification-evidence/canary-opencode-headless-darwin-local-2026-10-06.json",
+            "version": "1.18.33"
           },
           "usualProvider": {
             "status": "not-run",
@@ -2924,8 +2926,10 @@
             }
           },
           "local": {
-            "status": "not-run",
-            "detail": "Local DeepSeek canary pending"
+            "status": "pass",
+            "detail": "ds4/deepseek-v4-flash: native canary gates passed",
+            "evidence": "verification-evidence/canary-opencode-interactive-darwin-local-2026-10-06.json",
+            "version": "1.18.33"
           },
           "usualProvider": {
             "status": "not-run",
@@ -3147,8 +3151,10 @@
             }
           },
           "local": {
-            "status": "not-run",
-            "detail": "Local DeepSeek canary pending"
+            "status": "pass",
+            "detail": "ds4/deepseek-v4-flash: native canary gates passed",
+            "evidence": "verification-evidence/canary-pi-headless-darwin-local-2026-10-06.json",
+            "version": "0.87.1"
           },
           "usualProvider": {
             "status": "not-run",
@@ -3219,8 +3225,10 @@
             }
           },
           "local": {
-            "status": "not-run",
-            "detail": "Local DeepSeek canary pending"
+            "status": "pass",
+            "detail": "ds4/deepseek-v4-flash: native canary gates passed",
+            "evidence": "verification-evidence/canary-pi-interactive-darwin-local-2026-10-06.json",
+            "version": "0.87.1"
           },
           "usualProvider": {
             "status": "not-run",
