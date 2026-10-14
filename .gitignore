@@ -5,3 +5,6 @@ coverage/
 .env
 
 scheduler-review/
+
+# Isolated verification logins contain credentials and native session data.
+/verification/.private/

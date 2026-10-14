@@ -5789,6 +5789,7 @@
     "verification-evidence/live-cursor-macos-2026-10-03.json",
     "verification-evidence/live-kimi-linux-2026-10-03.json",
     "verification-evidence/live-kimi-macos-2026-10-03.json",
-    "verification-evidence/native-kimi-resume-macos-2026-10-03.json"
+    "verification-evidence/native-kimi-resume-macos-2026-10-03.json",
+    "verification-evidence/live-kiro-2.31.0-isolated-macos-2026-10-13.json"
   ]
 }

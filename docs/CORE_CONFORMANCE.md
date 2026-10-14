@@ -346,3 +346,34 @@ start at Pro and describe BYOK allowances within paid plans. This does not
 assert that every enterprise deployment or historical CLI version has the same
 prerequisite. Usual-provider prerequisite records cover both OSes/modes without
 claiming unperformed installed or model runs.
+
+### Persistent Kiro verification login
+
+From the repository, run `node verification/login.mjs kiro`. The standalone
+launcher requires no build and uses the installed native Kiro chat executable.
+It defaults to free GitHub sign-in; `kiro google` and `kiro builder` select the
+other free sign-in methods. It submits no model prompt.
+
+The isolated profile is stored under `verification/.private/auth/kiro`, which
+is ignored by Git and persists across restarts. This replaces the earlier
+temporary login launcher. Droid remains contributor-blocked.
+
+### Isolated Kiro account access (2026-10-13)
+
+The persistent profile now authenticates with GitHub. Native `whoami`, model
+discovery and the usage view succeeded; the usage view reports Kiro Free.
+The installed app has updated to 2.31.0, distinct from the matrix's 2.27.1 pin.
+
+A real native V2 TUI smoke run selected `qwen3-coder-next`, listed at a 0.05
+credit multiplier, and passed prompt capture, linked file read/result, correct
+answer capture, normal exit and zero unknown records in a disposable repository.
+See the [isolated smoke report](verification-evidence/live-kiro-2.31.0-isolated-macos-2026-10-13.json).
+The verifier now uses the persistent isolated authentication profile and requires
+an explicit model selection; it does not inherit the normal user's provider
+environment or default to an unreviewed model.
+
+This smoke observation does not certify resume, two backfills, all eight cases,
+Linux or the older pin. Credit usage and underlying provider request counts were
+not exposed by this smoke driver. No paid API key, upgrade or credit purchase
+was used. The [Free-tier billing limits](https://kiro.dev/docs/cli/billing/related-questions/)
+remain separate from the campaign's paid API budget.

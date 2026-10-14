@@ -1,0 +1,43 @@
+{
+  "schema": "cledger-live-verification/1",
+  "cli": "kiro",
+  "status": "pass",
+  "inference": "live-account",
+  "mode": "interactive",
+  "platform": "darwin/arm64",
+  "gates": {
+    "installedVersion": true,
+    "interactiveExit": true,
+    "capturedPrompt": true,
+    "capturedRead": true,
+    "capturedResult": true,
+    "capturedAnswer": true,
+    "noUnknownRecords": true
+  },
+  "durationMs": 13088,
+  "model": "qwen3-coder-next",
+  "version": "kiro-cli-chat 2.31.0",
+  "observation": "Initial native TUI smoke only; not the exit/resume/two-backfill canary or eight-case conformance certification",
+  "budget": {
+    "accountPlan": "Free",
+    "cashBudgetUsd": 0,
+    "approvedModel": "qwen3-coder-next",
+    "listedCreditMultiplier": 0.05,
+    "maxSubmittedUserTurns": 1,
+    "sessionDeadlineMs": 90000,
+    "creditUsage": "Not yet measured; underlying provider request count not exposed by this driver",
+    "sources": [
+      "https://kiro.dev/docs/cli/billing/related-questions/",
+      "https://kiro.dev/docs/models/"
+    ]
+  },
+  "observedOn": "2026-10-14T03:57:25.663Z",
+  "inputMethod": "Native V2 editor paste and separate Enter; normal /quit",
+  "exclusions": [
+    "resume",
+    "two backfills",
+    "eight-case conformance",
+    "Linux",
+    "pinned 2.27.1 certification"
+  ]
+}
