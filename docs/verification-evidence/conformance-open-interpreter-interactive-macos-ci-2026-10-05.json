@@ -1,0 +1,83 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37380476405",
+  "commit": "87e1807",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "open-interpreter",
+    "platform": "darwin/arm64",
+    "mode": "interactive",
+    "inference": "scripted",
+    "status": "fail",
+    "cases": {
+      "multilineUnicode": {
+        "status": "not-run",
+        "detail": "Installed scenario has not reached this gate"
+      },
+      "textRead": {
+        "status": "not-run",
+        "detail": "Installed scenario has not reached this gate"
+      },
+      "toolError": {
+        "status": "not-run",
+        "detail": "Installed scenario has not reached this gate"
+      },
+      "imageReference": {
+        "status": "not-run",
+        "detail": "Installed scenario has not reached this gate"
+      },
+      "userImageEntry": {
+        "status": "not-run",
+        "detail": "Installed scenario has not reached this gate"
+      },
+      "noUnrecognized": {
+        "status": "not-run",
+        "detail": "Installed scenario has not reached this gate"
+      },
+      "resume": {
+        "status": "not-run",
+        "detail": "Installed scenario has not reached this gate"
+      },
+      "backfill": {
+        "status": "not-run",
+        "detail": "Installed scenario has not reached this gate"
+      },
+      "scenarioCompletion": {
+        "status": "fail",
+        "detail": "The installed interface issued native model requests but did not complete automatic capture/lifecycle gates; this is not a login skip"
+      }
+    },
+    "requests": 3,
+    "events": 0,
+    "fullyCertified": false,
+    "started": "2026-10-05T22:25:36.336Z",
+    "inputMethod": "native TUI initial prompt/--image arguments; resumed editor bracketed paste",
+    "exclusions": [
+      "live provider/model behavior",
+      "headless mode",
+      "clipboard/drag-and-drop image entry",
+      "text-file editor attachment (native UTF-8 tool read is covered)",
+      "PDF/archive/oversized or invalid text input",
+      "compaction/fork/subagent lifecycle",
+      "complete record-type coverage",
+      "other operating systems"
+    ],
+    "version": "interpreter 0.0.45",
+    "reason": "Observed initial TUI incomplete: \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\u2502 >_ Open Interpreter (v0.0.45)         \u2502\u2502                                       \u2502\u2502 model:     loading   /model to change \u2502\u2502 directory: loading                    \u2502\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f  \u203a Ask Codex to do anything   ? for shortcuts q\u256d q\u256d q\u256d q\u256d q\u256d q\u256d~/repo  q\u256d q\u256d q\u256d q\u256d q\u256d q\u256d q\u256d q\u256d q\u256dledger-test default \u00b7 ~/repo q\u256d q\u256d q\u256d q\u256d\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 >_ Open Interpreter (v0.0.45)                          \u2502\n\u2502                                                        \u2502\n\u2502 model:     verification ledger-test   /model to change \u2502\n\u2502 directory: ~/repo                                      \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\nTip: [tui.keymap] in ~/.codex/config.toml lets you rebind supported shortcuts.\n\u26a0 1 startup issue \u00b7 ctrl + t for details  \u203a Ask Codex to do anything   ledger-test default \u00b7 ~/repo q\n\u26a0 `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\u26a0 Under-development features enabled: default_mode_request_user_input. Under-development features are incomplete and may behave unpredictably. To suppress this\nwarning, set `suppress_unstable_features_warning = true` in /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/cledger-conformance-open-interpreter-\n0YdWqR/.openinterpreter/config.toml.\n\u26a0 Model metadata for `ledger-test` not found. Defaulting to fallback metadata; this can degrade performance and cause issues. q  q ;\u2839 repo\u0007 \u2022 Working (0s \u2022 esc to interrupt)  \u203a Ask Codex to do anything   ledger-test default \u00b7 ~/repo q ;\u2838 repo\u0007 q  q  \u00b7 1 background terminal running \u00b7 /ps to view \u00b7 /stop to close q\n\u2022 Ran /bin/cat /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/cledger-conformance-open-interpreter-0YdWqR/repo/missing-TESTONLY.txt\n\u2514 cat: /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/cledger-conformance-open-interpreter-0YdWqR/repo/missing-TESTONLY.txt: No such file or\ndirectory q  q ;\u283c repo\u0007 q  q\n\u2022 Ran /bin/cat /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/cledger-conformance-open-interpreter-0YdWqR/repo/evidence.txt\n\u2514 TESTONLY_CANARY_46c9fb27-f058-4f75-be75-278f00d468a7\nKnown UTF-8: caf\u00e9 \u65e5\u672c\u8a9e \ud83e\udd89 q\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 q\n\u2022 TESTONLY_CONFORMANCE_DONE TESTONLY_CANARY_46c9fb27-f058-4f75-be75-278f00d468a7  \u203a Ask Codex to do anything   ledger-test default \u00b7 ~/repo q ;\u2834 repo\u0007 q ;\u2826 repo\u0007;\u2827 repo\u0007;\u2807 repo\u0007 \u2022 Working (0s \u2022 esc to interrupt) \u00b7 Running hook  \u203a Ask Codex to do anything   ledger-test default \u00b7 ~/repo q  q ;\u280f repo\u0007\u25e6Wo q  q or q ;\u280b repo\u0007 q rk q ;\u2819 repo\u0007ki q ;\u2839 repo\u0007in q Wng1 q\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500  \u203a Ask Codex to do anything   ledger-test default \u00b7 ~/repo q  q   \u203a /exit    ledger-test default \u00b7 ~/repo q",
+    "completed": "2026-10-05T22:27:37.232Z",
+    "nativeTools": [
+      "exec_command",
+      "write_stdin",
+      "request_user_input",
+      "view_image",
+      "close_agent",
+      "resume_agent",
+      "send_input",
+      "spawn_agent",
+      "wait_agent",
+      "get_goal",
+      "create_goal",
+      "update_goal"
+    ]
+  }
+}

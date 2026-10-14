@@ -1,0 +1,68 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37394952231",
+  "commit": "ad4121f679a1d58be93da415d8f905ba805f1e56",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "cursor",
+    "platform": "linux/x64",
+    "mode": "interactive",
+    "inference": "scripted",
+    "status": "pass",
+    "requests": 2,
+    "events": 17,
+    "fullyCertified": false,
+    "started": "2026-10-06T00:39:41.398Z",
+    "inputMethod": "native editor multiline paste; filename autocomplete selection and separate Enter submission",
+    "exclusions": [
+      "real provider/model behavior",
+      "headless stream recorder",
+      "clipboard/drop entry",
+      "additional attachment/lifecycle cases",
+      "other operating systems"
+    ],
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "Native submitted prompt and persisted checkpoint retain Unicode and newlines"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual native Read result linked by supplied tool call ID retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Real native missing-file Read failure retains its linked result"
+      },
+      "imageReference": {
+        "status": "limitation",
+        "detail": "Native TUI Read returns PNG bytes, but hooks expose empty text and no binary body. Preserve the path reference without inventing a file size/digest."
+      },
+      "userImageEntry": {
+        "status": "limitation",
+        "detail": "Native editor @filename entry with two separate Enter actions persists as literal text; the native request has zero selected images and the human record has no image carrier. Other native image-entry methods remain unverified."
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "No unknown records after both native runs"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Native --resume reloads prior checkpoint pointers, reads a fresh value, captures automatically and exits normally"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Two native transcript backfills preserve automatic evidence IDs (17 / 17 / 17)"
+      }
+    },
+    "version": "2026.10.01-e373342",
+    "inputObservation": {
+      "providerImage": false,
+      "references": 0,
+      "embeddedBinary": false,
+      "humanEntries": []
+    },
+    "automaticEventsBeforeBackfill": 17,
+    "completed": "2026-10-06T00:39:54.871Z"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37389965803",
+  "commit": "1823bb3eb1641b505431ffd861a669dbbaa58b14",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "open-interpreter",
+    "platform": "linux/x64",
+    "mode": "interactive",
+    "inference": "scripted",
+    "status": "pass",
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "native TUI initial prompt/--image arguments; resumed editor bracketed paste; compared normalized human text, not echoed terminal"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual file tool result retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+      },
+      "imageReference": {
+        "status": "pass",
+        "detail": "Native --image initial attachment retained as a reference, without embedded binary bytes"
+      },
+      "userImageEntry": {
+        "status": "pass",
+        "detail": "Documented native --image initial attachment"
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Both manual imports compared against automatic complete native ledger"
+      }
+    },
+    "requests": 5,
+    "events": 36,
+    "fullyCertified": false,
+    "started": "2026-10-05T23:55:29.724Z",
+    "inputMethod": "native TUI initial prompt/--image arguments; resumed editor bracketed paste",
+    "exclusions": [
+      "live provider/model behavior",
+      "headless mode",
+      "clipboard/drag-and-drop image entry",
+      "text-file editor attachment (native UTF-8 tool read is covered)",
+      "PDF/archive/oversized or invalid text input",
+      "compaction/fork/subagent lifecycle",
+      "complete record-type coverage",
+      "other operating systems"
+    ],
+    "version": "interpreter 0.0.45",
+    "automaticEventsBeforeBackfill": 36,
+    "inputObservation": {
+      "providerImage": true,
+      "references": 2,
+      "embeddedBinary": false
+    },
+    "backfillObservation": {
+      "automatic": 36,
+      "first": 36,
+      "second": 36,
+      "firstAdded": [],
+      "secondAdded": []
+    },
+    "completed": "2026-10-05T23:55:36.733Z",
+    "rejectedRequests": [],
+    "nativeTools": [
+      "exec_command",
+      "write_stdin",
+      "request_user_input",
+      "view_image",
+      "close_agent",
+      "resume_agent",
+      "send_input",
+      "spawn_agent",
+      "wait_agent",
+      "get_goal",
+      "create_goal",
+      "update_goal"
+    ]
+  }
+}

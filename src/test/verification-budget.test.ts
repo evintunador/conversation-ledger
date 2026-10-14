@@ -13,6 +13,34 @@ const price: ReviewedPrice = { provider: "TESTONLY-provider", model: "TESTONLY-m
 async function fixture() { const root = await mkdtemp(join(tmpdir(), "cledger-budget-test-")); const store = new BudgetStore(join(root, "state.json")); await store.initialize(); return { root, store }; }
 const authorization = () => ({ cli: "opencode", provider: price.provider, model: price.model, revision: price.revision,
   phase: "initial" as const, expires: Date.now() + 60000, maxRequests: 4, maxMicroUsd: 5000000 });
+test("issue27 shares one durable $20 ceiling across CLIs, providers and phases", async () => {
+  const { root, store } = await fixture();
+  try {
+    for (let i = 0; i < 10; i++) {
+      const restarted = new BudgetStore(store.path);
+      const route = { ...price, provider: "TESTONLY-provider-" + i };
+      const token = await restarted.createSession({ ...authorization(), cli: "test-cli-" + i, provider: route.provider,
+        phase: i % 2 ? "maintenance" : "initial", campaign: "issue27" });
+      await restarted.reserve(token, route);
+    }
+    const token = await new BudgetStore(store.path).createSession({ ...authorization(), cli: "test-cli-extra", campaign: "issue27" });
+    await assert.rejects(store.reserve(token, price), /campaign budget exhausted/);
+    const state = JSON.parse(await readFile(store.path, "utf8"));
+    assert.equal(state.campaigns.issue27, 20_000_000);
+    assert.equal(state.sessions && Object.keys(state.sessions).length, 11);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+test("a deleted campaign counter cannot silently restore an already used allocation", async () => {
+  const { root, store } = await fixture();
+  try {
+    const token = await store.createSession({ ...authorization(), campaign: "issue27" });
+    await store.reserve(token, price);
+    const state = JSON.parse(await readFile(store.path, "utf8"));
+    delete state.campaigns;
+    await writeFile(store.path, JSON.stringify(state));
+    await assert.rejects(new BudgetStore(store.path).reserve(token, price), /Campaign reservations missing/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 test("durable reservations survive new authorities, retain unknown charges and cannot reset monthly cap with new run IDs", async () => {
   const { root, store } = await fixture();
   try {
@@ -57,9 +85,11 @@ test("authority forwards only after durable reservation; provider failure retain
     catch (error) { if ((error as NodeJS.ErrnoException).code === "EPERM") { t.skip("Loopback socket forbidden by sandbox"); return; } throw error; }
     const issued = await fetch(authority.endpoint + "/sessions", { method: "POST",
       headers: { authorization: "Bearer TESTONLY-admin-token-at-least-32-characters", "content-type": "application/json" },
-      body: JSON.stringify({ cli: "opencode", provider: price.provider, model: price.model, phase: "initial", maxRequests: 4, maxMicroUsd: 5000000 }) });
+      body: JSON.stringify({ cli: "opencode", provider: price.provider, model: price.model, phase: "initial", maxRequests: 4, maxMicroUsd: 5000000, campaign: "issue27" }) });
     assert.equal(issued.status, 201);
-    const token = (await issued.json() as { token: string }).token;
+    const grant = await issued.json() as { token: string; campaign: string };
+    assert.equal(grant.campaign, "issue27");
+    const token = grant.token;
     const headers = { authorization: `Bearer ${token}`, "content-type": "application/json", "x-cledger-provider": price.provider };
     const denied = await fetch(authority.endpoint + "/sessions", { method: "POST", headers, body: "{}" }); assert.equal(denied.status, 403);
     const unsupported = await fetch(authority.endpoint + "/v1/chat/completions", { method: "POST", headers,
@@ -69,6 +99,7 @@ test("authority forwards only after durable reservation; provider failure retain
       body: JSON.stringify({ model: price.model, messages: [{ role: "user", content: "TESTONLY" }] }) });
     assert.equal(forwarded, 2);
     assert.equal(JSON.parse(await readFile(store.path, "utf8")).initial.opencode, 4000000);
+    assert.equal(JSON.parse(await readFile(store.path, "utf8")).campaigns.issue27, 4000000);
   } finally { await authority?.close(); await rm(root, { recursive: true, force: true }); }
 });
 

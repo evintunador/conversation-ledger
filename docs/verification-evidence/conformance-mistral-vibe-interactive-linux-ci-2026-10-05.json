@@ -1,0 +1,75 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37380476405",
+  "commit": "87e1807",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "mistral-vibe",
+    "platform": "linux/x64",
+    "mode": "interactive",
+    "inference": "scripted",
+    "status": "pass",
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "native editor bracketed paste; compared normalized human text, not echoed terminal"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual file tool result retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+      },
+      "imageReference": {
+        "status": "limitation",
+        "detail": "Vibe 2.25.8 legacy read_file decodes this PNG into numbered text via read_lines_safe_async, with replacement characters. The linked native result omits the original binary carrier; its lossy text is preserved without inventing original bytes, size or digest. User image entry is checked separately."
+      },
+      "userImageEntry": {
+        "status": "pass",
+        "detail": "Native input method: native editor bracketed paste; provider image input and persisted human/context reference required, without embedded binary bytes"
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Both manual imports compared against automatic complete native ledger"
+      }
+    },
+    "requests": 5,
+    "events": 12,
+    "fullyCertified": false,
+    "started": "2026-10-05T22:27:26.706Z",
+    "inputMethod": "native editor bracketed paste",
+    "exclusions": [
+      "live provider/model behavior",
+      "headless mode",
+      "clipboard/drag-and-drop image entry",
+      "text-file editor attachment (native UTF-8 tool read is covered)",
+      "PDF/archive/oversized or invalid text input",
+      "compaction/fork/subagent lifecycle",
+      "complete record-type coverage",
+      "other operating systems"
+    ],
+    "version": "vibe 2.25.8",
+    "automaticEventsBeforeBackfill": 12,
+    "backfillObservation": {
+      "automatic": 12,
+      "first": 12,
+      "second": 12,
+      "firstAdded": [],
+      "secondAdded": []
+    },
+    "completed": "2026-10-05T22:27:38.272Z",
+    "nativeTools": [
+      "read_file"
+    ]
+  }
+}

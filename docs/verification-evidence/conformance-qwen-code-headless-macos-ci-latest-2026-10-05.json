@@ -1,0 +1,93 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37391922081",
+  "commit": "d95eaaa132c74410e8084baad7a0ac989c502480",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "qwen-code",
+    "platform": "darwin/arm64",
+    "mode": "headless",
+    "inference": "scripted",
+    "status": "pass",
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "native prompt argument; compared normalized human text, not echoed terminal"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual file tool result retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+      },
+      "imageReference": {
+        "status": "pass",
+        "detail": "Actual native image tool result retains a reference in its linked result"
+      },
+      "userImageEntry": {
+        "status": "pass",
+        "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes"
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Both manual imports compared against automatic complete native ledger"
+      }
+    },
+    "requests": 6,
+    "events": 22,
+    "fullyCertified": false,
+    "started": "2026-10-06T00:17:03.990Z",
+    "inputMethod": "native prompt argument",
+    "exclusions": [
+      "live provider/model behavior",
+      "interactive mode",
+      "clipboard/drag-and-drop image entry",
+      "text-file editor attachment (native UTF-8 tool read is covered)",
+      "PDF/archive/oversized or invalid text input",
+      "compaction/fork/subagent lifecycle",
+      "complete record-type coverage",
+      "other operating systems"
+    ],
+    "version": "0.24.6",
+    "automaticEventsBeforeBackfill": 22,
+    "inputObservation": {
+      "providerImage": true,
+      "references": 2,
+      "embeddedBinary": false
+    },
+    "backfillObservation": {
+      "automatic": 22,
+      "first": 22,
+      "second": 22,
+      "firstAdded": [],
+      "secondAdded": []
+    },
+    "completed": "2026-10-06T00:17:09.635Z",
+    "rejectedRequests": [],
+    "nativeTools": [
+      "agent",
+      "get_goal",
+      "glob",
+      "grep_search",
+      "list_agents",
+      "read_file",
+      "skill",
+      "tool_call",
+      "tool_search",
+      "update_goal",
+      "run_shell_command",
+      "write_file",
+      "edit"
+    ]
+  }
+}

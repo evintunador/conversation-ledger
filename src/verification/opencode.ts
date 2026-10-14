@@ -18,7 +18,7 @@ export interface Report {
   platform: string; requests?: number;
   coverage: string[]; exclusions: string[]; durationMs: number;
 }
-export interface Options { interactive?: boolean; apiKey?: string; endpoint?: string; model?: string; binary?: string; timeoutMs?: number; pollMs?: number }
+export interface Options { interactive?: boolean; apiKey?: string; endpoint?: string; model?: string; binary?: string; timeoutMs?: number; pollMs?: number; resume?: boolean }
 
 export function validateEndpoint(value: string): void {
   const url = new URL(value);
@@ -81,7 +81,7 @@ export async function verifyOpencode(options: Options): Promise<Report> {
     await writeFile(join(repo, "evidence.txt"), secret + "\n");
     await checked("git", ["add", "."]);
     await checked("git", ["commit", "--quiet", "-m", "isolated verification"]);
-    guard = await startGuard(options.endpoint, 4, 60_000, options.apiKey);
+    guard = await startGuard(options.endpoint, options.resume ? 8 : 4, 60_000, options.apiKey, { maxOutputTokens: 1024 });
     // Official custom-provider configuration: https://opencode.ai/docs/providers/#custom-provider
     await writeFile(join(root, "config", "opencode", "opencode.json"), JSON.stringify({
       enabled_providers: ["verification"], model: `verification/${options.model}`, small_model: `verification/${options.model}`,
@@ -93,57 +93,62 @@ export async function verifyOpencode(options: Options): Promise<Report> {
     await checked(process.execPath, [cli, "install", "opencode"]);
     const plugin = await readFile(join(root, "config", "opencode", "plugin", "cledger.js"), "utf8");
     report.gates.installedHook = plugin.includes("session.idle");
-    const prompt = `${marker}. Use the read tool to read evidence.txt. Reply with its exact contents. Do not call any other tool.`;
-    if (options.interactive) {
-      delete env.CI; delete env.NO_COLOR; env.TERM = "xterm-256color";
-      report.coverage = ["interactive PTY terminal input", "native hook", "human text", "tool call/result", "assistant text", "backfill idempotency"];
-      report.exclusions = report.exclusions.filter(x => x !== "interactive TUI");
-      // OpenCode/OpenTUI stalls after this minimal terminal's capability replies.
-      // Let its native bounded capability fallback choose the terminal features.
-      const complete = join(root, "native-answer-complete");
-      let stopObservation = false;
-      const observer = (async () => {
-        while (!stopObservation) {
-          const result = await run(process.execPath, [cli, "export", "--all"], 5_000);
-          if (result.code === 0 && !result.timedOut) {
-            try {
-              const events = result.stdout.split("\n").filter(Boolean).map(line => JSON.parse(line) as EvidenceEvent);
-              if (!hasUnrecognizedEvidence(events, "opencode") && Object.values(evidenceGates(events, marker, secret)).every(Boolean)) {
-                await writeFile(complete, "");
-                return;
-              }
-            } catch { /* The hook may still be writing; inspect its next snapshot. */ }
-          }
-          await new Promise(done => setTimeout(done, 250));
-        }
-      })();
-      let terminal;
-      try {
-        terminal = await runPty("opencode", [], { cwd: repo, env, answerTerminalQueries: false, timeoutMs: options.timeoutMs ?? 120000, actions: [
-          { waitFor: "Ask anything|Ask a question|Build", send: `${prompt}\r` },
-          // OpenTUI interleaves cursor redraws into displayed file contents.
-          // Exit only after the installed plugin captured the linked answer.
-          { waitFor: "^", waitForPath: complete, send: "/exit\r" },
-        ] });
-      } finally {
-        stopObservation = true;
-        await observer;
-      }
-      report.gates.interactiveTerminal = terminal.actionsCompleted === 2 && !terminal.timedOut && terminal.code === 0;
-      if (!report.gates.interactiveTerminal) throw new Error(`Interactive terminal incomplete: actions=${terminal.actionsCompleted}, code=${terminal.code}, timeout=${terminal.timedOut}; tail=${terminalTail(terminal.output)}`);
-    } else await checked("opencode", ["run", "--format", "json", "-m", `verification/${options.model}`, prompt], options.timeoutMs ?? 120_000);
     const read = async (): Promise<EvidenceEvent[]> => (await checked(process.execPath, [cli, "export", "--all"])).split("\n").filter(Boolean).map(s => JSON.parse(s) as EvidenceEvent);
-    let events: EvidenceEvent[] = [];
-    const deadline = Date.now() + (options.pollMs ?? 20_000);
-    do {
-      events = await read();
-      report.gates.noUnrecognizedRecords = !hasUnrecognizedEvidence(events, "opencode");
-      Object.assign(report.gates, evidenceGates(events, marker, secret));
-      if (Object.values(report.gates).every(Boolean)) break;
-      await new Promise(r => setTimeout(r, 250));
-    } while (Date.now() < deadline);
-    // Never repair a failed hook via manual capture and then report success.
-    if (!Object.values(report.gates).every(Boolean)) throw new Error("Native hook evidence incomplete before deadline; backfill not attempted");
+    let events: EvidenceEvent[] = [], nativeSession: string | undefined;
+    for (const resume of options.resume ? [false, true] : [false]) {
+      const turnMarker = resume ? `cledger-resume-${randomUUID()}` : marker;
+      const turnSecret = resume ? `file-value-${randomUUID()}` : secret;
+      if (resume) await writeFile(join(repo, "evidence.txt"), turnSecret + "\n");
+      const prompt = `${turnMarker}. Use the read tool to read evidence.txt now. Reply with its exact contents. Do not call any other tool.`;
+      if (options.interactive) {
+        delete env.CI; delete env.NO_COLOR; env.TERM = "xterm-256color";
+        report.coverage = ["interactive PTY terminal input", "native hook", "human text", "tool call/result", "assistant text", "backfill idempotency"];
+        report.exclusions = report.exclusions.filter(x => x !== "interactive TUI");
+        const complete = join(root, resume ? "resume-answer-complete" : "native-answer-complete");
+        let stopObservation = false;
+        const observer = (async () => {
+          while (!stopObservation) {
+            try {
+              const snapshot = await read();
+              if (!hasUnrecognizedEvidence(snapshot, "opencode") && Object.values(evidenceGates(snapshot, turnMarker, turnSecret)).every(Boolean)) {
+                await writeFile(complete, ""); return;
+              }
+            } catch { /* Native hooks may still be writing. */ }
+            await new Promise(done => setTimeout(done, 250));
+          }
+        })();
+        let terminal;
+        try {
+          terminal = await runPty("opencode", resume ? ["--session", nativeSession!] : [], { cwd: repo, env, answerTerminalQueries: false, timeoutMs: options.timeoutMs ?? 120000, actions: [
+            { waitFor: "Ask anything|Ask a question|Build", send: `${prompt}\r` },
+            { waitFor: "^", waitForPath: complete, send: "/exit\r" },
+          ] });
+        } finally { stopObservation = true; await observer; }
+        const exited = terminal.actionsCompleted === 2 && !terminal.timedOut && terminal.code === 0;
+        report.gates[resume ? "resumeTerminal" : "interactiveTerminal"] = exited;
+        if (!exited) throw Error(`Interactive terminal incomplete: ${terminalTail(terminal.output)}`);
+      } else await checked("opencode", ["run", "--format", "json", "-m", `verification/${options.model}`, ...(resume ? ["--session", nativeSession!] : []), prompt], options.timeoutMs ?? 120000);
+      report.gates[resume ? "resumeNormalExit" : "normalExit"] = true;
+      const deadline = Date.now() + (options.pollMs ?? 20000);
+      let passed = false;
+      do {
+        events = await read();
+        const gates = evidenceGates(events, turnMarker, turnSecret);
+        passed = !hasUnrecognizedEvidence(events, "opencode") && Object.values(gates).every(Boolean);
+        if (passed) {
+          report.gates.noUnrecognizedRecords = true;
+          if (!resume) Object.assign(report.gates, gates);
+          break;
+        }
+        await new Promise(done => setTimeout(done, 250));
+      } while (Date.now() < deadline);
+      if (!passed) throw Error("Native hook evidence incomplete before deadline; backfill not attempted");
+      const human = events.find(e => e.actor.type === "human" && JSON.stringify(e.content).includes(turnMarker));
+      if (!resume) nativeSession = human?.producer.session_id;
+      else report.gates.resume = !!nativeSession && human?.producer.session_id === nativeSession;
+      if (!nativeSession) throw Error("Native session ID missing");
+    }
+    report.gates.automaticBeforeBackfill = true;
     await checked(process.execPath, [cli, "capture", "opencode", "--all"]);
     const firstBackfill = await read();
     await checked(process.execPath, [cli, "capture", "opencode", "--all"]);

@@ -15,7 +15,7 @@ import { packageVersion } from "./common.js";
 import { countUnrecognized, unrecognizedDraft, warnUnrecognized, type CaptureResult } from "./drift.js";
 import { recordDraft, activityDraft, type RecordContext } from "./records.js";
 import type { EventDraft } from "../schema.js";
-import { applyAttachmentPolicy } from "../attachments.js";
+import { applyAttachmentPolicy, isKnownTextFilename } from "../attachments.js";
 
 const FORMAT = "cursor-agent-transcript-jsonl/1";
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -159,16 +159,22 @@ export async function captureCursorToolHook(payload: Record<string, unknown>, cw
       return p.hook_event_name === "preToolUse" && p.generation_id === generation && p.tool_name === "Read" &&
         typeof input.file_path === "string" && resolve(cwd, input.file_path) === path && !completed.has(p.tool_use_id);
     });
-    const metadata = { session, generation, file_path: path, content_length: payload.content.length, sha256: digest(payload.content), native_timestamp_missing: true };
+    // Native PNG reads expose empty hook text even when the binary result is
+    // nonempty. That text cannot establish the file's byte length or digest.
+    const unavailableBinary = payload.content === "" && !isKnownTextFilename(path);
+    const sha256 = unavailableBinary ? undefined : digest(payload.content);
+    const unavailable = { type: "attachment_reference", path, availability: "native_binary_body_unavailable", native_reported_text_length: 0 };
+    const metadata = { session, generation, file_path: path, content_length: payload.content.length,
+      ...(unavailableBinary ? { native_binary_body_unavailable: true } : { sha256 }), native_timestamp_missing: true };
     const unique = active.length === 1 ? str(fields(active[0]!.raw?.data).tool_use_id) : undefined;
     if (unique) {
       const body = { type: "input_file", filename: path, file_data: Buffer.from(payload.content).toString("base64") };
       const policy = applyAttachmentPolicy(recordDraft(ctx, "activity", "system", { body }, { body }));
       const previous = await readFile(stagePath(unique), "utf8").then(s => JSON.parse(s)).catch(() => undefined);
       const ttl = Number.isFinite(timing.ttlMs) ? Math.min(60_000, Math.max(1, timing.ttlMs!)) : 60_000;
-      const candidate = previous && (previous.ambiguous || previous.sha256 !== metadata.sha256)
+      const candidate = previous && (previous.ambiguous || previous.sha256 !== sha256)
         ? { ...metadata, ambiguous: true, expires_at: Date.now() + ttl }
-        : { ...metadata, tool_use_id: unique, body: fields(policy.content).body, expires_at: Date.now() + ttl };
+        : { ...metadata, tool_use_id: unique, body: unavailableBinary ? unavailable : fields(policy.content).body, expires_at: Date.now() + ttl };
       const temporary = stagePath(unique) + `.${process.pid}.tmp`, reservation = stagePath(unique) + ".0.tmp";
       // Establish the bounded owner before any bytes are written. The
       // metadata-only reservation keeps it alive through the atomic rename.
@@ -189,7 +195,7 @@ export async function captureCursorToolHook(payload: Record<string, unknown>, cw
     await appendEvents(repo, [activityDraft(ctx, event, {
       ...metadata, ...(unique ? { tool_use_id: unique } : {}),
       body_capture: unique ? "staged_pending_success" : "ambiguous_or_missing_call",
-    }, { ...raw, content: { type: "attachment_reference", path, sha256: metadata.sha256,
+    }, { ...raw, content: unavailableBinary ? unavailable : { type: "attachment_reference", path, sha256,
       size: Buffer.byteLength(payload.content), availability: "pending_permission_not_retained" } })]);
   } else if (["postToolUse", "postToolUseFailure"].includes(event ?? "") && callId) {
     if (own.some(e => fields(e.raw?.data).hook_event_name === event && fields(e.raw?.data).tool_use_id === callId &&
@@ -315,6 +321,34 @@ export async function captureCursorTranscript(path: string, cwd: string, session
   return out;
 }
 
+/** The native Read stream's success.data is protobuf bytes encoded as base64.
+ * Scope this conversion to that carrier, preserving unrelated tool prose. */
+export function prepareCursorStreamRow(row: Record<string, unknown>): Record<string, unknown> {
+  const call = fields(row.tool_call), read = fields(call.readToolCall), result = fields(read.result), success = fields(result.success);
+  if (typeof success.data !== "string") return row;
+  const carrier = { type: "input_file", filename: fields(read.args).path, file_data: success.data };
+  return { ...row, tool_call: { ...call, readToolCall: { ...read, result: { ...result,
+    success: { ...success, data: carrier } } } } };
+}
+
+/** Anonymous transcript starts may be linked only by unique native inputs.
+ * Repeated identical reads remain ambiguous even if tool names/order agree. */
+export function cursorTranscriptResultLinks(calls: Record<string, unknown>[], starts: { callId: string; tool: string; input?: unknown }[]): Map<string, string> {
+  const links = new Map<string, string>();
+  if (calls.length !== starts.length) return links;
+  const key = (name: unknown, input: unknown) => typeof name === "string" && name !== "unknown" && object(input)
+    ? JSON.stringify([name.toLowerCase(), Object.fromEntries(Object.entries(input).sort(([a], [b]) => a.localeCompare(b)))]) : undefined;
+  const candidateKeys = calls.map(call => call.native_id_missing === true ? key(call.name, call.input) : undefined);
+  const startKeys = starts.map(start => key(start.tool, start.input));
+  for (let index = 0; index < starts.length; index++) {
+    const match = startKeys[index];
+    if (!match || startKeys.filter(value => value === match).length !== 1 || candidateKeys.filter(value => value === match).length !== 1) continue;
+    const candidate = calls[candidateKeys.indexOf(match)]!;
+    if (typeof candidate.id === "string") links.set(starts[index]!.callId, candidate.id);
+  }
+  return links;
+}
+
 /** Native hooks run from the workspace root for project settings and from
  * ~/.cursor for global settings; use the payload's explicit workspace root. */
 export async function runCursorHook(stdinJson: string): Promise<void> {
@@ -352,7 +386,7 @@ export async function runCursor(args: string[], binary = "cursor-agent"): Promis
     cwd: process.cwd(), stdio: ["inherit", "pipe", "inherit"],
   });
   const rows: { row: Record<string, unknown>; index: number }[] = [];
-  const starts: { sessionId: string; callId: string; tool: string }[] = [];
+  const starts: { sessionId: string; callId: string; tool: string; input?: unknown }[] = [];
   let pending = "", lineIndex = 0;
   const collect = (line: string) => {
     const index = lineIndex++;
@@ -366,7 +400,7 @@ export async function runCursor(args: string[], binary = "cursor-agent"): Promis
         const native = Object.entries(row.tool_call).find(([key, value]) => key.endsWith("ToolCall") && object(value));
         const tool = native?.[0]?.replace(/ToolCall$/, "") ?? "unknown";
         if (row.subtype === "started" && typeof row.session_id === "string" && typeof row.call_id === "string")
-          starts.push({ sessionId: row.session_id, callId: row.call_id, tool });
+          starts.push({ sessionId: row.session_id, callId: row.call_id, tool, input: fields(native?.[1]).args });
         if (row.subtype === "completed") rows.push({ row, index });
       }
     } catch { /* Forward native diagnostics unchanged; no invented result. */ }
@@ -399,22 +433,19 @@ export async function runCursor(args: string[], binary = "cursor-agent"): Promis
       const existing = await readEvents(repo);
       const links = new Map<string, string>();
       for (const sessionId of new Set(starts.map(start => start.sessionId))) {
-        const calls = existing.filter(event => event.producer.source === "cursor" &&
+        // Hook records carry actual call IDs, have no native sequence number,
+        // and can be returned in ledger storage order. Never remap their IDs.
+        const calls = existing.filter(event => event.producer.source === "cursor" && event.raw?.format.split("+", 1)[0] === FORMAT &&
           event.stream?.id === `cursor:${sessionId}`)
           .sort((a, b) => (a.stream?.seq ?? 0) - (b.stream?.seq ?? 0))
           .flatMap(event => (object(event.content) && Array.isArray(event.content.blocks) ? event.content.blocks : []))
-          .filter(block => object(block) && block.type === "tool_use");
+          .filter(block => object(block) && block.type === "tool_use" && block.native_id_missing === true);
         const sessionStarts = starts.filter(start => start.sessionId === sessionId);
-        // Cursor's transcript has tool starts in model order but no native
-        // call IDs. Link only if the complete sequence matches by tool name;
-        // otherwise preserve the original call ID rather than guess.
-        if (calls.length === sessionStarts.length && calls.every((block, index) =>
-          String((block as Record<string, unknown>).name).toLowerCase() === sessionStarts[index]!.tool.toLowerCase())) {
-          for (let i = 0; i < calls.length; i++) links.set(sessionStarts[i]!.callId, String((calls[i] as Record<string, unknown>).id));
-        }
+        for (const [native, transcript] of cursorTranscriptResultLinks(calls as Record<string, unknown>[], sessionStarts)) links.set(native, transcript);
       }
       const drafts: EventDraft[] = [];
-      for (const { row, index } of rows) {
+      for (const { row: nativeRow, index } of rows) {
+        const row = prepareCursorStreamRow(nativeRow);
         const sessionId = str(row.session_id);
         const callId = str(row.call_id);
         if (!sessionId || !callId) continue;

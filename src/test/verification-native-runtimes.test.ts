@@ -33,6 +33,12 @@ test("portable native assets cover both supported architectures and retain OI pa
   }
   assert.throws(() => releaseAsset("crush", "win32", "x64"), /No pinned native runtime/);
   assert.throws(() => releaseAsset("unknown", "linux", "x64"), /No pinned native runtime/);
+  for (const [platform, arch] of [["darwin", "arm64"], ["linux", "x64"]]) {
+    const asset = releaseAsset("cursor", platform!, arch!);
+    assert.match(asset.url, /downloads\.cursor\.com\/lab\/2026\.10\.01-e373342\//);
+    assert.match(asset.sha256, /^[a-f0-9]{64}$/);
+    assert.equal(asset.entrypoint, "dist-package/cursor-agent");
+  }
 });
 
 test("archive paths and workflow environment output cannot escape intended destinations", () => {

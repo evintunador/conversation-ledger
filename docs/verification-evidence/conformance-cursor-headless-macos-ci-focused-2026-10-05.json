@@ -1,0 +1,62 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37391972742",
+  "commit": "d95eaaa132c74410e8084baad7a0ac989c502480",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "cursor",
+    "platform": "darwin/arm64",
+    "mode": "headless",
+    "inference": "scripted",
+    "status": "pass",
+    "requests": 2,
+    "events": 21,
+    "fullyCertified": false,
+    "started": "2026-10-06T00:08:01.188Z",
+    "inputMethod": "native prompt argument through explicit stream recorder",
+    "exclusions": [
+      "real provider/model behavior",
+      "native TUI",
+      "clipboard/drop entry",
+      "additional attachment/lifecycle cases",
+      "other operating systems"
+    ],
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "Native multiline prompt argument and persisted checkpoint retain Unicode and newlines"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual native Read result linked by supplied tool call ID retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Real native missing-file Read failure retains its linked result"
+      },
+      "imageReference": {
+        "status": "pass",
+        "detail": "Native PNG Read bytes become references in normalized and raw evidence"
+      },
+      "userImageEntry": {
+        "status": "limitation",
+        "detail": "Headless @image path is persisted as literal prompt text with no native human image carrier; this does not certify TUI image attachment"
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "No unknown records after both native runs"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Native --resume reloads prior checkpoint pointers, reads a fresh value, captures automatically and exits normally"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Two native transcript backfills preserve automatic evidence IDs (21 / 21 / 21)"
+      }
+    },
+    "version": "2026.10.01-e373342",
+    "automaticEventsBeforeBackfill": 21,
+    "completed": "2026-10-06T00:08:24.151Z"
+  }
+}

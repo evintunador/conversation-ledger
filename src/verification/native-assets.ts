@@ -1,5 +1,24 @@
-/** Official release asset SHA256 values, pinned 2026-09-29; updates require review. */
+/** Official release archives pinned by SHA256; updates require review.
+ * Cursor archive hashes were observed from the official installer URLs on
+ * 2026-10-05; remaining pins were recorded on 2026-09-29. */
 export const NATIVE_ASSETS = {
+  "cursor": {
+    "version": "2026.10.01-e373342",
+    "variants": {
+      "darwin/arm64": {
+        "url": "https://downloads.cursor.com/lab/2026.10.01-e373342/darwin/arm64/agent-cli-package.tar.gz",
+        "sha256": "629e51de43a0b7fb3b86f5ebc7e579f7df7df941b39f29e82945cde750145afc",
+        "archive": true,
+        "entrypoint": "dist-package/cursor-agent"
+      },
+      "linux/x64": {
+        "url": "https://downloads.cursor.com/lab/2026.10.01-e373342/linux/x64/agent-cli-package.tar.gz",
+        "sha256": "a79726c6e644520e993970be4c45775a6889802b67abe461a677a53219ae28e8",
+        "archive": true,
+        "entrypoint": "dist-package/cursor-agent"
+      }
+    }
+  },
   "goose": {
     "version": "1.52.0",
     "variants": {

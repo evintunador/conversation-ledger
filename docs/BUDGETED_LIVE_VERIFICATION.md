@@ -160,3 +160,58 @@ pricing, stale locks, missing state, and oversized input refusal before reservat
 requires loopback permission; a restricted sandbox reports an explicit skip.
 These tests do not activate the authority, configure keys, dispatch paid CI or
 claim that a production provider's pricing has been reviewed.
+
+## Issue #27 campaign canaries
+
+The `issue27` campaign has a shared **$20 total** ceiling across CLI IDs,
+provider routes, initial/maintenance phases and months. Reservations are durable
+worst-case charges and are never refunded from usage estimates. Existing
+per-CLI ceilings also apply. A missing campaign counter with existing campaign
+sessions fails closed instead of recreating an allocation.
+
+The registered canary consumers are OpenCode and Pi in either native headless
+or TUI mode. Set `CLEDGER_LIVE_CLI` to `opencode` or `pi`. Set the existing explicit authority/provider/model/session variables
+and use `budget-client authorize-canary`; this issues up to eight requests with
+`campaign: issue27`. The client requires the authority to confirm that scope.
+Run `budget-client run-canary SESSION OUTPUT NATIVE_BINARY headless` (or
+`interactive`). An ordinary legacy authorization cannot launch this canary.
+
+The canary uses two fresh random text file values, normal exit and native
+resume, automatic linked reads/results/answers, and two unchanged manual
+backfills. Reports use `cledger-canary/1` with `inference: usual-provider` and
+record the authority pricing revision. Provider/admin credentials stay outside
+the native synthetic CLI profile.
+
+No funded route, paid call or new protected CI environment has been activated.
+Real provider pricing/account prerequisites remain pending. The free CI tests
+use scripted substitutes and cannot satisfy real-model matrix cells.
+
+### Candidate low-cost routes (checked 2026-10-05)
+
+These are candidates for account setup, not activated authority routes or
+proof that a pinned CLI accepts the model. Check account access and native
+compatibility before registering a reviewed pricing revision. Rates below are
+standard text input/output USD per million tokens; do not enable provider-side
+search, hosted tools or other separately billed features for the file canary.
+
+| Provider | Candidate | Input / output | Evidence and qualification |
+| --- | --- | --- | --- |
+| Google | `gemini-2.5-flash-lite` | $0.10 / $0.40 | [Official pricing](https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-lite); native Gemini CLI compatibility still needs an installed canary. |
+| OpenAI | `gpt-5-nano` | $0.05 / $0.40 | [Official model page](https://developers.openai.com/api/docs/models/gpt-5-nano); function calling supported, but the model is marked deprecated. Verify availability before selecting it. |
+| OpenAI | `gpt-4.1-nano` | $0.10 / $0.40 | [Official model page](https://developers.openai.com/api/docs/models/gpt-4.1-nano); function calling supported, native CLI compatibility pending. |
+| OpenAI | `gpt-5.4-nano` | $0.20 / $1.25 | [Official model page](https://developers.openai.com/api/docs/models/gpt-5.4-nano); a candidate if a pinned coding CLI rejects older nano models. |
+| Anthropic | `claude-haiku-4-5` | $1.00 / $5.00 | [Official Haiku page](https://www.anthropic.com/claude/haiku); explicitly available in Claude Code. This is a supported candidate, not a claim that it is the cheapest currently available Anthropic model. |
+
+A model's advertised function-calling support does not establish a native
+CLI/tool dialect pass. Choose the cheapest available compatible model per CLI
+and record the actual selected model in its canary evidence. Shared $20
+reservations remain mandatory even for these low-cost routes. No model or
+account call was made to prepare this shortlist.
+
+
+Pi's configured canary uses its installed extension and explicit custom-provider
+configuration. Local runs use `node dist/verification/canary.js --local pi` with
+an explicit endpoint/model after the power/cooling prerequisite is met. Paid
+runs use the same campaign-scoped external authority as OpenCode. Both native
+modes have passed driver tests with scripted replies, including a fresh linked
+read after native `--continue`; this does not claim a real-model pass.

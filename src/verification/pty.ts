@@ -10,6 +10,8 @@ export interface PtyAction {
   waitForPath?: string;
   send: string;
   delayMs?: number;
+  /** Require a bounded idle interval after the latest native rendering. */
+  quietMs?: number;
   paste?: boolean;
 }
 export interface PtyResult {
@@ -33,7 +35,7 @@ if pid==0:
 sys.stderr.write('CLEDGER_PTY_GROUP:'+str(pid)+'\n'); sys.stderr.flush()
 fcntl.ioctl(fd,termios.TIOCSWINSZ,struct.pack('HHHH',40,160,0,0))
 signal.signal(signal.SIGTERM,lambda *_: sys.exit(143))
-output=''; pending=''; queries=''; index=0; code=1; expired=False
+output=''; pending=''; queries=''; index=0; code=1; expired=False; last_output=time.monotonic()
 end=time.monotonic()+config['timeoutMs']/1000
 def write_transcript():
  if not config.get('transcriptPath'): return
@@ -51,6 +53,7 @@ try:
    try: chunk=os.read(fd,65536)
    except OSError: chunk=b''
    if chunk:
+    last_output=time.monotonic()
     text=chunk.decode('utf-8',errors='replace'); output=(output+text)[-200000:]; pending=(pending+text)[-200000:]
     write_transcript()
     # Reply to bounded terminal discovery queries, including split reads.
@@ -71,7 +74,7 @@ try:
   if config.get('stopWhen') and re.search(config['stopWhen'],plain): break
   if index<len(config['actions']):
    action=config['actions'][index]
-   if re.search(action['waitFor'],plain) and (not action.get('waitForRaw') or re.search(action['waitForRaw'],pending)) and (not action.get('waitForPath') or os.path.isfile(action['waitForPath'])):
+   if re.search(action['waitFor'],plain) and (not action.get('waitForRaw') or re.search(action['waitForRaw'],pending)) and (not action.get('waitForPath') or os.path.isfile(action['waitForPath'])) and time.monotonic()-last_output>=action.get('quietMs',0)/1000:
      time.sleep(min(max(action.get('delayMs',0),0),1000)/1000)
      sent=action['send']
      # Ink-based CLIs treat a text+Enter burst as paste, leaving it unsubmitted.
@@ -110,6 +113,7 @@ export async function runPty(
 ): Promise<PtyResult> {
   if (!["darwin", "linux"].includes(process.platform))
     throw new Error("PTY verification requires macOS or Linux");
+  if (options.actions.some(a => a.quietMs !== undefined && (!Number.isInteger(a.quietMs) || a.quietMs < 0 || a.quietMs > 5000))) throw Error("PTY quiet interval must be bounded to 0–5000 milliseconds");
   return new Promise((resolve, reject) => {
     const child = spawn(options.python ?? "python3", ["-c", DRIVER], {
       env: options.env,

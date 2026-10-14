@@ -1,0 +1,153 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37380476405",
+  "commit": "87e1807",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "gemini-cli",
+    "platform": "darwin/arm64",
+    "mode": "headless",
+    "inference": "scripted",
+    "status": "partial",
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "native prompt argument; compared normalized human text, not echoed terminal"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual file tool result retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+      },
+      "imageReference": {
+        "status": "pass",
+        "detail": "Actual native image tool result retains a reference in its linked result"
+      },
+      "userImageEntry": {
+        "status": "pass",
+        "detail": "Native input method: native prompt argument; provider image input and persisted human/context reference required, without embedded binary bytes"
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+      },
+      "backfill": {
+        "status": "fail",
+        "detail": "Both manual imports compared against automatic complete native ledger"
+      }
+    },
+    "requests": 7,
+    "events": 31,
+    "fullyCertified": false,
+    "started": "2026-10-05T22:19:56.828Z",
+    "inputMethod": "native prompt argument",
+    "exclusions": [
+      "live provider/model behavior",
+      "interactive mode",
+      "clipboard/drag-and-drop image entry",
+      "text-file editor attachment (native UTF-8 tool read is covered)",
+      "PDF/archive/oversized or invalid text input",
+      "compaction/fork/subagent lifecycle",
+      "complete record-type coverage",
+      "other operating systems"
+    ],
+    "version": "0.61.0",
+    "automaticEventsBeforeBackfill": 31,
+    "backfillObservation": {
+      "automatic": 31,
+      "first": 34,
+      "second": 34,
+      "firstAdded": [
+        {
+          "id": "ev2-3da3bbcc5ae47f09f1873b06d855aab42ecf991c7c4172c82820004826dd269f",
+          "kind": "session_state",
+          "actor": "system",
+          "source": "gemini-cli",
+          "nativeRecord": {
+            "data": {
+              "kind": "main",
+              "lastUpdated": "2026-10-05T22:20:02.553Z",
+              "projectHash": "834021869827c4d817c375a4a6a507fafc63d896aea2b7f4ebf051927167c6f2",
+              "sessionId": "b5b915bc-e1cd-4273-b740-5e72b53b7195",
+              "startTime": "2026-10-05T22:20:02.553Z"
+            },
+            "format": "gemini-cli-chatlog/1"
+          },
+          "content": {
+            "kind": "main",
+            "lastUpdated": "2026-10-05T22:20:02.553Z",
+            "projectHash": "834021869827c4d817c375a4a6a507fafc63d896aea2b7f4ebf051927167c6f2",
+            "sessionId": "b5b915bc-e1cd-4273-b740-5e72b53b7195",
+            "startTime": "2026-10-05T22:20:02.553Z",
+            "state_type": "metadata"
+          }
+        },
+        {
+          "id": "ev2-57925f617780d12ebc85aa8443555216bf77cd65c55c826baa0654aaaa221653",
+          "kind": "conversation_turn",
+          "actor": "system",
+          "source": "gemini-cli",
+          "nativeRecord": {
+            "data": {
+              "content": [
+                {
+                  "text": "<session_context>\nThis is the Gemini CLI. We are setting up the context for our chat.\nToday's date is Monday, October 5, 2026 (formatted according to the user's locale).\nMy operating system is: darwin\nThe project's temporary directory is: /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/cledger-conformance-gemini-cli-GopnGK/.gemini/tmp/repo\n- **Workspace Directories:**\n  - /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/cledger-conformance-gemini-cli-GopnGK/repo\n- **Directory Structure:**\n\nShowing up to 200 items (files + folders). Folders or files indicated with ... contain more items not shown, were ignored, or the display limit (200 items) was reached.\n\n/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/cledger-conformance-gemini-cli-GopnGK/repo/\n\u251c\u2500\u2500\u2500.cledger.json\n\u251c\u2500\u2500\u2500evidence.txt\n\u251c\u2500\u2500\u2500image-TESTONLY.png\n\u2514\u2500\u2500\u2500.git/...\n\n\n</session_context>"
+                }
+              ],
+              "id": "d04923d38bb0f6017037e74183378ef4",
+              "timestamp": "2026-10-05T22:20:02.553Z",
+              "type": "user"
+            },
+            "format": "gemini-cli-chatlog/1"
+          },
+          "content": {
+            "blocks": [
+              {
+                "text": "<session_context>\nThis is the Gemini CLI. We are setting up the context for our chat.\nToday's date is Monday, October 5, 2026 (formatted according to the user's locale).\nMy operating system is: darwin\nThe project's temporary directory is: /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/cledger-conformance-gemini-cli-GopnGK/.gemini/tmp/repo\n- **Workspace Directories:**\n  - /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/cledger-conformance-gemini-cli-GopnGK/repo\n- **Directory Structure:**\n\nShowing up to 200 items (files + folders). Folders or files indicated with ... contain more items not shown, were ignored, or the display limit (200 items) was reached.\n\n/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/cledger-conformance-gemini-cli-GopnGK/repo/\n\u251c\u2500\u2500\u2500.cledger.json\n\u251c\u2500\u2500\u2500evidence.txt\n\u251c\u2500\u2500\u2500image-TESTONLY.png\n\u2514\u2500\u2500\u2500.git/...\n\n\n</session_context>",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        },
+        {
+          "id": "ev2-367f7fcef51de934d2c52bceb27c524c7715f8e4a73a6c2a10243bf8b171baac",
+          "kind": "session_state",
+          "actor": "system",
+          "source": "gemini-cli",
+          "nativeRecord": {
+            "data": {
+              "$set": {
+                "lastUpdated": "2026-10-05T22:20:02.553Z"
+              }
+            },
+            "format": "gemini-cli-chatlog/1"
+          },
+          "content": {
+            "lastUpdated": "2026-10-05T22:20:02.553Z",
+            "state_type": "metadata"
+          }
+        }
+      ],
+      "secondAdded": []
+    },
+    "completed": "2026-10-05T22:20:05.466Z",
+    "nativeTools": [
+      "update_topic",
+      "list_directory",
+      "read_file",
+      "grep_search",
+      "glob",
+      "google_web_search",
+      "enter_plan_mode",
+      "invoke_agent"
+    ]
+  }
+}

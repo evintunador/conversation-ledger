@@ -1,0 +1,101 @@
+{
+  "schema": "cledger-conformance-evidence/1",
+  "run": "https://github.com/evintunador/conversation-ledger/actions/runs/37380476405",
+  "commit": "87e1807",
+  "report": {
+    "schema": "cledger-conformance/1",
+    "cli": "kimi",
+    "platform": "linux/x64",
+    "mode": "interactive",
+    "inference": "scripted",
+    "status": "pass",
+    "cases": {
+      "multilineUnicode": {
+        "status": "pass",
+        "detail": "native editor bracketed paste; resumed Ctrl-V with isolated OS file-clipboard lookup fixture; compared normalized human text, not echoed terminal"
+      },
+      "textRead": {
+        "status": "pass",
+        "detail": "Actual file tool result retains known UTF-8 text"
+      },
+      "toolError": {
+        "status": "pass",
+        "detail": "Actual failed native read and linked result; scripted provider observed native error response"
+      },
+      "imageReference": {
+        "status": "pass",
+        "detail": "Actual native image tool result retains a reference in its linked result"
+      },
+      "userImageEntry": {
+        "status": "pass",
+        "detail": "Native input method: native editor bracketed paste; resumed Ctrl-V with isolated OS file-clipboard lookup fixture; provider image input and persisted human/context reference required, without embedded binary bytes"
+      },
+      "noUnrecognized": {
+        "status": "pass",
+        "detail": "Unknown native records across initial and resumed turns stay explicit, including nested markers"
+      },
+      "resume": {
+        "status": "pass",
+        "detail": "Exited and relaunched native continue/resume; complete multiline Unicode turn remains in original stream"
+      },
+      "backfill": {
+        "status": "pass",
+        "detail": "Both manual imports compared against automatic complete native ledger"
+      }
+    },
+    "requests": 5,
+    "events": 66,
+    "fullyCertified": false,
+    "started": "2026-10-05T22:24:39.636Z",
+    "inputMethod": "native editor bracketed paste; resumed Ctrl-V with isolated OS file-clipboard lookup fixture",
+    "exclusions": [
+      "live provider/model behavior",
+      "headless mode",
+      "clipboard/drag-and-drop image entry",
+      "text-file editor attachment (native UTF-8 tool read is covered)",
+      "PDF/archive/oversized or invalid text input",
+      "compaction/fork/subagent lifecycle",
+      "complete record-type coverage",
+      "other operating systems",
+      "real OS clipboard integration (lookup fixture only)"
+    ],
+    "version": "2.1.1",
+    "automaticEventsBeforeBackfill": 66,
+    "backfillObservation": {
+      "automatic": 66,
+      "first": 66,
+      "second": 66,
+      "firstAdded": [],
+      "secondAdded": []
+    },
+    "completed": "2026-10-05T22:24:52.700Z",
+    "nativeTools": [
+      "Agent",
+      "AgentSwarm",
+      "AskUserQuestion",
+      "Bash",
+      "CreateGoal",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "Edit",
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "FetchURL",
+      "GetGoal",
+      "Glob",
+      "Grep",
+      "Read",
+      "ReadMediaFile",
+      "SetGoalBudget",
+      "Skill",
+      "TaskList",
+      "TaskOutput",
+      "TaskStop",
+      "TodoList",
+      "UpdateGoal",
+      "WaitFor",
+      "Write"
+    ]
+  }
+}
