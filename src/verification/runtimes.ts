@@ -4,6 +4,9 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isolatedEnvironment, runProcess } from "./process.js";
 
+/** Python smoke runtime provisioned separately from the hashed native recipes. */
+export const PINNED_VIBE_RUNTIME = { package: "mistral-vibe", version: "2.25.8" } as const;
+
 export const PINNED_NPM_RUNTIMES = [
   { cli: "continue", package: "@continuedev/cli", version: "1.5.47", binary: "cn" },
   { cli: "kilo", package: "@kilocode/cli", version: "7.8.1", binary: "kilo" },

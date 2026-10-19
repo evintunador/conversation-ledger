@@ -20,3 +20,10 @@ test("unavailable or malformed release data cannot become an upgrade", async () 
     assert.equal(pinProposal("unchanged", records), "unchanged");
   }
 });
+
+test("maintenance cannot propose a rollback or a prerelease after discovery", async () => {
+  const records = await observePackages((async () => Response.json({ version: "0.0.0" })) as typeof fetch);
+  assert.equal(pinProposal("unchanged", records), "unchanged");
+  const prerelease = await observePackages((async () => Response.json({ version: "99.0.0-beta.1" })) as typeof fetch);
+  assert.ok(prerelease.every(record => record.status === "unavailable"));
+});

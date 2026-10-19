@@ -1,5 +1,8 @@
 # Reviewable local scheduling
 
+See [CLI update automation](CLI_UPDATE_AUTOMATION.md) for six-hour hosted release
+detection. The optional laptop repair worker belongs in a separate project.
+
 `dist/verification/schedule.js` generates local scheduler files; it never installs,
 loads, starts, enables, or modifies an operating-system scheduler. The generated
 `ACTIVATION.md` contains concrete commands to review and run later. Automation is
