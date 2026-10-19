@@ -1,0 +1,85 @@
+name: CLI release watch (six hourly)
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cli-release-watch
+  cancel-in-progress: false
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: conversation-ledger
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: evintunador/annals
+          ref: dcd06c0f724cf3509b2d61dce7d0b537d4d86340
+          path: annals
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - working-directory: annals
+        run: npm ci
+      - working-directory: conversation-ledger
+        run: npm ci
+      - name: Observe metadata without installing coding CLIs
+        id: observe
+        working-directory: conversation-ledger
+        run: node dist/verification/release-watch.js "$RUNNER_TEMP/releases.json"
+      - name: Retain observations even when a feed is unavailable
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-release-observations
+          path: ${{ runner.temp }}/releases.json
+          if-no-files-found: error
+          retention-days: 30
+  issues:
+    needs: observe
+    # Good observations still become issues when another feed failed. Missing
+    # or malformed artifacts fail closed in the publishing script.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: conversation-ledger
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: evintunador/annals
+          ref: dcd06c0f724cf3509b2d61dce7d0b537d4d86340
+          path: annals
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - working-directory: annals
+        run: npm ci
+      - working-directory: conversation-ledger
+        run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-release-observations
+          path: ${{ runner.temp }}/release-watch
+      - name: Create one issue per upstream version, including closed dispositions
+        id: publish
+        working-directory: conversation-ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_WATCH_QUALIFY_REF: ${{ github.event.repository.default_branch }}
+          RELEASE_WATCH_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node dist/verification/release-watch.js --publish "$RUNNER_TEMP/release-watch/releases.json"

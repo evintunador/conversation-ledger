@@ -114,11 +114,15 @@ jobs:
           if (report.schema !== 'cledger-hosted-maintenance/1') throw Error('Invalid review schema');
           let expected = current;
           if (report.pinsProposed) {
-            if (report.baseline !== 'success' || !Array.isArray(report.maintenance?.changes) || !report.maintenance.changes.length)
+            if (report.baseline !== 'success' || !Array.isArray(report.proposedChanges) || !report.proposedChanges.length)
               throw Error('Unqualified runtime proposal');
-            for (const item of report.maintenance.changes) {
+            for (const item of report.proposedChanges) {
               if (![item.cli, item.package, item.pinned, item.latest].every(value => typeof value === 'string')) throw Error('Invalid package observation');
-              if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(item.latest)) throw Error('Invalid proposed version');
+              if (!/^\d+\.\d+\.\d+$/.test(item.latest)) throw Error('Invalid proposed version');
+              for (const campaign of [report.maintenance?.campaign, report.interactive]) {
+                const targets = campaign?.targets?.filter(target => target.id === item.cli);
+                if (targets?.length !== 1 || targets[0].verification?.status !== 'pass') throw Error('Candidate did not pass both modes');
+              }
               const before = `cli: ${JSON.stringify(item.cli)}, package: ${JSON.stringify(item.package)}, version: ${JSON.stringify(item.pinned)}`;
               const after = `cli: ${JSON.stringify(item.cli)}, package: ${JSON.stringify(item.package)}, version: ${JSON.stringify(item.latest)}`;
               if (expected.split(before).length !== 2) throw Error(`Pin source mismatch for ${item.cli}`);
@@ -145,7 +149,8 @@ jobs:
             Read docs/verification-evidence/maintenance-latest.json for baseline status,
             candidate headless/interactive results and release observations. Proposed npm
             pins are applied only after the existing two-platform baseline and both local
-            candidate modes pass. Non-npm updates require source-specific review.
+            candidate modes pass for that CLI. Other failed candidates do not block
+            qualified upgrades. Non-npm updates require source-specific review.
 
             The full macOS/Linux workflow is dispatched on this review branch. Its result
             must pass before merging. Missing login is reported as blocked and never qualifies a candidate.

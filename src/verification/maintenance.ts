@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PINNED_NPM_RUNTIMES, provisionRuntimes } from "./runtimes.js";
 import { runCampaign } from "./campaign.js";
+import { STABLE, newerStableVersion } from "./release-version.js";
 
 export interface PackageObservation {
   cli: string; package: string; pinned: string;
@@ -19,7 +20,7 @@ export async function observePackages(request: typeof fetch = fetch): Promise<Pa
       const response = await request(`https://registry.npmjs.org/${encodeURIComponent(recipe.package)}/latest`, { signal: AbortSignal.timeout(15_000), redirect: "error" });
       if (!response.ok) throw new Error(`Registry HTTP ${response.status}`);
       const data = await response.json() as { version?: unknown };
-      if (typeof data.version !== "string" || !/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(data.version)) throw new Error("Registry returned no exact version");
+      if (typeof data.version !== "string" || !STABLE.test(data.version)) throw new Error("Registry returned no exact version");
       results.push({ ...base, status: "observed", latest: data.version });
     } catch (error) { results.push({ ...base, status: "unavailable", reason: error instanceof Error ? error.message : String(error) }); }
   }
@@ -30,7 +31,7 @@ export async function observePackages(request: typeof fetch = fetch): Promise<Pa
 export function pinProposal(source: string, observations: PackageObservation[]): string {
   let next = source;
   for (const record of observations) {
-    if (record.status !== "observed" || !record.latest || record.latest === record.pinned) continue;
+    if (record.status !== "observed" || !record.latest || !newerStableVersion(record.latest, record.pinned)) continue;
     const before = `cli: ${JSON.stringify(record.cli)}, package: ${JSON.stringify(record.package)}, version: ${JSON.stringify(record.pinned)}`;
     const after = `cli: ${JSON.stringify(record.cli)}, package: ${JSON.stringify(record.package)}, version: ${JSON.stringify(record.latest)}`;
     if (next.split(before).length !== 2) throw new Error(`Pin source changed for ${record.cli}; manual review required`);
@@ -43,7 +44,7 @@ export async function prepareMaintenance(output: string, verifyCandidates = fals
   const directory = resolve(output);
   await mkdir(directory, { recursive: true });
   const observations = await observePackages();
-  const changes = observations.filter(r => r.status === "observed" && r.latest !== r.pinned);
+  const changes = observations.filter(r => r.status === "observed" && !!r.latest && newerStableVersion(r.latest, r.pinned));
   const proposal = { schema: "cledger-maintenance/1", observedAt: new Date().toISOString(), reviewRequired: changes.length > 0 || observations.some(r => r.status === "unavailable"),
     observations, changes, paidInferenceEnabled: false, scope: "npm runtime pins; non-npm runtimes require their source-specific release review" };
   // Source may be absent in an npm-installed distribution. Keep version evidence

@@ -56,13 +56,20 @@ jobs:
       - name: Test ledger
         working-directory: conversation-ledger
         run: npm ci && npm test
+      - name: Select the shared Python smoke pin
+        working-directory: conversation-ledger
+        run: |
+          node --input-type=module <<'JS' >> "$GITHUB_ENV"
+          import { PINNED_VIBE_RUNTIME } from './dist/verification/runtimes.js';
+          console.log(`CLEDGER_VIBE_PACKAGE=${PINNED_VIBE_RUNTIME.package}==${PINNED_VIBE_RUNTIME.version}`);
+          JS
       - name: Provision isolated pinned CLIs
         id: provision
         working-directory: conversation-ledger
         run: |
           node dist/verification/runtimes.js "$RUNNER_TEMP/cledger-runtimes"
           uv venv --python 3.12 "$RUNNER_TEMP/cledger-vibe"
-          uv pip install --python "$RUNNER_TEMP/cledger-vibe/bin/python" mistral-vibe==2.25.8
+          uv pip install --python "$RUNNER_TEMP/cledger-vibe/bin/python" "$CLEDGER_VIBE_PACKAGE"
           node dist/verification/native-runtimes.js "$RUNNER_TEMP/cledger-native-runtimes"
           cat "$RUNNER_TEMP/cledger-native-runtimes/native-runtimes.env" >> "$GITHUB_ENV"
       - name: Verify prompt capture during stalled OpenHands inference
