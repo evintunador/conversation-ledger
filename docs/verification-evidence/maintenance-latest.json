@@ -1,0 +1,1592 @@
+{
+  "schema": "cledger-hosted-maintenance/1",
+  "observedAt": "2026-11-09T22:19:25.309Z",
+  "baseline": "success",
+  "pinsProposed": false,
+  "maintenance": {
+    "schema": "cledger-maintenance/1",
+    "observedAt": "2026-11-09T22:14:42.772Z",
+    "reviewRequired": true,
+    "observations": [
+      {
+        "cli": "continue",
+        "package": "@continuedev/cli",
+        "pinned": "1.5.47",
+        "status": "observed",
+        "latest": "1.5.47"
+      },
+      {
+        "cli": "kilo",
+        "package": "@kilocode/cli",
+        "pinned": "7.8.1",
+        "status": "observed",
+        "latest": "7.8.27"
+      },
+      {
+        "cli": "cline",
+        "package": "cline",
+        "pinned": "3.0.65",
+        "status": "observed",
+        "latest": "3.0.74"
+      },
+      {
+        "cli": "claude-code",
+        "package": "@anthropic-ai/claude-code",
+        "pinned": "2.1.284",
+        "status": "observed",
+        "latest": "2.1.321"
+      },
+      {
+        "cli": "codex",
+        "package": "@openai/codex",
+        "pinned": "0.159.0",
+        "status": "observed",
+        "latest": "0.167.0"
+      },
+      {
+        "cli": "gemini-cli",
+        "package": "@google/gemini-cli",
+        "pinned": "0.61.0",
+        "status": "observed",
+        "latest": "0.67.0"
+      },
+      {
+        "cli": "qwen-code",
+        "package": "@qwen-code/qwen-code",
+        "pinned": "0.24.6",
+        "status": "observed",
+        "latest": "0.27.1"
+      },
+      {
+        "cli": "opencode",
+        "package": "opencode-ai",
+        "pinned": "1.18.33",
+        "status": "observed",
+        "latest": "1.19.5"
+      },
+      {
+        "cli": "pi",
+        "package": "@earendil-works/pi-coding-agent",
+        "pinned": "0.87.1",
+        "status": "observed",
+        "latest": "1.5.0"
+      },
+      {
+        "cli": "copilot",
+        "package": "@github/copilot",
+        "pinned": "1.0.89",
+        "status": "observed",
+        "latest": "1.0.108"
+      },
+      {
+        "cli": "kimi",
+        "package": "@moonshot-ai/kimi-code",
+        "pinned": "2.1.1",
+        "status": "observed",
+        "latest": "2.5.2"
+      }
+    ],
+    "changes": [
+      {
+        "cli": "kilo",
+        "package": "@kilocode/cli",
+        "pinned": "7.8.1",
+        "status": "observed",
+        "latest": "7.8.27"
+      },
+      {
+        "cli": "cline",
+        "package": "cline",
+        "pinned": "3.0.65",
+        "status": "observed",
+        "latest": "3.0.74"
+      },
+      {
+        "cli": "claude-code",
+        "package": "@anthropic-ai/claude-code",
+        "pinned": "2.1.284",
+        "status": "observed",
+        "latest": "2.1.321"
+      },
+      {
+        "cli": "codex",
+        "package": "@openai/codex",
+        "pinned": "0.159.0",
+        "status": "observed",
+        "latest": "0.167.0"
+      },
+      {
+        "cli": "gemini-cli",
+        "package": "@google/gemini-cli",
+        "pinned": "0.61.0",
+        "status": "observed",
+        "latest": "0.67.0"
+      },
+      {
+        "cli": "qwen-code",
+        "package": "@qwen-code/qwen-code",
+        "pinned": "0.24.6",
+        "status": "observed",
+        "latest": "0.27.1"
+      },
+      {
+        "cli": "opencode",
+        "package": "opencode-ai",
+        "pinned": "1.18.33",
+        "status": "observed",
+        "latest": "1.19.5"
+      },
+      {
+        "cli": "pi",
+        "package": "@earendil-works/pi-coding-agent",
+        "pinned": "0.87.1",
+        "status": "observed",
+        "latest": "1.5.0"
+      },
+      {
+        "cli": "copilot",
+        "package": "@github/copilot",
+        "pinned": "1.0.89",
+        "status": "observed",
+        "latest": "1.0.108"
+      },
+      {
+        "cli": "kimi",
+        "package": "@moonshot-ai/kimi-code",
+        "pinned": "2.1.1",
+        "status": "observed",
+        "latest": "2.5.2"
+      }
+    ],
+    "paidInferenceEnabled": false,
+    "scope": "npm runtime pins; non-npm runtimes require their source-specific release review",
+    "campaign": {
+      "schema": "cledger-campaign/1",
+      "started": "2026-11-09T22:15:43.304Z",
+      "completed": "2026-11-09T22:17:01.652Z",
+      "platform": "linux",
+      "arch": "x64",
+      "mode": "headless",
+      "inferenceCostUsd": 0,
+      "inference": "scripted",
+      "paidInferenceEnabled": false,
+      "coverage": {
+        "target": 20,
+        "nativeSmokePassed": 7,
+        "nativeSmokeBlocked": 0,
+        "nativeSmokeFailed": 3,
+        "fullyCertified": 0,
+        "fullyCertifiedPercent": 0,
+        "reason": "No CLI yet has recorded passes for every record type and both headless/interactive modes on macOS and Linux"
+      },
+      "targets": [
+        {
+          "id": "claude-code",
+          "name": "Claude Code",
+          "group": "big-player",
+          "command": "claude",
+          "repository": "anthropics/claude-code",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "schema": "cledger-verification/1",
+            "cli": "claude-code",
+            "status": "fail",
+            "certification": "native-smoke",
+            "mode": "headless",
+            "inference": "scripted",
+            "platform": "linux/x64",
+            "gates": {
+              "installedHooks": true,
+              "noUnrecognizedRecords": false,
+              "hookPrompt": true,
+              "hookToolUse": true,
+              "hookToolResult": true,
+              "hookAnswer": true,
+              "scriptedRequests": true
+            },
+            "coverage": [
+              "installed native Stop + SessionEnd hooks",
+              "headless print",
+              "human prompt",
+              "tool call/result linkage",
+              "assistant answer",
+              "backfill idempotency"
+            ],
+            "exclusions": [
+              "real provider/model behavior",
+              "interactive TUI",
+              "attachments",
+              "branching/forks",
+              "compaction",
+              "full record coverage",
+              "ephemeral sessions"
+            ],
+            "durationMs": 1116,
+            "version": "2.1.321 (Claude Code)",
+            "reason": "Claude Code native Stop hook evidence incomplete; manual backfill was not attempted; drift: api-request-shape, api-request-blob, api-request, tools-used, api-request-blob, api-request",
+            "requests": 2
+          }
+        },
+        {
+          "id": "codex",
+          "name": "Codex",
+          "group": "big-player",
+          "command": "codex",
+          "repository": "openai/codex",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "schema": "cledger-verification/1",
+            "cli": "codex",
+            "status": "pass",
+            "certification": "native-smoke",
+            "mode": "headless",
+            "inference": "scripted",
+            "platform": "linux/x64",
+            "gates": {
+              "installedHook": true,
+              "noUnrecognizedRecords": true,
+              "hookPrompt": true,
+              "hookToolUse": true,
+              "hookToolResult": true,
+              "hookAnswer": true,
+              "nativeSessionState": true,
+              "scriptedRequests": true,
+              "hookCapturedFinalTail": true,
+              "backfillIdempotent": true,
+              "hookEvidenceRetained": true
+            },
+            "coverage": [
+              "installed native Stop + SessionEnd hooks with isolated invocation trust bypass",
+              "headless exec",
+              "human prompt",
+              "tool call/result linkage",
+              "assistant answer",
+              "session header",
+              "backfill idempotency"
+            ],
+            "exclusions": [
+              "real provider/model behavior",
+              "interactive TUI",
+              "attachments",
+              "branching/forks",
+              "compaction",
+              "full record coverage",
+              "ephemeral sessions",
+              "interactive hook trust review"
+            ],
+            "durationMs": 1737,
+            "version": "codex-cli 0.167.0",
+            "requests": 2
+          }
+        },
+        {
+          "id": "gemini-cli",
+          "name": "Gemini CLI",
+          "group": "big-player",
+          "command": "gemini",
+          "repository": "google-gemini/gemini-cli",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "schema": "cledger-verification/1",
+            "cli": "gemini-cli",
+            "status": "pass",
+            "certification": "native-smoke",
+            "inference": "scripted",
+            "platform": "linux/x64",
+            "gates": {
+              "installedHooks": true,
+              "tailWorkerCompleteAndExited": true,
+              "hookPrompt": true,
+              "hookToolUse": true,
+              "hookToolResult": true,
+              "hookAnswer": true,
+              "noUnrecognizedRecords": true,
+              "backfillIdempotent": true,
+              "hookEvidenceRetained": true,
+              "scriptedRequests": true
+            },
+            "durationMs": 5907,
+            "coverage": [
+              "native headless hooks",
+              "human text",
+              "read tool call/result",
+              "assistant text",
+              "backfill idempotency"
+            ],
+            "exclusions": [
+              "interactive TUI",
+              "subagents",
+              "attachments",
+              "compaction/rewind",
+              "real provider authentication",
+              "full record coverage"
+            ],
+            "mode": "headless",
+            "version": "0.67.0",
+            "requests": 2
+          }
+        },
+        {
+          "id": "copilot",
+          "name": "GitHub Copilot CLI",
+          "group": "big-player",
+          "command": "copilot",
+          "repository": "github/copilot-cli",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "schema": "cledger-verification/1",
+            "cli": "copilot",
+            "status": "fail",
+            "certification": "native-smoke",
+            "inference": "scripted",
+            "platform": "linux/x64",
+            "gates": {
+              "installedHooks": true,
+              "tailComplete": true,
+              "noUnrecognizedRecords": false,
+              "terminalRecord": true,
+              "hookPrompt": true,
+              "hookToolUse": true,
+              "hookToolResult": true,
+              "hookAnswer": true
+            },
+            "durationMs": 15864,
+            "coverage": [
+              "native headless hook capture",
+              "human text",
+              "read tool call/result",
+              "assistant text",
+              "backfill idempotency"
+            ],
+            "exclusions": [
+              "individual agentStop versus sessionEnd timing",
+              "interactive TUI",
+              "ACP/daemon",
+              "attachments",
+              "subagents",
+              "compaction/rewind",
+              "real model/provider behavior",
+              "full record coverage"
+            ],
+            "mode": "headless",
+            "version": "GitHub Copilot CLI 1.0.108.\nRun 'copilot update' to check for updates.",
+            "reason": "Native hook evidence incomplete; no manual capture attempted",
+            "requests": 2
+          }
+        },
+        {
+          "id": "cursor",
+          "name": "Cursor CLI",
+          "group": "big-player",
+          "command": "agent",
+          "captureImplemented": true,
+          "captureMode": "native-hooks; optional-headless-result-wrapper",
+          "verification": {
+            "status": "not-run",
+            "reason": "Excluded by requested CLI selection",
+            "certification": "none"
+          }
+        },
+        {
+          "id": "qwen-code",
+          "name": "Qwen Code",
+          "group": "big-player",
+          "command": "qwen",
+          "repository": "QwenLM/qwen-code",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "schema": "cledger-verification/1",
+            "cli": "qwen-code",
+            "status": "pass",
+            "certification": "native-smoke",
+            "inference": "scripted",
+            "platform": "linux/x64",
+            "gates": {
+              "installedHooks": true,
+              "tailWorkerCompleteAndExited": true,
+              "noUnrecognizedRecords": true,
+              "hookPrompt": true,
+              "hookToolUse": true,
+              "hookToolResult": true,
+              "hookAnswer": true,
+              "backfillIdempotent": true,
+              "hookEvidenceRetained": true,
+              "scriptedRequests": true,
+              "agentHeader": true
+            },
+            "durationMs": 3961,
+            "coverage": [
+              "native headless hook capture",
+              "human text",
+              "read tool call/result",
+              "assistant text",
+              "backfill idempotency"
+            ],
+            "exclusions": [
+              "individual Stop versus SessionEnd timing",
+              "interactive TUI",
+              "ACP/daemon",
+              "attachments",
+              "subagents",
+              "compaction/rewind",
+              "real model/provider behavior",
+              "full record coverage"
+            ],
+            "mode": "headless",
+            "version": "0.27.1",
+            "requests": 3
+          }
+        },
+        {
+          "id": "kimi",
+          "name": "Kimi Code",
+          "group": "big-player",
+          "command": "kimi",
+          "repository": "MoonshotAI/kimi-code",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "schema": "cledger-verification/1",
+            "cli": "kimi",
+            "status": "fail",
+            "certification": "native-smoke",
+            "mode": "headless",
+            "inference": "scripted",
+            "platform": "linux/x64",
+            "gates": {
+              "installedHook": true,
+              "tailWorkerCompleteAndExited": true,
+              "noUnrecognizedRecords": false,
+              "hookPrompt": true,
+              "hookToolUse": true,
+              "hookToolResult": true,
+              "hookAnswer": true,
+              "nativeSessionState": true,
+              "requestBudget": true,
+              "agentHeader": true
+            },
+            "coverage": [
+              "installed native hooks",
+              "headless CLI",
+              "human prompt",
+              "tool call/result linkage",
+              "assistant answer",
+              "wire metadata",
+              "backfill idempotency",
+              "bounded tail worker exit"
+            ],
+            "exclusions": [
+              "real provider/model behavior",
+              "interactive TUI",
+              "attachments",
+              "branching/forks",
+              "compaction",
+              "full record coverage",
+              "ephemeral sessions"
+            ],
+            "durationMs": 4814,
+            "version": "2.5.2",
+            "reason": "Kimi native hook evidence incomplete; manual backfill was not attempted",
+            "requests": 2
+          }
+        },
+        {
+          "id": "mistral-vibe",
+          "name": "Mistral Vibe",
+          "group": "big-player",
+          "command": "vibe",
+          "repository": "mistralai/mistral-vibe",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "status": "not-run",
+            "reason": "Excluded by requested CLI selection",
+            "certification": "none"
+          }
+        },
+        {
+          "id": "droid",
+          "name": "Factory Droid",
+          "group": "big-player",
+          "command": "droid",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "status": "not-run",
+            "reason": "Excluded by requested CLI selection",
+            "certification": "none"
+          }
+        },
+        {
+          "id": "kiro",
+          "name": "Kiro CLI",
+          "group": "big-player",
+          "command": "kiro-cli",
+          "repository": "kirodotdev/Kiro",
+          "captureImplemented": true,
+          "captureMode": "native-v3-hooks; v2-launch-wrapper",
+          "verification": {
+            "status": "not-run",
+            "reason": "Excluded by requested CLI selection",
+            "certification": "none"
+          }
+        },
+        {
+          "id": "opencode",
+          "name": "OpenCode",
+          "group": "independent",
+          "command": "opencode",
+          "repository": "anomalyco/opencode",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "schema": "cledger-verification/1",
+            "cli": "opencode",
+            "status": "pass",
+            "certification": "native-smoke",
+            "inference": "scripted",
+            "platform": "linux/x64",
+            "gates": {
+              "installedHook": true,
+              "noUnrecognizedRecords": true,
+              "hookPrompt": true,
+              "hookToolUse": true,
+              "hookToolResult": true,
+              "hookAnswer": true,
+              "backfillIdempotent": true,
+              "hookEvidenceRetained": true,
+              "scriptedRequests": true,
+              "agentHeader": true
+            },
+            "coverage": [
+              "native hook",
+              "human text",
+              "tool call/result",
+              "assistant text",
+              "backfill idempotency"
+            ],
+            "exclusions": [
+              "interactive TUI",
+              "attachments",
+              "subagents",
+              "compaction/rewind",
+              "paid providers",
+              "full record coverage",
+              "real model/provider behavior"
+            ],
+            "durationMs": 14665,
+            "mode": "headless",
+            "version": "1.19.5",
+            "requests": 3
+          }
+        },
+        {
+          "id": "pi",
+          "name": "Pi",
+          "group": "independent",
+          "command": "pi",
+          "repository": "earendil-works/pi",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "schema": "cledger-verification/1",
+            "cli": "pi",
+            "status": "pass",
+            "certification": "native-smoke",
+            "mode": "headless",
+            "inference": "scripted",
+            "platform": "linux/x64",
+            "gates": {
+              "installedHook": true,
+              "noUnrecognizedRecords": true,
+              "hookPrompt": true,
+              "hookToolUse": true,
+              "hookToolResult": true,
+              "hookAnswer": true,
+              "nativeSessionState": true,
+              "scriptedRequests": true,
+              "agentHeader": true,
+              "backfillIdempotent": true
+            },
+            "coverage": [
+              "installed native extension",
+              "headless CLI",
+              "human prompt",
+              "tool call/result linkage",
+              "assistant answer",
+              "session header",
+              "backfill idempotency"
+            ],
+            "exclusions": [
+              "real provider/model behavior",
+              "interactive TUI",
+              "attachments",
+              "branching/forks",
+              "compaction",
+              "full record coverage",
+              "ephemeral sessions"
+            ],
+            "durationMs": 2305,
+            "version": "1.5.0",
+            "requests": 2
+          }
+        },
+        {
+          "id": "openhands",
+          "name": "OpenHands CLI",
+          "group": "independent",
+          "command": "openhands",
+          "repository": "OpenHands/OpenHands-CLI",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "status": "not-run",
+            "reason": "Excluded by requested CLI selection",
+            "certification": "none"
+          }
+        },
+        {
+          "id": "cline",
+          "name": "Cline CLI",
+          "group": "independent",
+          "command": "cline",
+          "repository": "cline/cline",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "schema": "cledger-verification/1",
+            "cli": "cline",
+            "status": "pass",
+            "certification": "native-smoke",
+            "inference": "scripted",
+            "platform": "linux/x64",
+            "gates": {
+              "installedHooks": true,
+              "tailComplete": true,
+              "noUnrecognizedRecords": true,
+              "hookPrompt": true,
+              "hookToolUse": true,
+              "hookToolResult": true,
+              "hookAnswer": true,
+              "backfillIdempotent": true,
+              "hookEvidenceRetained": true,
+              "scriptedRequests": true,
+              "agentHeader": true
+            },
+            "durationMs": 5587,
+            "coverage": [
+              "native headless hook capture",
+              "human text",
+              "read tool call/result",
+              "assistant text",
+              "backfill idempotency"
+            ],
+            "exclusions": [
+              "individual TaskComplete versus SessionShutdown timing",
+              "interactive TUI",
+              "ACP/daemon",
+              "attachments",
+              "subagents",
+              "compaction/rewind",
+              "legacy VS Code history",
+              "yolo mode (native hooks disabled)",
+              "real model/provider behavior",
+              "full record coverage"
+            ],
+            "mode": "headless",
+            "version": "3.0.74",
+            "requests": 2
+          }
+        },
+        {
+          "id": "open-interpreter",
+          "name": "Open Interpreter",
+          "group": "independent",
+          "command": "interpreter",
+          "repository": "openinterpreter/openinterpreter",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "status": "not-run",
+            "reason": "Excluded by requested CLI selection",
+            "certification": "none"
+          }
+        },
+        {
+          "id": "goose",
+          "name": "Goose",
+          "group": "independent",
+          "command": "goose",
+          "repository": "aaif-goose/goose",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "status": "not-run",
+            "reason": "Excluded by requested CLI selection",
+            "certification": "none"
+          }
+        },
+        {
+          "id": "aider",
+          "name": "Aider",
+          "group": "independent",
+          "command": "aider",
+          "repository": "Aider-AI/aider",
+          "captureImplemented": true,
+          "captureMode": "explicit-launch-wrapper",
+          "verification": {
+            "status": "not-run",
+            "reason": "Excluded by requested CLI selection",
+            "certification": "none"
+          }
+        },
+        {
+          "id": "continue",
+          "name": "Continue CLI",
+          "group": "independent",
+          "command": "cn",
+          "repository": "continuedev/continue",
+          "captureImplemented": true,
+          "captureMode": "explicit-launch-wrapper",
+          "verification": {
+            "status": "not-run",
+            "reason": "Excluded by requested CLI selection",
+            "certification": "none"
+          }
+        },
+        {
+          "id": "crush",
+          "name": "Crush",
+          "group": "independent",
+          "command": "crush",
+          "repository": "charmbracelet/crush",
+          "captureImplemented": true,
+          "captureMode": "explicit-launch-wrapper",
+          "verification": {
+            "status": "not-run",
+            "reason": "Excluded by requested CLI selection",
+            "certification": "none"
+          }
+        },
+        {
+          "id": "kilo",
+          "name": "Kilo CLI",
+          "group": "independent",
+          "command": "kilo",
+          "repository": "Kilo-Org/kilocode",
+          "captureImplemented": true,
+          "captureMode": "native-hook-or-plugin",
+          "verification": {
+            "schema": "cledger-verification/1",
+            "cli": "kilo",
+            "status": "pass",
+            "certification": "native-smoke",
+            "inference": "scripted",
+            "mode": "headless",
+            "platform": "linux/x64",
+            "gates": {
+              "installedHook": true,
+              "noUnrecognizedRecords": true,
+              "hookPrompt": true,
+              "hookToolUse": true,
+              "hookToolResult": true,
+              "hookAnswer": true,
+              "backfillIdempotent": true,
+              "hookEvidenceRetained": true,
+              "scriptedRequests": true,
+              "agentHeader": true
+            },
+            "coverage": [
+              "native hook",
+              "human text",
+              "tool call/result",
+              "assistant text",
+              "backfill idempotency"
+            ],
+            "exclusions": [
+              "interactive TUI",
+              "attachments",
+              "subagents",
+              "compaction/rewind",
+              "paid providers",
+              "full record coverage",
+              "real model/provider behavior"
+            ],
+            "durationMs": 22177,
+            "version": "7.8.27",
+            "requests": 2
+          }
+        }
+      ]
+    }
+  },
+  "interactive": {
+    "schema": "cledger-campaign/1",
+    "started": "2026-11-09T22:17:01.653Z",
+    "completed": "2026-11-09T22:19:22.878Z",
+    "platform": "linux",
+    "arch": "x64",
+    "mode": "interactive",
+    "inferenceCostUsd": 0,
+    "inference": "scripted",
+    "paidInferenceEnabled": false,
+    "coverage": {
+      "target": 20,
+      "nativeSmokePassed": 7,
+      "nativeSmokeBlocked": 0,
+      "nativeSmokeFailed": 3,
+      "fullyCertified": 0,
+      "fullyCertifiedPercent": 0,
+      "reason": "No CLI yet has recorded passes for every record type and both headless/interactive modes on macOS and Linux"
+    },
+    "targets": [
+      {
+        "id": "claude-code",
+        "name": "Claude Code",
+        "group": "big-player",
+        "command": "claude",
+        "repository": "anthropics/claude-code",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "schema": "cledger-verification/1",
+          "cli": "claude-code",
+          "status": "fail",
+          "certification": "native-smoke",
+          "mode": "interactive",
+          "inference": "scripted",
+          "platform": "linux/x64",
+          "gates": {
+            "installedHooks": true,
+            "interactiveExit": true,
+            "noUnrecognizedRecords": false,
+            "hookPrompt": true,
+            "hookToolUse": true,
+            "hookToolResult": true,
+            "hookAnswer": true,
+            "scriptedRequests": true
+          },
+          "coverage": [
+            "installed native Stop + SessionEnd hooks",
+            "interactive PTY session and exit",
+            "human prompt",
+            "tool call/result linkage",
+            "assistant answer",
+            "backfill idempotency"
+          ],
+          "exclusions": [
+            "real provider/model behavior",
+            "attachments",
+            "branching/forks",
+            "compaction",
+            "full record coverage",
+            "ephemeral sessions"
+          ],
+          "durationMs": 11702,
+          "version": "2.1.321 (Claude Code)",
+          "reason": "Claude Code native Stop hook evidence incomplete; manual backfill was not attempted; drift: api-request-shape, api-request-blob, api-request, tools-used, api-request-blob, api-request",
+          "requests": 2
+        }
+      },
+      {
+        "id": "codex",
+        "name": "Codex",
+        "group": "big-player",
+        "command": "codex",
+        "repository": "openai/codex",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "schema": "cledger-verification/1",
+          "cli": "codex",
+          "status": "pass",
+          "certification": "native-smoke",
+          "mode": "interactive",
+          "inference": "scripted",
+          "platform": "linux/x64",
+          "gates": {
+            "installedHook": true,
+            "interactiveExit": true,
+            "noUnrecognizedRecords": true,
+            "hookPrompt": true,
+            "hookToolUse": true,
+            "hookToolResult": true,
+            "hookAnswer": true,
+            "nativeSessionState": true,
+            "scriptedRequests": true,
+            "hookCapturedFinalTail": true,
+            "backfillIdempotent": true,
+            "hookEvidenceRetained": true
+          },
+          "coverage": [
+            "installed native Stop + SessionEnd hooks with isolated invocation trust bypass",
+            "interactive PTY session and exit",
+            "human prompt",
+            "tool call/result linkage",
+            "assistant answer",
+            "session header",
+            "backfill idempotency"
+          ],
+          "exclusions": [
+            "real provider/model behavior",
+            "attachments",
+            "branching/forks",
+            "compaction",
+            "full record coverage",
+            "ephemeral sessions",
+            "interactive hook trust review"
+          ],
+          "durationMs": 3936,
+          "version": "codex-cli 0.167.0",
+          "requests": 3
+        }
+      },
+      {
+        "id": "gemini-cli",
+        "name": "Gemini CLI",
+        "group": "big-player",
+        "command": "gemini",
+        "repository": "google-gemini/gemini-cli",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "schema": "cledger-verification/1",
+          "cli": "gemini-cli",
+          "status": "pass",
+          "certification": "native-smoke",
+          "inference": "scripted",
+          "platform": "linux/x64",
+          "gates": {
+            "installedHooks": true,
+            "interactiveTerminal": true,
+            "tailWorkerCompleteAndExited": true,
+            "hookPrompt": true,
+            "hookToolUse": true,
+            "hookToolResult": true,
+            "hookAnswer": true,
+            "noUnrecognizedRecords": true,
+            "backfillIdempotent": true,
+            "hookEvidenceRetained": true,
+            "scriptedRequests": true
+          },
+          "durationMs": 8822,
+          "coverage": [
+            "interactive PTY terminal input and native hooks",
+            "human text",
+            "read tool call/result",
+            "assistant text",
+            "backfill idempotency"
+          ],
+          "exclusions": [
+            "subagents",
+            "attachments",
+            "compaction/rewind",
+            "real provider authentication",
+            "full record coverage"
+          ],
+          "mode": "interactive",
+          "version": "0.67.0",
+          "requests": 2
+        }
+      },
+      {
+        "id": "copilot",
+        "name": "GitHub Copilot CLI",
+        "group": "big-player",
+        "command": "copilot",
+        "repository": "github/copilot-cli",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "schema": "cledger-verification/1",
+          "cli": "copilot",
+          "status": "fail",
+          "certification": "native-smoke",
+          "inference": "scripted",
+          "platform": "linux/x64",
+          "gates": {
+            "installedHooks": true,
+            "interactiveTerminal": true,
+            "tailComplete": true,
+            "noUnrecognizedRecords": false,
+            "terminalRecord": true,
+            "hookPrompt": true,
+            "hookToolUse": true,
+            "hookToolResult": true,
+            "hookAnswer": true
+          },
+          "durationMs": 16018,
+          "coverage": [
+            "interactive PTY terminal input",
+            "native hook capture",
+            "read tool call/result",
+            "assistant text",
+            "backfill idempotency"
+          ],
+          "exclusions": [
+            "individual agentStop versus sessionEnd timing",
+            "ACP/daemon",
+            "attachments",
+            "subagents",
+            "compaction/rewind",
+            "real model/provider behavior",
+            "full record coverage"
+          ],
+          "mode": "interactive",
+          "version": "GitHub Copilot CLI 1.0.108.\nRun 'copilot update' to check for updates.",
+          "reason": "Native hook evidence incomplete; no manual capture attempted",
+          "requests": 2
+        }
+      },
+      {
+        "id": "cursor",
+        "name": "Cursor CLI",
+        "group": "big-player",
+        "command": "agent",
+        "captureImplemented": true,
+        "captureMode": "native-hooks; optional-headless-result-wrapper",
+        "verification": {
+          "status": "not-run",
+          "reason": "Excluded by requested CLI selection",
+          "certification": "none"
+        }
+      },
+      {
+        "id": "qwen-code",
+        "name": "Qwen Code",
+        "group": "big-player",
+        "command": "qwen",
+        "repository": "QwenLM/qwen-code",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "schema": "cledger-verification/1",
+          "cli": "qwen-code",
+          "status": "pass",
+          "certification": "native-smoke",
+          "inference": "scripted",
+          "platform": "linux/x64",
+          "gates": {
+            "installedHooks": true,
+            "interactiveTerminal": true,
+            "tailWorkerCompleteAndExited": true,
+            "noUnrecognizedRecords": true,
+            "hookPrompt": true,
+            "hookToolUse": true,
+            "hookToolResult": true,
+            "hookAnswer": true,
+            "backfillIdempotent": true,
+            "hookEvidenceRetained": true,
+            "scriptedRequests": true,
+            "agentHeader": true
+          },
+          "durationMs": 5039,
+          "coverage": [
+            "interactive PTY terminal input",
+            "native hook capture",
+            "read tool call/result",
+            "assistant text",
+            "backfill idempotency"
+          ],
+          "exclusions": [
+            "individual Stop versus SessionEnd timing",
+            "ACP/daemon",
+            "attachments",
+            "subagents",
+            "compaction/rewind",
+            "real model/provider behavior",
+            "full record coverage"
+          ],
+          "mode": "interactive",
+          "version": "0.27.1",
+          "requests": 3
+        }
+      },
+      {
+        "id": "kimi",
+        "name": "Kimi Code",
+        "group": "big-player",
+        "command": "kimi",
+        "repository": "MoonshotAI/kimi-code",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "schema": "cledger-verification/1",
+          "cli": "kimi",
+          "status": "fail",
+          "certification": "native-smoke",
+          "mode": "interactive",
+          "inference": "scripted",
+          "platform": "linux/x64",
+          "gates": {
+            "installedHook": true,
+            "interactiveExit": false
+          },
+          "coverage": [
+            "installed native hooks",
+            "interactive PTY keyboard prompt and exit",
+            "human prompt",
+            "tool call/result linkage",
+            "assistant answer",
+            "wire metadata",
+            "backfill idempotency",
+            "bounded tail worker exit"
+          ],
+          "exclusions": [
+            "real provider/model behavior",
+            "attachments",
+            "branching/forks",
+            "compaction",
+            "full record coverage",
+            "ephemeral sessions"
+          ],
+          "durationMs": 46700,
+          "version": "2.5.2",
+          "reason": "Kimi interactive terminal incomplete (1, actions=3, timeout=true): ────────────────────────────────────────────────────────────────────────────────────────────────╮\u001b[0m\u001b]8;;\u0007\r\r\n\u001b[2K │ > \u001b[7m \u001b[27m                                                                                                                                                        │\u001b[0m\u001b]8;;\u0007\r\r\n\u001b[2K ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\u001b[0m\u001b]8;;\u0007\r\r\n\u001b[2K Never Ask  fixture  ~/repo  master                                                               ctrl+o expand | /compact compresses context when it gets long\u001b[0m\u001b]8;;\u0007\r\r\n\u001b[2K                                                                                                                                          context: 1% (252/32k)\u001b[0m\u001b]8;;\u0007\u001b[?2026l\u001b[3A\u001b[6G\u001b[?25l\u001b[6G\u001b[?25l\u001b[?2026h\u001b[2A\r\u001b[2K  ⠙ Working… · Tip: ! to run a shell command                                                                                                                   \u001b[0m\u001b]8;;\u0007\u001b[?2026l\u001b[2B\u001b[6G\u001b[?25l\u001b[?2026h\u001b[2A\r\u001b[2K  ⠹ Working… · Tip: ! to run a shell command                                                                                                                   \u001b[0m\u001b]8;;\u0007\u001b[?2026l\u001b[2B\u001b[6G\u001b[?25l\u001b[?2026h\u001b[2A\r\u001b[2K ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\u001b[0m\u001b]8;;\u0007\r\r\n\u001b[2K │ > \u001b[7m \u001b[27m                                                                                                                                                        │\u001b[0m\u001b]8;;\u0007\r\r\n\u001b[2K ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\u001b[0m\u001b]8;;\u0007\r\r\n\u001b[2K Never Ask  fixture  ~/repo  master                                                               ctrl+o expand | /compact compresses context when it gets long\u001b[0m\u001b]8;;\u0007\r\r\n\u001b[2K                                                                                                                                          context: 1% (264/32k)\u001b[0m\u001b]8;;\u0007\r\r\n\u001b[2K\u001b[1A\u001b[?2026l\u001b[3A\u001b[6G\u001b[?25l",
+          "requests": 2
+        }
+      },
+      {
+        "id": "mistral-vibe",
+        "name": "Mistral Vibe",
+        "group": "big-player",
+        "command": "vibe",
+        "repository": "mistralai/mistral-vibe",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "status": "not-run",
+          "reason": "Excluded by requested CLI selection",
+          "certification": "none"
+        }
+      },
+      {
+        "id": "droid",
+        "name": "Factory Droid",
+        "group": "big-player",
+        "command": "droid",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "status": "not-run",
+          "reason": "Excluded by requested CLI selection",
+          "certification": "none"
+        }
+      },
+      {
+        "id": "kiro",
+        "name": "Kiro CLI",
+        "group": "big-player",
+        "command": "kiro-cli",
+        "repository": "kirodotdev/Kiro",
+        "captureImplemented": true,
+        "captureMode": "native-v3-hooks; v2-launch-wrapper",
+        "verification": {
+          "status": "not-run",
+          "reason": "Excluded by requested CLI selection",
+          "certification": "none"
+        }
+      },
+      {
+        "id": "opencode",
+        "name": "OpenCode",
+        "group": "independent",
+        "command": "opencode",
+        "repository": "anomalyco/opencode",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "schema": "cledger-verification/1",
+          "cli": "opencode",
+          "status": "pass",
+          "certification": "native-smoke",
+          "inference": "scripted",
+          "platform": "linux/x64",
+          "gates": {
+            "installedHook": true,
+            "interactiveTerminal": true,
+            "noUnrecognizedRecords": true,
+            "hookPrompt": true,
+            "hookToolUse": true,
+            "hookToolResult": true,
+            "hookAnswer": true,
+            "backfillIdempotent": true,
+            "hookEvidenceRetained": true,
+            "scriptedRequests": true,
+            "agentHeader": true
+          },
+          "coverage": [
+            "interactive PTY terminal input",
+            "native hook",
+            "human text",
+            "tool call/result",
+            "assistant text",
+            "backfill idempotency"
+          ],
+          "exclusions": [
+            "attachments",
+            "subagents",
+            "compaction/rewind",
+            "paid providers",
+            "full record coverage",
+            "real model/provider behavior"
+          ],
+          "durationMs": 18106,
+          "mode": "interactive",
+          "version": "1.19.5",
+          "requests": 3
+        }
+      },
+      {
+        "id": "pi",
+        "name": "Pi",
+        "group": "independent",
+        "command": "pi",
+        "repository": "earendil-works/pi",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "schema": "cledger-verification/1",
+          "cli": "pi",
+          "status": "pass",
+          "certification": "native-smoke",
+          "mode": "interactive",
+          "inference": "scripted",
+          "platform": "linux/x64",
+          "gates": {
+            "installedHook": true,
+            "interactiveExit": true,
+            "noUnrecognizedRecords": true,
+            "hookPrompt": true,
+            "hookToolUse": true,
+            "hookToolResult": true,
+            "hookAnswer": true,
+            "nativeSessionState": true,
+            "scriptedRequests": true,
+            "agentHeader": true,
+            "backfillIdempotent": true
+          },
+          "coverage": [
+            "installed native extension",
+            "interactive PTY session and exit",
+            "human prompt",
+            "tool call/result linkage",
+            "assistant answer",
+            "session header",
+            "backfill idempotency"
+          ],
+          "exclusions": [
+            "real provider/model behavior",
+            "attachments",
+            "branching/forks",
+            "compaction",
+            "full record coverage",
+            "ephemeral sessions"
+          ],
+          "durationMs": 2426,
+          "version": "1.5.0",
+          "requests": 2
+        }
+      },
+      {
+        "id": "openhands",
+        "name": "OpenHands CLI",
+        "group": "independent",
+        "command": "openhands",
+        "repository": "OpenHands/OpenHands-CLI",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "status": "not-run",
+          "reason": "Excluded by requested CLI selection",
+          "certification": "none"
+        }
+      },
+      {
+        "id": "cline",
+        "name": "Cline CLI",
+        "group": "independent",
+        "command": "cline",
+        "repository": "cline/cline",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "schema": "cledger-verification/1",
+          "cli": "cline",
+          "status": "pass",
+          "certification": "native-smoke",
+          "inference": "scripted",
+          "platform": "linux/x64",
+          "gates": {
+            "installedHooks": true,
+            "interactiveTerminal": true,
+            "tailComplete": true,
+            "noUnrecognizedRecords": true,
+            "hookPrompt": true,
+            "hookToolUse": true,
+            "hookToolResult": true,
+            "hookAnswer": true,
+            "backfillIdempotent": true,
+            "hookEvidenceRetained": true,
+            "scriptedRequests": true,
+            "agentHeader": true
+          },
+          "durationMs": 7789,
+          "coverage": [
+            "interactive PTY with CLI initial prompt",
+            "native hook capture",
+            "read tool call/result",
+            "assistant text",
+            "backfill idempotency"
+          ],
+          "exclusions": [
+            "individual TaskComplete versus SessionShutdown timing",
+            "ACP/daemon",
+            "attachments",
+            "subagents",
+            "compaction/rewind",
+            "legacy VS Code history",
+            "yolo mode (native hooks disabled)",
+            "real model/provider behavior",
+            "full record coverage",
+            "initial prompt typed into welcome editor"
+          ],
+          "mode": "interactive",
+          "version": "3.0.74",
+          "requests": 2
+        }
+      },
+      {
+        "id": "open-interpreter",
+        "name": "Open Interpreter",
+        "group": "independent",
+        "command": "interpreter",
+        "repository": "openinterpreter/openinterpreter",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "status": "not-run",
+          "reason": "Excluded by requested CLI selection",
+          "certification": "none"
+        }
+      },
+      {
+        "id": "goose",
+        "name": "Goose",
+        "group": "independent",
+        "command": "goose",
+        "repository": "aaif-goose/goose",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "status": "not-run",
+          "reason": "Excluded by requested CLI selection",
+          "certification": "none"
+        }
+      },
+      {
+        "id": "aider",
+        "name": "Aider",
+        "group": "independent",
+        "command": "aider",
+        "repository": "Aider-AI/aider",
+        "captureImplemented": true,
+        "captureMode": "explicit-launch-wrapper",
+        "verification": {
+          "status": "not-run",
+          "reason": "Excluded by requested CLI selection",
+          "certification": "none"
+        }
+      },
+      {
+        "id": "continue",
+        "name": "Continue CLI",
+        "group": "independent",
+        "command": "cn",
+        "repository": "continuedev/continue",
+        "captureImplemented": true,
+        "captureMode": "explicit-launch-wrapper",
+        "verification": {
+          "status": "not-run",
+          "reason": "Excluded by requested CLI selection",
+          "certification": "none"
+        }
+      },
+      {
+        "id": "crush",
+        "name": "Crush",
+        "group": "independent",
+        "command": "crush",
+        "repository": "charmbracelet/crush",
+        "captureImplemented": true,
+        "captureMode": "explicit-launch-wrapper",
+        "verification": {
+          "status": "not-run",
+          "reason": "Excluded by requested CLI selection",
+          "certification": "none"
+        }
+      },
+      {
+        "id": "kilo",
+        "name": "Kilo CLI",
+        "group": "independent",
+        "command": "kilo",
+        "repository": "Kilo-Org/kilocode",
+        "captureImplemented": true,
+        "captureMode": "native-hook-or-plugin",
+        "verification": {
+          "schema": "cledger-verification/1",
+          "cli": "kilo",
+          "status": "pass",
+          "certification": "native-smoke",
+          "inference": "scripted",
+          "mode": "interactive",
+          "platform": "linux/x64",
+          "gates": {
+            "installedHook": true,
+            "interactiveExit": true,
+            "noUnrecognizedRecords": true,
+            "hookPrompt": true,
+            "hookToolUse": true,
+            "hookToolResult": true,
+            "hookAnswer": true,
+            "backfillIdempotent": true,
+            "hookEvidenceRetained": true,
+            "scriptedRequests": true,
+            "agentHeader": true
+          },
+          "coverage": [
+            "native hook",
+            "human text",
+            "tool call/result",
+            "assistant text",
+            "backfill idempotency",
+            "interactive PTY session and exit (initial argv prompt)"
+          ],
+          "exclusions": [
+            "attachments",
+            "subagents",
+            "compaction/rewind",
+            "paid providers",
+            "full record coverage",
+            "real model/provider behavior"
+          ],
+          "durationMs": 20511,
+          "version": "7.8.27",
+          "requests": 3
+        }
+      }
+    ]
+  },
+  "releases": {
+    "claude-code": {
+      "status": "observed",
+      "tag": "v2.1.321",
+      "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.321"
+    },
+    "codex": {
+      "status": "observed",
+      "tag": "rust-v0.167.0",
+      "url": "https://github.com/openai/codex/releases/tag/rust-v0.167.0"
+    },
+    "gemini-cli": {
+      "status": "observed",
+      "tag": "v0.67.0",
+      "url": "https://github.com/google-gemini/gemini-cli/releases/tag/v0.67.0"
+    },
+    "copilot": {
+      "status": "observed",
+      "tag": "v1.0.108",
+      "url": "https://github.com/github/copilot-cli/releases/tag/v1.0.108"
+    },
+    "cursor": {
+      "status": "not-configured",
+      "reason": "No verified public release feed"
+    },
+    "qwen-code": {
+      "status": "observed",
+      "tag": "sdk-typescript-v0.1.31",
+      "url": "https://github.com/QwenLM/qwen-code/releases/tag/sdk-typescript-v0.1.31"
+    },
+    "kimi": {
+      "status": "observed",
+      "tag": "@moonshot-ai/kimi-code@2.5.2",
+      "url": "https://github.com/MoonshotAI/kimi-code/releases/tag/%40moonshot-ai/kimi-code%402.5.2"
+    },
+    "mistral-vibe": {
+      "status": "observed",
+      "tag": "v3.1.1",
+      "url": "https://github.com/mistralai/mistral-vibe/releases/tag/v3.1.1"
+    },
+    "droid": {
+      "status": "not-configured",
+      "reason": "No verified public release feed"
+    },
+    "kiro": {
+      "status": "unavailable",
+      "reason": "GitHub HTTP 404"
+    },
+    "opencode": {
+      "status": "observed",
+      "tag": "v1.19.5",
+      "url": "https://github.com/anomalyco/opencode/releases/tag/v1.19.5"
+    },
+    "pi": {
+      "status": "observed",
+      "tag": "v1.5.0",
+      "url": "https://github.com/earendil-works/pi/releases/tag/v1.5.0"
+    },
+    "openhands": {
+      "status": "observed",
+      "tag": "1.16.0",
+      "url": "https://github.com/OpenHands/OpenHands-CLI/releases/tag/1.16.0"
+    },
+    "cline": {
+      "status": "observed",
+      "tag": "v4.1.26",
+      "url": "https://github.com/cline/cline/releases/tag/v4.1.26"
+    },
+    "open-interpreter": {
+      "status": "observed",
+      "tag": "rust-v0.0.60",
+      "url": "https://github.com/openinterpreter/openinterpreter/releases/tag/rust-v0.0.60"
+    },
+    "goose": {
+      "status": "observed",
+      "tag": "v1.58.0",
+      "url": "https://github.com/aaif-goose/goose/releases/tag/v1.58.0"
+    },
+    "aider": {
+      "status": "observed",
+      "tag": "v0.86.0",
+      "url": "https://github.com/Aider-AI/aider/releases/tag/v0.86.0"
+    },
+    "continue": {
+      "status": "observed",
+      "tag": "v2.0.0-vscode",
+      "url": "https://github.com/continuedev/continue/releases/tag/v2.0.0-vscode"
+    },
+    "crush": {
+      "status": "observed",
+      "tag": "v0.100.0",
+      "url": "https://github.com/charmbracelet/crush/releases/tag/v0.100.0"
+    },
+    "kilo": {
+      "status": "observed",
+      "tag": "v7.8.27",
+      "url": "https://github.com/Kilo-Org/kilocode/releases/tag/v7.8.27"
+    }
+  },
+  "inferenceCostUsd": 0,
+  "paidInferenceEnabled": false,
+  "autoMerge": false,
+  "candidatePlatform": "linux",
+  "candidateArch": "x64",
+  "qualification": "Candidate checks here run on one platform; the review branch must also pass full macOS/Linux qualification before merge",
+  "nonNpmUpdates": "Observed only; asset hashes, Python locks and adapters require source-specific review"
+}
